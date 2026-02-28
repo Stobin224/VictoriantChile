@@ -1,0 +1,22 @@
+{
+  "content_pack_id": "base_chile_fictional",
+  "content_pack_version": 1,
+  "content_schema_version": 1,
+  "default_language": "es",
+  "files": {
+    "core/igs.json": "sha256:2e98776970987a4e9e4fe7915d6a0bf54d1ee8668e4a6e373a0ed9cf5644a63f",
+    "core/movements.json": "sha256:5c40818f1fc1d344dfbf7d5ae2094d027fbb2f97a9a0eb2dc3a844e9b67322f2",
+    "core/regions.json": "sha256:5d89a947f23e175ccb389dbc15f190112caeb9e39459c3fbe64af3574be3c794",
+    "rules/aggregation_config.json": "sha256:cd7f546f7d12d95bcfef4c9b5543c1cb1e65e6dcc37e5eed702ac61ba43f5233",
+    "rules/legislative_config.json": "sha256:02dc3f66090c025272bd9b246f6bef452e10311ca6185eaa1bbfc4ca3203a933",
+    "rules/target_config.json": "sha256:dbddc074293781fb50b524b5cf457acb5021eae32126cbc7b5e73fb8e06a7f77",
+    "strings/es.json": "sha256:519adab990a978c79639d0c784dbf54b4aeba810f088833cf0e2f96b85ffb4c8",
+    "templates/effects.json": "sha256:82ad36548681860d520a3dadf0d522dc5f8e13d29f94e42f7c723518f9c40c67",
+    "templates/events.json": "sha256:97b5edab09615eb3ed99f8e7a7a4cbf05c0d09856298edc6cf0141393d7cd4b5",
+    "templates/reforms.json": "sha256:c4abebc193d41648908aca337eff889ce542dcb65ad7951ae8d6ab6669bcf402"
+  },
+  "languages": [
+    "es"
+  ],
+  "min_game_schema_version": 1
+}

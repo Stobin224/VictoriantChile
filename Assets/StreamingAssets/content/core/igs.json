@@ -1,0 +1,49 @@
+{
+  "igs": [
+    {
+      "id": "ig_empresariado_finanzas",
+      "name": "Empresariado y Finanzas",
+      "tags": ["ideol.market", "ideol.fiscal_austerity", "ideol.extractive_growth"]
+    },
+    {
+      "id": "ig_sindicatos_trabajo",
+      "name": "Sindicatos y Trabajo Organizado",
+      "tags": ["ideol.labor", "ideol.public_spending", "ideol.statist"]
+    },
+    {
+      "id": "ig_sector_publico_burocracia",
+      "name": "Sector Público y Burocracia",
+      "tags": ["ideol.statist", "ideol.public_spending", "ideol.institutionalism", "ideol.centralization"]
+    },
+    {
+      "id": "ig_orden_seguridad",
+      "name": "Orden y Seguridad",
+      "tags": ["ideol.security_hardline", "ideol.institutionalism", "ideol.centralization"]
+    },
+    {
+      "id": "ig_conservadores_civicos",
+      "name": "Conservadores Cívicos/Religiosos",
+      "tags": ["ideol.social_traditional", "ideol.security_hardline", "ideol.centralization"]
+    },
+    {
+      "id": "ig_progresistas_urbanos",
+      "name": "Progresistas Urbanos (ONG/estudiantes)",
+      "tags": ["ideol.social_progressive", "ideol.civil_liberties", "ideol.green", "ideol.anti_corruption"]
+    },
+    {
+      "id": "ig_profesionales_clase_media",
+      "name": "Profesionales y Clase Media",
+      "tags": ["ideol.institutionalism", "ideol.anti_corruption", "ideol.market"]
+    },
+    {
+      "id": "ig_territorio_productivo",
+      "name": "Territorio Productivo (rural/minería/puertos)",
+      "tags": ["ideol.extractive_growth", "ideol.market", "ideol.decentralization"]
+    },
+    {
+      "id": "ig_ambiental_regionalista",
+      "name": "Ambiental-Regionalista / Pueblos originarios",
+      "tags": ["ideol.green", "ideol.indigenous_rights", "ideol.decentralization", "ideol.civil_liberties"]
+    }
+  ]
+}

@@ -1,0 +1,185 @@
+{
+  "schema_version": 1,
+  "scale": 100,
+  "midS": 5000,
+  "rounding": "HALF_AWAY_FROM_ZERO",
+  "passes": [
+    {
+      "type": "INTERNAL_REVERSION",
+      "cause_prefix": "SYSTEM:REVERSION",
+      "midS": 5000,
+      "groups": [
+        { "pattern": "internals.economy.*", "half_life_weeks": 26, "alpha_ppm": 26307 },
+        { "pattern": "internals.security.*", "half_life_weeks": 20, "alpha_ppm": 34064 },
+        { "pattern": "internals.tension.*", "half_life_weeks": 12, "alpha_ppm": 56126 },
+        { "pattern": "internals.agenda.*", "half_life_weeks": 6, "alpha_ppm": 109101 },
+        { "pattern": "internals.info.*", "half_life_weeks": 20, "alpha_ppm": 34064 },
+        { "pattern": "internals.gov.*", "half_life_weeks": 20, "alpha_ppm": 34064 },
+        { "pattern": "internals.leg.*", "half_life_weeks": 20, "alpha_ppm": 34064 },
+        { "pattern": "internals.party.*", "half_life_weeks": 20, "alpha_ppm": 34064 },
+        { "pattern": "internals.cohesion.*", "half_life_weeks": 20, "alpha_ppm": 34064 },
+        { "pattern": "internals.legitimacy.*", "half_life_weeks": 20, "alpha_ppm": 34064 }
+      ],
+      "skip_targets": [
+        "internals.legitimacy.performance",
+        "internals.legitimacy.social_tension_load"
+      ]
+    },
+    {
+      "type": "METRIC_AGGREGATION",
+      "cause_prefix": "SYSTEM:AGG",
+      "log_components": true,
+      "weights_abs_sum_ppm_required": 1000000,
+      "metrics": [
+        {
+          "metric": "metrics.economy",
+          "half_life_weeks": 8,
+          "alpha_ppm": 82996,
+          "cap_per_weekS": 200,
+          "components": [
+            { "target": "internals.economy.growth", "weight_ppm": 350000 },
+            { "target": "internals.economy.unemployment", "weight_ppm": -250000 },
+            { "target": "internals.economy.inflation", "weight_ppm": -250000 },
+            { "target": "internals.economy.fiscal_stability", "weight_ppm": 150000 }
+          ]
+        },
+        {
+          "metric": "metrics.security",
+          "half_life_weeks": 6,
+          "alpha_ppm": 109101,
+          "cap_per_weekS": 300,
+          "components": [
+            { "target": "internals.security.police_capacity", "weight_ppm": 350000 },
+            { "target": "internals.security.crime_rate", "weight_ppm": -250000 },
+            { "target": "internals.security.violent_crime", "weight_ppm": -250000 },
+            { "target": "internals.security.organized_crime", "weight_ppm": -150000 }
+          ]
+        },
+        {
+          "metric": "metrics.social_tension",
+          "half_life_weeks": 4,
+          "alpha_ppm": 159104,
+          "cap_per_weekS": 400,
+          "components": [
+            { "target": "internals.tension.cost_of_living", "weight_ppm": -350000 },
+            { "target": "internals.tension.polarization", "weight_ppm": -250000 },
+            { "target": "internals.tension.protest_activity", "weight_ppm": -250000 },
+            { "target": "internals.tension.institutional_trust", "weight_ppm": 150000 }
+          ]
+        },
+        {
+          "metric": "metrics.public_agenda",
+          "half_life_weeks": 2,
+          "alpha_ppm": 292893,
+          "cap_per_weekS": 600,
+          "components": [
+            { "target": "internals.agenda.media_heat", "weight_ppm": 400000 },
+            { "target": "internals.agenda.policy_conflict", "weight_ppm": 300000 },
+            { "target": "internals.agenda.movement_salience", "weight_ppm": 300000 }
+          ]
+        },
+        {
+          "metric": "metrics.information_quality",
+          "half_life_weeks": 6,
+          "alpha_ppm": 109101,
+          "cap_per_weekS": 300,
+          "components": [
+            { "target": "internals.info.intel_capacity", "weight_ppm": 450000 },
+            { "target": "internals.info.media_noise", "weight_ppm": -350000 },
+            { "target": "internals.info.institutional_access", "weight_ppm": 200000 }
+          ]
+        },
+        {
+          "metric": "metrics.governability",
+          "half_life_weeks": 8,
+          "alpha_ppm": 82996,
+          "cap_per_weekS": 200,
+          "components": [
+            { "target": "internals.gov.bureaucracy_capacity", "weight_ppm": 350000 },
+            { "target": "internals.gov.budget_flexibility", "weight_ppm": 250000 },
+            { "target": "internals.gov.execution_focus", "weight_ppm": 200000 },
+            { "target": "internals.gov.legal_friction", "weight_ppm": -200000 }
+          ]
+        },
+        {
+          "metric": "metrics.legislative_capacity",
+          "half_life_weeks": 3,
+          "alpha_ppm": 206299,
+          "cap_per_weekS": 400,
+          "components": [
+            { "target": "internals.leg.coalition_strength", "weight_ppm": 350000 },
+            { "target": "internals.leg.party_discipline", "weight_ppm": 350000 },
+            { "target": "internals.leg.opposition_obstruction", "weight_ppm": -200000 },
+            { "target": "internals.leg.senate_inertia", "weight_ppm": -100000 }
+          ]
+        },
+        {
+          "metric": "metrics.party_organization",
+          "half_life_weeks": 5,
+          "alpha_ppm": 129449,
+          "cap_per_weekS": 300,
+          "components": [
+            { "target": "internals.party.field_ops", "weight_ppm": 300000 },
+            { "target": "internals.party.funding", "weight_ppm": 250000 },
+            { "target": "internals.party.cadre_quality", "weight_ppm": 250000 },
+            { "target": "internals.party.internal_scandal", "weight_ppm": -200000 }
+          ]
+        },
+        {
+          "metric": "metrics.internal_cohesion",
+          "half_life_weeks": 5,
+          "alpha_ppm": 129449,
+          "cap_per_weekS": 300,
+          "components": [
+            { "target": "internals.cohesion.factionalism", "weight_ppm": -350000 },
+            { "target": "internals.cohesion.leadership_unity", "weight_ppm": 300000 },
+            { "target": "internals.cohesion.discipline_culture", "weight_ppm": 200000 },
+            { "target": "internals.cohesion.ambition_rivalries", "weight_ppm": -150000 }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "DERIVED_INTERNALS",
+      "cause_prefix": "SYSTEM:DERIVED",
+      "rules": [
+        {
+          "target": "internals.legitimacy.performance",
+          "op": "SET",
+          "expr": {
+            "kind": "AVG",
+            "targets": [ "metrics.economy", "metrics.security", "metrics.governability" ]
+          }
+        },
+        {
+          "target": "internals.legitimacy.social_tension_load",
+          "op": "SET",
+          "expr": {
+            "kind": "COPY",
+            "target": "metrics.social_tension"
+          }
+        }
+      ]
+    },
+    {
+      "type": "METRIC_AGGREGATION",
+      "cause_prefix": "SYSTEM:AGG",
+      "log_components": true,
+      "weights_abs_sum_ppm_required": 1000000,
+      "metrics": [
+        {
+          "metric": "metrics.legitimacy",
+          "half_life_weeks": 8,
+          "alpha_ppm": 82996,
+          "cap_per_weekS": 200,
+          "components": [
+            { "target": "internals.legitimacy.performance", "weight_ppm": 350000 },
+            { "target": "internals.legitimacy.integrity", "weight_ppm": 250000 },
+            { "target": "internals.legitimacy.scandal_pressure", "weight_ppm": -200000 },
+            { "target": "internals.legitimacy.social_tension_load", "weight_ppm": -200000 }
+          ]
+        }
+      ]
+    }
+  ]
+}

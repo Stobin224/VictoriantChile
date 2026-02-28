@@ -1,0 +1,504 @@
+{
+  "reforms": [
+    {
+      "id": "ref_security_police_modernization",
+      "loc_title": "reform.ref_security_police_modernization.title",
+      "loc_desc": "reform.ref_security_police_modernization.desc",
+      "area": "seguridad",
+      "kind": "NORMAL",
+      "cooldown_weeks": 8,
+      "max_per_campaign": 1,
+      "movement_tags": [
+        "theme.seguridad"
+      ],
+      "policy_tags": [
+        "policy.security_crackdown"
+      ],
+      "igs_stance": {
+        "ig_orden_seguridad": 70,
+        "ig_conservadores_civicos": 35,
+        "ig_sector_publico_burocracia": 15,
+        "ig_sindicatos_trabajo": -10,
+        "ig_empresariado_finanzas": 10
+      },
+      "prereqs": [
+        {
+          "type": "METRIC",
+          "target": "metrics.legitimacy",
+          "op": ">=",
+          "valueS": 3000
+        }
+      ],
+      "base_difficultyS": 10500,
+      "stages": [
+        {
+          "id": "filed",
+          "kind": "WORK",
+          "chamber": "NONE",
+          "weightS": 10000
+        },
+        {
+          "id": "committee_lower",
+          "kind": "WORK",
+          "chamber": "LOWER",
+          "weightS": 10000
+        },
+        {
+          "id": "vote_lower",
+          "kind": "VOTE",
+          "chamber": "LOWER",
+          "weightS": 12000
+        },
+        {
+          "id": "vote_upper",
+          "kind": "VOTE",
+          "chamber": "UPPER",
+          "weightS": 12000
+        }
+      ],
+      "on_pass_effects": [
+        {
+          "type": "MODIFIER",
+          "template_id": "eff_internal_security_police_capacity_up_small",
+          "duration_weeks": 52
+        },
+        {
+          "type": "MODIFIER",
+          "template_id": "eff_legitimacy_up_small",
+          "duration_weeks": 8
+        }
+      ]
+    },
+    {
+      "id": "ref_labor_collective_bargaining",
+      "loc_title": "reform.ref_labor_collective_bargaining.title",
+      "loc_desc": "reform.ref_labor_collective_bargaining.desc",
+      "area": "trabajo",
+      "kind": "NORMAL",
+      "cooldown_weeks": 8,
+      "max_per_campaign": 1,
+      "movement_tags": [
+        "theme.trabajo"
+      ],
+      "policy_tags": [
+        "policy.labor_rights_up"
+      ],
+      "igs_stance": {
+        "ig_sindicatos_trabajo": 75,
+        "ig_sector_publico_burocracia": 25,
+        "ig_empresariado_finanzas": -65,
+        "ig_conservadores_civicos": -10
+      },
+      "prereqs": [
+        {
+          "type": "METRIC",
+          "target": "metrics.legitimacy",
+          "op": ">=",
+          "valueS": 3200
+        }
+      ],
+      "base_difficultyS": 11500,
+      "stages": [
+        {
+          "id": "filed",
+          "kind": "WORK",
+          "chamber": "NONE",
+          "weightS": 10000
+        },
+        {
+          "id": "committee_lower",
+          "kind": "WORK",
+          "chamber": "LOWER",
+          "weightS": 10000
+        },
+        {
+          "id": "vote_lower",
+          "kind": "VOTE",
+          "chamber": "LOWER",
+          "weightS": 12000
+        },
+        {
+          "id": "vote_upper",
+          "kind": "VOTE",
+          "chamber": "UPPER",
+          "weightS": 12000
+        }
+      ],
+      "on_pass_effects": [
+        {
+          "type": "MODIFIER",
+          "template_id": "eff_internal_tension_protest_activity_up_small",
+          "duration_weeks": 8
+        },
+        {
+          "type": "MODIFIER",
+          "template_id": "eff_legitimacy_up_small",
+          "duration_weeks": 6
+        }
+      ]
+    },
+    {
+      "id": "ref_health_waitlist_acceleration",
+      "loc_title": "reform.ref_health_waitlist_acceleration.title",
+      "loc_desc": "reform.ref_health_waitlist_acceleration.desc",
+      "area": "salud",
+      "kind": "NORMAL",
+      "cooldown_weeks": 8,
+      "max_per_campaign": 1,
+      "movement_tags": [
+        "theme.salud"
+      ],
+      "policy_tags": [
+        "policy.spending_increase"
+      ],
+      "igs_stance": {
+        "ig_sector_publico_burocracia": 45,
+        "ig_sindicatos_trabajo": 20,
+        "ig_empresariado_finanzas": -25,
+        "ig_conservadores_civicos": 5
+      },
+      "prereqs": [
+        {
+          "type": "METRIC",
+          "target": "metrics.legitimacy",
+          "op": ">=",
+          "valueS": 3000
+        }
+      ],
+      "base_difficultyS": 10000,
+      "stages": [
+        {
+          "id": "filed",
+          "kind": "WORK",
+          "chamber": "NONE",
+          "weightS": 10000
+        },
+        {
+          "id": "committee_lower",
+          "kind": "WORK",
+          "chamber": "LOWER",
+          "weightS": 10000
+        },
+        {
+          "id": "vote_lower",
+          "kind": "VOTE",
+          "chamber": "LOWER",
+          "weightS": 12000
+        },
+        {
+          "id": "vote_upper",
+          "kind": "VOTE",
+          "chamber": "UPPER",
+          "weightS": 12000
+        }
+      ],
+      "on_pass_effects": [
+        {
+          "type": "MODIFIER",
+          "template_id": "eff_internal_economy_growth_down_small",
+          "duration_weeks": 10
+        },
+        {
+          "type": "MODIFIER",
+          "template_id": "eff_legitimacy_up_small",
+          "duration_weeks": 10
+        }
+      ]
+    },
+    {
+      "id": "ref_education_quality_standards",
+      "loc_title": "reform.ref_education_quality_standards.title",
+      "loc_desc": "reform.ref_education_quality_standards.desc",
+      "area": "educacion",
+      "kind": "NORMAL",
+      "cooldown_weeks": 8,
+      "max_per_campaign": 1,
+      "movement_tags": [
+        "theme.educacion"
+      ],
+      "policy_tags": [
+        "policy.regulation_increase",
+        "policy.spending_increase"
+      ],
+      "igs_stance": {
+        "ig_sector_publico_burocracia": 40,
+        "ig_sindicatos_trabajo": 25,
+        "ig_empresariado_finanzas": -15,
+        "ig_conservadores_civicos": 10
+      },
+      "prereqs": [
+        {
+          "type": "METRIC",
+          "target": "metrics.legitimacy",
+          "op": ">=",
+          "valueS": 3000
+        }
+      ],
+      "base_difficultyS": 10000,
+      "stages": [
+        {
+          "id": "filed",
+          "kind": "WORK",
+          "chamber": "NONE",
+          "weightS": 10000
+        },
+        {
+          "id": "committee_lower",
+          "kind": "WORK",
+          "chamber": "LOWER",
+          "weightS": 10000
+        },
+        {
+          "id": "vote_lower",
+          "kind": "VOTE",
+          "chamber": "LOWER",
+          "weightS": 12000
+        },
+        {
+          "id": "vote_upper",
+          "kind": "VOTE",
+          "chamber": "UPPER",
+          "weightS": 12000
+        }
+      ],
+      "on_pass_effects": [
+        {
+          "type": "MODIFIER",
+          "template_id": "eff_info_quality_up_small",
+          "duration_weeks": 12
+        },
+        {
+          "type": "MODIFIER",
+          "template_id": "eff_legitimacy_up_small",
+          "duration_weeks": 8
+        }
+      ]
+    },
+    {
+      "id": "ref_pensions_solidarity_pillar",
+      "loc_title": "reform.ref_pensions_solidarity_pillar.title",
+      "loc_desc": "reform.ref_pensions_solidarity_pillar.desc",
+      "area": "pensiones",
+      "kind": "NORMAL",
+      "cooldown_weeks": 12,
+      "max_per_campaign": 1,
+      "movement_tags": [
+        "theme.pensiones"
+      ],
+      "policy_tags": [
+        "policy.spending_increase",
+        "policy.tax_increase"
+      ],
+      "igs_stance": {
+        "ig_sector_publico_burocracia": 35,
+        "ig_sindicatos_trabajo": 30,
+        "ig_empresariado_finanzas": -35,
+        "ig_conservadores_civicos": -5
+      },
+      "prereqs": [
+        {
+          "type": "METRIC",
+          "target": "metrics.legitimacy",
+          "op": ">=",
+          "valueS": 3300
+        }
+      ],
+      "base_difficultyS": 12000,
+      "stages": [
+        {
+          "id": "filed",
+          "kind": "WORK",
+          "chamber": "NONE",
+          "weightS": 10000
+        },
+        {
+          "id": "committee_lower",
+          "kind": "WORK",
+          "chamber": "LOWER",
+          "weightS": 10000
+        },
+        {
+          "id": "vote_lower",
+          "kind": "VOTE",
+          "chamber": "LOWER",
+          "weightS": 12000
+        },
+        {
+          "id": "vote_upper",
+          "kind": "VOTE",
+          "chamber": "UPPER",
+          "weightS": 12000
+        }
+      ],
+      "on_pass_effects": [
+        {
+          "type": "MODIFIER",
+          "template_id": "eff_internal_tension_cost_of_living_up_small",
+          "duration_weeks": 8
+        },
+        {
+          "type": "MODIFIER",
+          "template_id": "eff_legitimacy_up_small",
+          "duration_weeks": 12
+        }
+      ]
+    },
+    {
+      "id": "ref_institutional_anti_corruption_package",
+      "loc_title": "reform.ref_institutional_anti_corruption_package.title",
+      "loc_desc": "reform.ref_institutional_anti_corruption_package.desc",
+      "area": "institucional",
+      "kind": "NORMAL",
+      "cooldown_weeks": 10,
+      "max_per_campaign": 1,
+      "movement_tags": [
+        "theme.institucional",
+        "theme.corrupcion"
+      ],
+      "policy_tags": [
+        "policy.anti_corruption",
+        "policy.institutional_reform"
+      ],
+      "igs_stance": {
+        "ig_sector_publico_burocracia": 25,
+        "ig_empresariado_finanzas": -5,
+        "ig_conservadores_civicos": 20,
+        "ig_orden_seguridad": 10
+      },
+      "prereqs": [
+        {
+          "type": "METRIC",
+          "target": "metrics.legitimacy",
+          "op": ">=",
+          "valueS": 3000
+        },
+        {
+          "type": "METRIC",
+          "target": "metrics.information_quality",
+          "op": ">=",
+          "valueS": 3500
+        }
+      ],
+      "base_difficultyS": 9500,
+      "stages": [
+        {
+          "id": "filed",
+          "kind": "WORK",
+          "chamber": "NONE",
+          "weightS": 10000
+        },
+        {
+          "id": "committee_lower",
+          "kind": "WORK",
+          "chamber": "LOWER",
+          "weightS": 10000
+        },
+        {
+          "id": "vote_lower",
+          "kind": "VOTE",
+          "chamber": "LOWER",
+          "weightS": 12000
+        },
+        {
+          "id": "vote_upper",
+          "kind": "VOTE",
+          "chamber": "UPPER",
+          "weightS": 12000
+        }
+      ],
+      "on_pass_effects": [
+        {
+          "type": "MODIFIER",
+          "template_id": "eff_info_quality_up_small",
+          "duration_weeks": 12
+        },
+        {
+          "type": "MODIFIER",
+          "template_id": "eff_legitimacy_up_small",
+          "duration_weeks": 10
+        }
+      ]
+    },
+    {
+      "id": "ref_constitutional_process_call",
+      "loc_title": "reform.ref_constitutional_process_call.title",
+      "loc_desc": "reform.ref_constitutional_process_call.desc",
+      "area": "constitucional",
+      "kind": "SPECIAL_CONSTITUTIONAL",
+      "cooldown_weeks": 0,
+      "max_per_campaign": 1,
+      "movement_tags": [
+        "theme.constitucional"
+      ],
+      "policy_tags": [
+        "policy.institutional_reform"
+      ],
+      "igs_stance": {
+        "ig_conservadores_civicos": -20,
+        "ig_sector_publico_burocracia": 10,
+        "ig_orden_seguridad": -10,
+        "ig_empresariado_finanzas": -5,
+        "ig_sindicatos_trabajo": 15
+      },
+      "prereqs": [
+        {
+          "type": "METRIC",
+          "target": "metrics.legitimacy",
+          "op": ">=",
+          "valueS": 4500
+        },
+        {
+          "type": "METRIC",
+          "target": "metrics.social_tension",
+          "op": "<=",
+          "valueS": 7000
+        }
+      ],
+      "base_difficultyS": 13000,
+      "stages": [
+        {
+          "id": "filed",
+          "kind": "WORK",
+          "chamber": "NONE",
+          "weightS": 10000
+        },
+        {
+          "id": "committee_lower",
+          "kind": "WORK",
+          "chamber": "LOWER",
+          "weightS": 10000
+        },
+        {
+          "id": "negotiation",
+          "kind": "WORK",
+          "chamber": "BOTH",
+          "weightS": 10000
+        },
+        {
+          "id": "vote_lower",
+          "kind": "VOTE",
+          "chamber": "LOWER",
+          "weightS": 12000
+        },
+        {
+          "id": "vote_upper",
+          "kind": "VOTE",
+          "chamber": "UPPER",
+          "weightS": 12000
+        }
+      ],
+      "on_pass_effects": [
+        {
+          "type": "MODIFIER",
+          "template_id": "eff_internal_agenda_media_heat_up_small",
+          "duration_weeks": 12
+        },
+        {
+          "type": "MODIFIER",
+          "template_id": "eff_legitimacy_down_small",
+          "duration_weeks": 6
+        }
+      ]
+    }
+  ]
+}

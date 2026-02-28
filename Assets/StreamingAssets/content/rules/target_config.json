@@ -1,0 +1,124 @@
+[
+  {
+    "pattern": "metrics.*",
+    "scale": 100,
+    "minS": 0,
+    "maxS": 10000,
+    "defaultS": 5000,
+    "allow_ops": ["ADD", "MUL", "SET"],
+    "ui": { "label": "ui.target.metrics.generic", "decimals": 0 },
+    "qual": {
+      "bands_0_100": [
+        { "lo": 0,  "hi": 19,  "label": "qual.band.critico" },
+        { "lo": 20, "hi": 39,  "label": "qual.band.bajo" },
+        { "lo": 40, "hi": 59,  "label": "qual.band.medio" },
+        { "lo": 60, "hi": 79,  "label": "qual.band.alto" },
+        { "lo": 80, "hi": 100, "label": "qual.band.muy_alto" }
+      ],
+      "trend_per_week": [
+        { "lo": -999.0, "hi": -2.0,  "label": "qual.trend.deterioro_rapido" },
+        { "lo": -2.0,   "hi": -0.5,  "label": "qual.trend.deterioro" },
+        { "lo": -0.5,   "hi": 0.5,   "label": "qual.trend.estable" },
+        { "lo": 0.5,    "hi": 2.0,   "label": "qual.trend.mejoria" },
+        { "lo": 2.0,    "hi": 999.0, "label": "qual.trend.mejoria_rapida" }
+      ]
+    }
+  },
+
+  { "pattern": "metrics.legitimacy",           "scale": 100, "minS": 0, "maxS": 10000, "defaultS": 5000, "allow_ops": ["ADD","MUL","SET"], "ui": { "label": "ui.target.metrics.legitimacy",           "decimals": 0 } },
+  { "pattern": "metrics.economy",              "scale": 100, "minS": 0, "maxS": 10000, "defaultS": 5000, "allow_ops": ["ADD","MUL","SET"], "ui": { "label": "ui.target.metrics.economy",              "decimals": 0 } },
+  { "pattern": "metrics.security",             "scale": 100, "minS": 0, "maxS": 10000, "defaultS": 5000, "allow_ops": ["ADD","MUL","SET"], "ui": { "label": "ui.target.metrics.security",             "decimals": 0 } },
+  { "pattern": "metrics.social_tension",        "scale": 100, "minS": 0, "maxS": 10000, "defaultS": 5000, "allow_ops": ["ADD","MUL","SET"], "ui": { "label": "ui.target.metrics.social_tension",        "decimals": 0 } },
+  { "pattern": "metrics.public_agenda",         "scale": 100, "minS": 0, "maxS": 10000, "defaultS": 5000, "allow_ops": ["ADD","MUL","SET"], "ui": { "label": "ui.target.metrics.public_agenda",         "decimals": 0 } },
+  { "pattern": "metrics.information_quality",   "scale": 100, "minS": 0, "maxS": 10000, "defaultS": 5000, "allow_ops": ["ADD","MUL","SET"], "ui": { "label": "ui.target.metrics.information_quality",   "decimals": 0 } },
+  { "pattern": "metrics.party_organization",    "scale": 100, "minS": 0, "maxS": 10000, "defaultS": 5000, "allow_ops": ["ADD","MUL","SET"], "ui": { "label": "ui.target.metrics.party_organization",    "decimals": 0 } },
+  { "pattern": "metrics.internal_cohesion",     "scale": 100, "minS": 0, "maxS": 10000, "defaultS": 5000, "allow_ops": ["ADD","MUL","SET"], "ui": { "label": "ui.target.metrics.internal_cohesion",     "decimals": 0 } },
+  { "pattern": "metrics.legislative_capacity",  "scale": 100, "minS": 0, "maxS": 10000, "defaultS": 5000, "allow_ops": ["ADD","MUL","SET"], "ui": { "label": "ui.target.metrics.legislative_capacity",  "decimals": 0 } },
+  { "pattern": "metrics.governability",         "scale": 100, "minS": 0, "maxS": 10000, "defaultS": 5000, "allow_ops": ["ADD","MUL","SET"], "ui": { "label": "ui.target.metrics.governability",         "decimals": 0 } },
+
+  {
+    "pattern": "regions.*.support",
+    "scale": 100,
+    "minS": 0,
+    "maxS": 10000,
+    "defaultS": 5000,
+    "allow_ops": ["ADD", "MUL", "SET"],
+    "ui": { "label": "ui.target.regions.support", "decimals": 0 }
+  },
+  {
+    "pattern": "regions.*.tension",
+    "scale": 100,
+    "minS": 0,
+    "maxS": 10000,
+    "defaultS": 5000,
+    "allow_ops": ["ADD", "MUL", "SET"],
+    "ui": { "label": "ui.target.regions.tension", "decimals": 0 }
+  },
+  {
+    "pattern": "regions.*.organization",
+    "scale": 100,
+    "minS": 0,
+    "maxS": 10000,
+    "defaultS": 5000,
+    "allow_ops": ["ADD", "MUL", "SET"],
+    "ui": { "label": "ui.target.regions.organization", "decimals": 0 }
+  },
+  {
+    "pattern": "regions.*.rival_presence",
+    "scale": 100,
+    "minS": 0,
+    "maxS": 10000,
+    "defaultS": 5000,
+    "allow_ops": ["ADD", "MUL", "SET"],
+    "ui": { "label": "ui.target.regions.rival_presence", "decimals": 0 }
+  },
+
+  {
+    "pattern": "igs.*.clout",
+    "scale": 100,
+    "minS": 0,
+    "maxS": 10000,
+    "defaultS": 1111,
+    "allow_ops": ["ADD", "MUL", "SET"],
+    "normalize_group": "igs.clout_sum_100",
+    "ui": { "label": "ui.target.igs.clout", "decimals": 0 }
+  },
+  {
+    "pattern": "igs.*.approval",
+    "scale": 100,
+    "minS": -10000,
+    "maxS": 10000,
+    "defaultS": 0,
+    "allow_ops": ["ADD", "MUL", "SET"],
+    "ui": { "label": "ui.target.igs.approval", "decimals": 0 }
+  },
+
+  {
+    "pattern": "movements.*.intensity",
+    "scale": 100,
+    "minS": 0,
+    "maxS": 10000,
+    "defaultS": 0,
+    "allow_ops": ["ADD", "MUL", "SET"],
+    "ui": { "label": "ui.target.movements.intensity", "decimals": 0 }
+  },
+  {
+    "pattern": "movements.*.direction",
+    "scale": 1,
+    "minS": -1,
+    "maxS": 1,
+    "defaultS": 1,
+    "allow_ops": ["SET"],
+    "ui": { "label": "ui.target.movements.direction", "decimals": 0 }
+  },
+
+  {
+    "pattern": "internals.*.*",
+    "scale": 100,
+    "minS": 0,
+    "maxS": 10000,
+    "defaultS": 5000,
+    "allow_ops": ["ADD", "MUL", "SET"],
+    "ui": { "label": "ui.target.internals.generic", "decimals": 0 }
+  }
+]

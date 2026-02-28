@@ -1,0 +1,181 @@
+{
+  "schema_version": 1,
+  "scale": 100,
+  "midS": 5000,
+  "rounding": "HALF_AWAY_FROM_ZERO",
+  "limits": {
+    "max_active_reforms": 1,
+    "max_stages": 5
+  },
+  "constants": {
+    "S": 100,
+    "HUNDRED_S": 10000
+  },
+  "gates": {
+    "normal_legitimacy_minS": 3000,
+    "cohesion_block_minS": 3000,
+    "exceptional_movement_minS": 7000,
+    "anti_movement_crisis_minS": 8500
+  },
+  "senate": {
+    "brakeS": 1000
+  },
+  "movement_matching": {
+    "reform_tags_source": "movement_tags",
+    "match_mode": "ANY",
+    "direction_pro": 1,
+    "direction_anti": -1
+  },
+  "exceptional_route": {
+    "enabled": true,
+    "bypass_legitimacy_gate": true,
+    "requires_pro_movement": true,
+    "costs_per_tick": [
+      {
+        "target": "metrics.social_tension",
+        "deltaS": 100,
+        "cause": "SYSTEM:LEG:EXCEPTION_COST"
+      },
+      {
+        "target": "metrics.legitimacy",
+        "deltaS": -50,
+        "cause": "SYSTEM:LEG:EXCEPTION_COST"
+      }
+    ]
+  },
+  "support_model": {
+    "support_rangeS": {
+      "minS": 0,
+      "maxS": 10000
+    },
+    "discipline": {
+      "party_organization_weight_ppm": 500000,
+      "internal_cohesion_weight_ppm": 500000
+    },
+    "base_component": {
+      "metric": "metrics.legislative_capacity",
+      "addS": 0
+    },
+    "legitimacy_component": {
+      "metric": "metrics.legitimacy",
+      "midS": 5000,
+      "divS": 2
+    },
+    "ig_alignment_component": {
+      "uses": {
+        "clout_target_pattern": "igs.*.clout",
+        "approval_target_pattern": "igs.*.approval"
+      },
+      "approval_to_01": {
+        "offsetS": 10000,
+        "divS": 2
+      },
+      "effective_stance_factor": {
+        "baseS": 5000,
+        "approval01_divS": 2,
+        "denomS": 10000
+      },
+      "stance_input_range": 100,
+      "stance_scale_to_S": 100,
+      "clout_denomS": 10000,
+      "term_div": 100,
+      "apply_discipline": true,
+      "post_divS": 2
+    },
+    "movement_component": {
+      "term_clampS": 10000,
+      "support_divS": 5
+    },
+    "upper_chamber": {
+      "type": "SUBTRACT_CONST",
+      "deltaS": -1000
+    }
+  },
+  "stage_model": {
+    "base_difficulty_defaultS": 10000,
+    "stage_weight": {
+      "scale_denomS": 10000,
+      "default_weightS": {
+        "WORK": 10000,
+        "VOTE": 12000
+      }
+    },
+    "throughput": {
+      "baseS": 20000,
+      "governability_metric": "metrics.governability",
+      "metric_denomS": 10000,
+      "support_denomS": 10000,
+      "chamber_both_support": "MIN"
+    },
+    "vote": {
+      "support_floorS": 4500,
+      "support_spanS": 5500,
+      "pass_thresholdS": 5500,
+      "fail_reset_progressS": 6000,
+      "fail_penalties": [
+        {
+          "target": "metrics.internal_cohesion",
+          "deltaS": -100,
+          "cause": "SYSTEM:LEG:VOTE_FAIL"
+        },
+        {
+          "target": "metrics.public_agenda",
+          "deltaS": 100,
+          "cause": "SYSTEM:LEG:VOTE_FAIL"
+        }
+      ]
+    }
+  },
+  "player_strategies": {
+    "STEADY": {
+      "support_bonusS": 0,
+      "throughput_multiplier_ppm": 1000000,
+      "per_tick_deltas": []
+    },
+    "PUSH": {
+      "support_bonusS": 300,
+      "throughput_multiplier_ppm": 1000000,
+      "per_tick_deltas": [
+        {
+          "target": "metrics.internal_cohesion",
+          "deltaS": -100,
+          "cause": "DECISION:LEG:PUSH"
+        },
+        {
+          "target": "metrics.public_agenda",
+          "deltaS": 50,
+          "cause": "DECISION:LEG:PUSH"
+        }
+      ]
+    },
+    "COMPROMISE": {
+      "support_bonusS": 200,
+      "throughput_multiplier_ppm": 1000000,
+      "implementation_effect_multiplier_ppm": 850000,
+      "per_tick_deltas": []
+    },
+    "DELAY": {
+      "support_bonusS": 0,
+      "throughput_multiplier_ppm": 700000,
+      "per_tick_deltas": [
+        {
+          "target": "metrics.social_tension",
+          "deltaS": -50,
+          "cause": "DECISION:LEG:DELAY"
+        },
+        {
+          "target": "metrics.public_agenda",
+          "deltaS": -50,
+          "cause": "DECISION:LEG:DELAY"
+        }
+      ]
+    }
+  },
+  "cause_prefixes": {
+    "progress": "SYSTEM:LEG:PROGRESS",
+    "support": "SYSTEM:LEG:SUPPORT",
+    "block": "SYSTEM:LEG:BLOCK",
+    "exception_cost": "SYSTEM:LEG:EXCEPTION_COST",
+    "vote_fail": "SYSTEM:LEG:VOTE_FAIL"
+  }
+}

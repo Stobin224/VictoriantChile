@@ -1,0 +1,804 @@
+{
+  "schema_version": 1,
+  "events": [
+    {
+      "id": "evt_headlines_cycle",
+      "loc_title": "event.evt_headlines_cycle.title",
+      "kind": "AUTO",
+      "scope": "NATIONAL",
+      "blocking": false,
+      "base_priority": 10,
+      "weight": 40,
+      "cooldown_weeks": 2,
+      "max_per_campaign": 999,
+      "tags": [
+        "theme.institucional"
+      ],
+      "vars": {
+        "severity": {
+          "bind": "severity_from",
+          "target": "metrics.public_agenda",
+          "bands": [
+            [
+              0,
+              3999,
+              1
+            ],
+            [
+              4000,
+              6999,
+              2
+            ],
+            [
+              7000,
+              10000,
+              3
+            ]
+          ]
+        }
+      },
+      "conditions": {
+        "all": [
+          {
+            "cooldown_ready": true
+          },
+          {
+            "max_count_not_reached": true
+          }
+        ]
+      },
+      "options": [
+        {
+          "id": "auto",
+          "loc_label": "event.evt_headlines_cycle.opt_auto.label",
+          "requirements": {
+            "all": []
+          },
+          "effects": [
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_internal_agenda_media_heat_up_small",
+              "duration_weeks": 1
+            },
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_internal_info_media_noise_up_small",
+              "duration_weeks": 1
+            }
+          ],
+          "memory": {
+            "set_cooldown": true
+          }
+        }
+      ],
+      "auto_option_id": "auto"
+    },
+    {
+      "id": "evt_media_scandal",
+      "loc_title": "event.evt_media_scandal.title",
+      "kind": "CHOICE",
+      "scope": "NATIONAL",
+      "blocking": false,
+      "base_priority": 55,
+      "weight": 100,
+      "cooldown_weeks": 12,
+      "max_per_campaign": 2,
+      "tags": [
+        "theme.corrupcion",
+        "theme.institucional"
+      ],
+      "vars": {
+        "region": {
+          "bind": "pick_region",
+          "mode": "ARGMAX",
+          "target": "regions.*.tension"
+        },
+        "ig": {
+          "bind": "pick_ig",
+          "mode": "WEIGHTED",
+          "target": "igs.*.clout"
+        },
+        "severity": {
+          "bind": "severity_from",
+          "target": "metrics.public_agenda",
+          "bands": [
+            [
+              0,
+              4999,
+              1
+            ],
+            [
+              5000,
+              6999,
+              2
+            ],
+            [
+              7000,
+              10000,
+              3
+            ]
+          ]
+        }
+      },
+      "conditions": {
+        "all": [
+          {
+            "cmp": {
+              "target": "metrics.information_quality",
+              "op": "<",
+              "value": 5200
+            }
+          },
+          {
+            "cmp": {
+              "target": "metrics.public_agenda",
+              "op": ">",
+              "value": 5100
+            }
+          },
+          {
+            "cooldown_ready": true
+          },
+          {
+            "max_count_not_reached": true
+          }
+        ]
+      },
+      "options": [
+        {
+          "id": "minimize",
+          "loc_label": "event.evt_media_scandal.opt_minimize.label",
+          "requirements": {
+            "all": []
+          },
+          "effects": [
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_agenda_down_small",
+              "duration_weeks": 4
+            },
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_legitimacy_down_small",
+              "duration_weeks": 2
+            }
+          ],
+          "memory": {
+            "set_flag": [
+              "flag.scandal_active"
+            ],
+            "set_cooldown": true
+          },
+          "followups": [
+            {
+              "after_weeks": 2,
+              "event_id": "evt_media_scandal_followup"
+            }
+          ]
+        },
+        {
+          "id": "transparency",
+          "loc_label": "event.evt_media_scandal.opt_transparency.label",
+          "requirements": {
+            "all": []
+          },
+          "effects": [
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_legitimacy_up_small",
+              "duration_weeks": 2
+            },
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_agenda_up_small",
+              "duration_weeks": 2
+            },
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_internal_agenda_media_heat_up_small",
+              "duration_weeks": 2
+            }
+          ],
+          "memory": {
+            "set_flag": [
+              "flag.scandal_active"
+            ],
+            "set_cooldown": true
+          }
+        },
+        {
+          "id": "attack_opposition",
+          "loc_label": "event.evt_media_scandal.opt_attack_opposition.label",
+          "requirements": {
+            "all": []
+          },
+          "effects": [
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_agenda_up_small",
+              "duration_weeks": 4
+            },
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_info_quality_down_small",
+              "duration_weeks": 4
+            },
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_internal_info_media_noise_up_small",
+              "duration_weeks": 4
+            },
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_legitimacy_down_small",
+              "duration_weeks": 1
+            }
+          ],
+          "memory": {
+            "set_flag": [
+              "flag.scandal_active"
+            ],
+            "set_cooldown": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_media_scandal_followup",
+      "loc_title": "event.evt_media_scandal_followup.title",
+      "kind": "AUTO",
+      "scope": "NATIONAL",
+      "blocking": false,
+      "base_priority": 40,
+      "weight": 80,
+      "cooldown_weeks": 8,
+      "max_per_campaign": 2,
+      "tags": [
+        "theme.corrupcion",
+        "theme.institucional"
+      ],
+      "vars": {
+        "severity": {
+          "bind": "severity_from",
+          "target": "metrics.public_agenda",
+          "bands": [
+            [
+              0,
+              4999,
+              1
+            ],
+            [
+              5000,
+              6999,
+              2
+            ],
+            [
+              7000,
+              10000,
+              3
+            ]
+          ]
+        }
+      },
+      "conditions": {
+        "all": [
+          {
+            "flag_is_set": "flag.scandal_active"
+          },
+          {
+            "cooldown_ready": true
+          },
+          {
+            "max_count_not_reached": true
+          }
+        ]
+      },
+      "options": [
+        {
+          "id": "auto",
+          "loc_label": "event.evt_media_scandal_followup.opt_auto.label",
+          "requirements": {
+            "all": []
+          },
+          "effects": [
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_internal_agenda_media_heat_up_small",
+              "duration_weeks": 2
+            },
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_legitimacy_down_small",
+              "duration_weeks": 1
+            }
+          ],
+          "memory": {
+            "clear_flag": [
+              "flag.scandal_active"
+            ],
+            "set_cooldown": true
+          }
+        }
+      ],
+      "auto_option_id": "auto"
+    },
+    {
+      "id": "evt_inflation_shock",
+      "loc_title": "event.evt_inflation_shock.title",
+      "kind": "AUTO",
+      "scope": "NATIONAL",
+      "blocking": false,
+      "base_priority": 25,
+      "weight": 60,
+      "cooldown_weeks": 10,
+      "max_per_campaign": 6,
+      "tags": [
+        "theme.economia"
+      ],
+      "vars": {
+        "severity": {
+          "bind": "severity_from",
+          "target": "metrics.economy",
+          "bands": [
+            [
+              0,
+              3999,
+              3
+            ],
+            [
+              4000,
+              5999,
+              2
+            ],
+            [
+              6000,
+              10000,
+              1
+            ]
+          ]
+        }
+      },
+      "conditions": {
+        "all": [
+          {
+            "cooldown_ready": true
+          },
+          {
+            "max_count_not_reached": true
+          }
+        ]
+      },
+      "options": [
+        {
+          "id": "auto",
+          "loc_label": "event.evt_inflation_shock.opt_auto.label",
+          "requirements": {
+            "all": []
+          },
+          "effects": [
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_internal_economy_inflation_up_small",
+              "duration_weeks": 2
+            },
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_internal_tension_cost_of_living_up_small",
+              "duration_weeks": 2
+            },
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_agenda_up_small",
+              "duration_weeks": 1
+            }
+          ],
+          "memory": {
+            "set_cooldown": true
+          }
+        }
+      ],
+      "auto_option_id": "auto"
+    },
+    {
+      "id": "evt_security_incident",
+      "loc_title": "event.evt_security_incident.title",
+      "kind": "AUTO",
+      "scope": "REGION",
+      "blocking": false,
+      "base_priority": 30,
+      "weight": 70,
+      "cooldown_weeks": 8,
+      "max_per_campaign": 8,
+      "tags": [
+        "theme.seguridad"
+      ],
+      "vars": {
+        "region": {
+          "bind": "pick_region",
+          "mode": "ARGMAX",
+          "target": "regions.*.tension"
+        },
+        "severity": {
+          "bind": "severity_from",
+          "target": "metrics.security",
+          "bands": [
+            [
+              0,
+              3999,
+              3
+            ],
+            [
+              4000,
+              5999,
+              2
+            ],
+            [
+              6000,
+              10000,
+              1
+            ]
+          ]
+        }
+      },
+      "conditions": {
+        "all": [
+          {
+            "cooldown_ready": true
+          },
+          {
+            "max_count_not_reached": true
+          }
+        ]
+      },
+      "options": [
+        {
+          "id": "auto",
+          "loc_label": "event.evt_security_incident.opt_auto.label",
+          "requirements": {
+            "all": []
+          },
+          "effects": [
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_internal_security_crime_rate_up_small",
+              "duration_weeks": 2
+            },
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_agenda_up_small",
+              "duration_weeks": 2
+            }
+          ],
+          "memory": {
+            "set_cooldown": true
+          }
+        }
+      ],
+      "auto_option_id": "auto"
+    },
+    {
+      "id": "evt_police_operation_success",
+      "loc_title": "event.evt_police_operation_success.title",
+      "kind": "AUTO",
+      "scope": "REGION",
+      "blocking": false,
+      "base_priority": 22,
+      "weight": 55,
+      "cooldown_weeks": 10,
+      "max_per_campaign": 6,
+      "tags": [
+        "theme.seguridad"
+      ],
+      "vars": {
+        "region": {
+          "bind": "pick_region",
+          "mode": "WEIGHTED",
+          "target": "regions.*.admin_capS"
+        },
+        "severity": {
+          "bind": "severity_from",
+          "target": "metrics.public_agenda",
+          "bands": [
+            [
+              0,
+              4999,
+              1
+            ],
+            [
+              5000,
+              6999,
+              2
+            ],
+            [
+              7000,
+              10000,
+              3
+            ]
+          ]
+        }
+      },
+      "conditions": {
+        "all": [
+          {
+            "cooldown_ready": true
+          },
+          {
+            "max_count_not_reached": true
+          }
+        ]
+      },
+      "options": [
+        {
+          "id": "auto",
+          "loc_label": "event.evt_police_operation_success.opt_auto.label",
+          "requirements": {
+            "all": []
+          },
+          "effects": [
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_internal_security_police_capacity_up_small",
+              "duration_weeks": 2
+            },
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_legitimacy_up_small",
+              "duration_weeks": 1
+            }
+          ],
+          "memory": {
+            "set_cooldown": true
+          }
+        }
+      ],
+      "auto_option_id": "auto"
+    },
+    {
+      "id": "evt_information_leak",
+      "loc_title": "event.evt_information_leak.title",
+      "kind": "CHOICE",
+      "scope": "NATIONAL",
+      "blocking": false,
+      "base_priority": 45,
+      "weight": 90,
+      "cooldown_weeks": 14,
+      "max_per_campaign": 3,
+      "tags": [
+        "theme.institucional"
+      ],
+      "vars": {
+        "ig": {
+          "bind": "pick_ig",
+          "mode": "WEIGHTED",
+          "target": "igs.*.clout"
+        },
+        "severity": {
+          "bind": "severity_from",
+          "target": "metrics.information_quality",
+          "bands": [
+            [
+              0,
+              3999,
+              3
+            ],
+            [
+              4000,
+              5999,
+              2
+            ],
+            [
+              6000,
+              10000,
+              1
+            ]
+          ]
+        }
+      },
+      "conditions": {
+        "all": [
+          {
+            "cmp": {
+              "target": "metrics.information_quality",
+              "op": "<",
+              "value": 5400
+            }
+          },
+          {
+            "cooldown_ready": true
+          },
+          {
+            "max_count_not_reached": true
+          }
+        ]
+      },
+      "options": [
+        {
+          "id": "investigate",
+          "loc_label": "event.evt_information_leak.opt_investigate.label",
+          "requirements": {
+            "all": []
+          },
+          "effects": [
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_info_quality_up_small",
+              "duration_weeks": 2
+            },
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_agenda_up_small",
+              "duration_weeks": 2
+            }
+          ],
+          "memory": {
+            "set_cooldown": true
+          }
+        },
+        {
+          "id": "ignore",
+          "loc_label": "event.evt_information_leak.opt_ignore.label",
+          "requirements": {
+            "all": []
+          },
+          "effects": [
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_internal_info_media_noise_up_small",
+              "duration_weeks": 2
+            },
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_agenda_up_small",
+              "duration_weeks": 1
+            }
+          ],
+          "memory": {
+            "set_cooldown": true
+          }
+        },
+        {
+          "id": "spin",
+          "loc_label": "event.evt_information_leak.opt_spin.label",
+          "requirements": {
+            "all": []
+          },
+          "effects": [
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_info_quality_down_small",
+              "duration_weeks": 3
+            },
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_internal_info_media_noise_up_small",
+              "duration_weeks": 3
+            },
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_legitimacy_down_small",
+              "duration_weeks": 1
+            }
+          ],
+          "memory": {
+            "set_cooldown": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_labor_pressure_escalation",
+      "loc_title": "event.evt_labor_pressure_escalation.title",
+      "kind": "CRISIS",
+      "scope": "REGION",
+      "blocking": true,
+      "base_priority": 90,
+      "weight": 100,
+      "cooldown_weeks": 20,
+      "max_per_campaign": 2,
+      "tags": [
+        "theme.trabajo"
+      ],
+      "vars": {
+        "region": {
+          "bind": "pick_region",
+          "mode": "WEIGHTED",
+          "target": "regions.*.industry_capS"
+        },
+        "severity": {
+          "bind": "severity_from",
+          "target": "metrics.public_agenda",
+          "bands": [
+            [
+              0,
+              4999,
+              1
+            ],
+            [
+              5000,
+              6999,
+              2
+            ],
+            [
+              7000,
+              10000,
+              3
+            ]
+          ]
+        }
+      },
+      "conditions": {
+        "all": [
+          {
+            "movement_cmp": {
+              "movement_id": "mov_trabajo_huelgas",
+              "op": ">",
+              "value": 8500
+            }
+          },
+          {
+            "cooldown_ready": true
+          },
+          {
+            "max_count_not_reached": true
+          }
+        ]
+      },
+      "options": [
+        {
+          "id": "concede",
+          "loc_label": "event.evt_labor_pressure_escalation.opt_concede.label",
+          "requirements": {
+            "all": []
+          },
+          "effects": [
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_legitimacy_up_small",
+              "duration_weeks": 2
+            },
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_internal_economy_growth_down_small",
+              "duration_weeks": 2
+            },
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_agenda_down_small",
+              "duration_weeks": 2
+            }
+          ],
+          "memory": {
+            "set_cooldown": true
+          }
+        },
+        {
+          "id": "hold_line",
+          "loc_label": "event.evt_labor_pressure_escalation.opt_hold_line.label",
+          "requirements": {
+            "all": []
+          },
+          "effects": [
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_legitimacy_down_small",
+              "duration_weeks": 2
+            },
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_internal_tension_protest_activity_up_small",
+              "duration_weeks": 3
+            },
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_agenda_up_small",
+              "duration_weeks": 3
+            }
+          ],
+          "memory": {
+            "set_cooldown": true
+          }
+        }
+      ]
+    }
+  ]
+}

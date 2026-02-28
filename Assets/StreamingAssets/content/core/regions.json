@@ -1,0 +1,23 @@
+{
+  "regions": [
+    { "id": "arica_parinacota", "name": "Arica y Parinacota", "weight_ppm": 62500, "macrozone": "NORTH", "admin_capS": 5000, "industry_capS": 5000, "extractive_capS": 5000, "social_capS": 5000, "populationS": 5000 },
+    { "id": "tarapaca", "name": "Tarapacá", "weight_ppm": 62500, "macrozone": "NORTH", "admin_capS": 5000, "industry_capS": 5000, "extractive_capS": 5000, "social_capS": 5000, "populationS": 5000 },
+    { "id": "antofagasta", "name": "Antofagasta", "weight_ppm": 62500, "macrozone": "NORTH", "admin_capS": 5000, "industry_capS": 5000, "extractive_capS": 5000, "social_capS": 5000, "populationS": 5000 },
+    { "id": "atacama", "name": "Atacama", "weight_ppm": 62500, "macrozone": "NORTH", "admin_capS": 5000, "industry_capS": 5000, "extractive_capS": 5000, "social_capS": 5000, "populationS": 5000 },
+    { "id": "coquimbo", "name": "Coquimbo", "weight_ppm": 62500, "macrozone": "NORTH", "admin_capS": 5000, "industry_capS": 5000, "extractive_capS": 5000, "social_capS": 5000, "populationS": 5000 },
+
+    { "id": "valparaiso", "name": "Valparaíso", "weight_ppm": 62500, "macrozone": "CENTER", "admin_capS": 5000, "industry_capS": 5000, "extractive_capS": 5000, "social_capS": 5000, "populationS": 5000 },
+    { "id": "metropolitana", "name": "Metropolitana", "weight_ppm": 62500, "macrozone": "CENTER", "admin_capS": 5000, "industry_capS": 5000, "extractive_capS": 5000, "social_capS": 5000, "populationS": 5000 },
+    { "id": "ohiggins", "name": "O’Higgins", "weight_ppm": 62500, "macrozone": "CENTER", "admin_capS": 5000, "industry_capS": 5000, "extractive_capS": 5000, "social_capS": 5000, "populationS": 5000 },
+    { "id": "maule", "name": "Maule", "weight_ppm": 62500, "macrozone": "CENTER", "admin_capS": 5000, "industry_capS": 5000, "extractive_capS": 5000, "social_capS": 5000, "populationS": 5000 },
+    { "id": "nuble", "name": "Ñuble", "weight_ppm": 62500, "macrozone": "CENTER", "admin_capS": 5000, "industry_capS": 5000, "extractive_capS": 5000, "social_capS": 5000, "populationS": 5000 },
+
+    { "id": "biobio", "name": "Biobío", "weight_ppm": 62500, "macrozone": "SOUTH", "admin_capS": 5000, "industry_capS": 5000, "extractive_capS": 5000, "social_capS": 5000, "populationS": 5000 },
+    { "id": "araucania", "name": "La Araucanía", "weight_ppm": 62500, "macrozone": "SOUTH", "admin_capS": 5000, "industry_capS": 5000, "extractive_capS": 5000, "social_capS": 5000, "populationS": 5000 },
+    { "id": "los_rios", "name": "Los Ríos", "weight_ppm": 62500, "macrozone": "SOUTH", "admin_capS": 5000, "industry_capS": 5000, "extractive_capS": 5000, "social_capS": 5000, "populationS": 5000 },
+    { "id": "los_lagos", "name": "Los Lagos", "weight_ppm": 62500, "macrozone": "SOUTH", "admin_capS": 5000, "industry_capS": 5000, "extractive_capS": 5000, "social_capS": 5000, "populationS": 5000 },
+
+    { "id": "aysen", "name": "Aysén", "weight_ppm": 62500, "macrozone": "AUSTRAL", "admin_capS": 5000, "industry_capS": 5000, "extractive_capS": 5000, "social_capS": 5000, "populationS": 5000 },
+    { "id": "magallanes", "name": "Magallanes y Antártica Chilena", "weight_ppm": 62500, "macrozone": "AUSTRAL", "admin_capS": 5000, "industry_capS": 5000, "extractive_capS": 5000, "social_capS": 5000, "populationS": 5000 }
+  ]
+}
