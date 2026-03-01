@@ -30,13 +30,20 @@ for f in $(rg --files Assets/StreamingAssets/content -g '*.json'); do jq empty "
 python3 scripts/validate_content.py
 ```
 
-3. Enforcement de versionado de manifest (comparando base/head):
+3. Recalcular hashes de `manifest.json` (y opcionalmente bump de pack):
+
+```bash
+python3 scripts/recompute_manifest_hashes.py
+python3 scripts/recompute_manifest_hashes.py --bump-pack
+```
+
+4. Enforcement de versionado de manifest (comparando base/head):
 
 ```bash
 python3 scripts/check_manifest_bump.py --base <sha_base> --head <sha_head>
 ```
 
-4. Prueba de humo de simulación mínima (2 ticks):
+5. Prueba de humo de simulación mínima (2 ticks):
 
 ```bash
 python3 scripts/smoke_simulation.py
@@ -49,6 +56,7 @@ python3 scripts/smoke_simulation.py
 ## Política de versionado y migraciones
 La política de versionado de contenido está documentada en:
 - `docs/content_versioning.md`
+- `docs/content_pr_ready_checklist.md`
 
 Resumen corto:
 - Cambios retrocompatibles en datos: incrementar `content_pack_version`.

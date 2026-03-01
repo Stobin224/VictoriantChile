@@ -83,5 +83,6 @@
   "ui.target.regions.organization": "Organización territorial",
   "ui.target.regions.rival_presence": "Presencia rival",
   "ui.target.regions.support": "Apoyo regional",
-  "ui.target.regions.tension": "Tensión regional"
+  "ui.target.regions.tension": "Tensión regional",
+  "meta.release_hygiene.example": "Cambio mínimo controlado para validar bump de content_pack_version."
 }

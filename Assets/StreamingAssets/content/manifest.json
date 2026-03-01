@@ -1,6 +1,6 @@
 {
   "content_pack_id": "base_chile_fictional",
-  "content_pack_version": 1,
+  "content_pack_version": 2,
   "content_schema_version": 1,
   "default_language": "es",
   "files": {
@@ -10,7 +10,7 @@
     "rules/aggregation_config.json": "sha256:0f7c01573e3981d469112828032b1615a26fcd841035303991e50e033225bb32",
     "rules/legislative_config.json": "sha256:10015e0188a20ba227ea1bfad7ebfa4d6ab949d7ba14d4c742e3515461e696dd",
     "rules/target_config.json": "sha256:c6e994714f2769cd02d8dc96070e70bc38847b9cfed564205fbdbaee7b581684",
-    "strings/es.json": "sha256:519adab990a978c79639d0c784dbf54b4aeba810f088833cf0e2f96b85ffb4c8",
+    "strings/es.json": "sha256:f168adefbf9549af78af88b67a875564936b63d164bdc9c437e418fa16e6d0cb",
     "templates/effects.json": "sha256:82ad36548681860d520a3dadf0d522dc5f8e13d29f94e42f7c723518f9c40c67",
     "templates/events.json": "sha256:fdc030041e655efcfc52fd2b1622275606206d1750c995f7717474c9dbb7adfd",
     "templates/reforms.json": "sha256:c4abebc193d41648908aca337eff889ce542dcb65ad7951ae8d6ab6669bcf402"
