@@ -5,15 +5,13 @@ on:
     paths:
       - 'Assets/StreamingAssets/content/**'
       - 'scripts/validate_content.py'
+      - 'scripts/smoke_simulation.py'
       - '.github/workflows/content-validation.yml'
   push:
-    branches:
-      - main
-      - master
-      - work
     paths:
       - 'Assets/StreamingAssets/content/**'
       - 'scripts/validate_content.py'
+      - 'scripts/smoke_simulation.py'
       - '.github/workflows/content-validation.yml'
 
 jobs:
@@ -42,3 +40,6 @@ jobs:
 
       - name: Validate semantic content
         run: python3 scripts/validate_content.py
+
+      - name: Smoke simulation
+        run: python3 scripts/smoke_simulation.py

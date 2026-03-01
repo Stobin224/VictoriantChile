@@ -43,6 +43,12 @@ Acciones requeridas:
 |---|---:|---|---|
 | 1 | 1 | vigente | Schema base inicial. |
 
+
+## Enforcements en flujo de PR
+- El workflow `.github/workflows/content-validation.yml` corre en PRs y pushes con cambios de contenido.
+- El template de PR (`.github/pull_request_template.md`) incluye checklist de versionado y validación.
+- Recomendación de repositorio: marcar `Content Validation / validate-content` como *required status check* en la rama protegida principal.
+
 ## Checklist de PR de contenido
 - [ ] `manifest.json` actualizado según reglas anteriores.
 - [ ] Validación sintáctica y semántica en verde.

@@ -24,11 +24,21 @@ Desde la raíz del repositorio:
 for f in $(rg --files Assets/StreamingAssets/content -g '*.json'); do jq empty "$f" || exit 1; done
 ```
 
-2. Validación semántica (IDs, referencias cruzadas, rangos `S`):
+2. Validación semántica (IDs, referencias cruzadas, loc_*, enums y rangos `S`):
 
 ```bash
 python3 scripts/validate_content.py
 ```
+
+3. Prueba de humo de simulación mínima (2 ticks):
+
+```bash
+python3 scripts/smoke_simulation.py
+```
+
+## CI y gate de contenido
+- Existe workflow obligatorio de validación: `.github/workflows/content-validation.yml`.
+- Para cambios en `Assets/StreamingAssets/content/**`, el PR debe pasar este workflow antes de merge.
 
 ## Política de versionado y migraciones
 La política de versionado de contenido está documentada en:
