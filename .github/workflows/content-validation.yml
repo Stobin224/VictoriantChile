@@ -1,0 +1,44 @@
+name: Content Validation
+
+on:
+  pull_request:
+    paths:
+      - 'Assets/StreamingAssets/content/**'
+      - 'scripts/validate_content.py'
+      - '.github/workflows/content-validation.yml'
+  push:
+    branches:
+      - main
+      - master
+      - work
+    paths:
+      - 'Assets/StreamingAssets/content/**'
+      - 'scripts/validate_content.py'
+      - '.github/workflows/content-validation.yml'
+
+jobs:
+  validate-content:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Validate JSON syntax
+        run: |
+          for f in $(find Assets/StreamingAssets/content -type f -name '*.json'); do
+            jq empty "$f"
+          done
+
+      - name: Validate semantic content
+        run: python3 scripts/validate_content.py
