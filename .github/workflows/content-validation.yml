@@ -6,12 +6,14 @@ on:
       - 'Assets/StreamingAssets/content/**'
       - 'scripts/validate_content.py'
       - 'scripts/smoke_simulation.py'
+      - 'scripts/check_manifest_bump.py'
       - '.github/workflows/content-validation.yml'
   push:
     paths:
       - 'Assets/StreamingAssets/content/**'
       - 'scripts/validate_content.py'
       - 'scripts/smoke_simulation.py'
+      - 'scripts/check_manifest_bump.py'
       - '.github/workflows/content-validation.yml'
 
 jobs:
@@ -21,6 +23,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -31,6 +35,19 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y jq
+
+      - name: Enforce manifest bump policy
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          else
+            BASE_SHA="${{ github.event.before }}"
+            HEAD_SHA="${{ github.sha }}"
+          fi
+
+          echo "Checking manifest policy between $BASE_SHA...$HEAD_SHA"
+          python3 scripts/check_manifest_bump.py --base "$BASE_SHA" --head "$HEAD_SHA"
 
       - name: Validate JSON syntax
         run: |

@@ -10,6 +10,7 @@
 ## Validation Checklist (required)
 - [ ] `for f in $(rg --files Assets/StreamingAssets/content -g '*.json'); do jq empty "$f" || exit 1; done`
 - [ ] `python3 scripts/validate_content.py`
+- [ ] `python3 scripts/check_manifest_bump.py --base <sha_base> --head <sha_head>`
 - [ ] `python3 scripts/smoke_simulation.py`
 
 ## Notes

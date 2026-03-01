@@ -30,14 +30,20 @@ for f in $(rg --files Assets/StreamingAssets/content -g '*.json'); do jq empty "
 python3 scripts/validate_content.py
 ```
 
-3. Prueba de humo de simulación mínima (2 ticks):
+3. Enforcement de versionado de manifest (comparando base/head):
+
+```bash
+python3 scripts/check_manifest_bump.py --base <sha_base> --head <sha_head>
+```
+
+4. Prueba de humo de simulación mínima (2 ticks):
 
 ```bash
 python3 scripts/smoke_simulation.py
 ```
 
 ## CI y gate de contenido
-- Existe workflow obligatorio de validación: `.github/workflows/content-validation.yml`.
+- Existe workflow obligatorio de validación: `.github/workflows/content-validation.yml` (incluye enforcement de bump de manifest).
 - Para cambios en `Assets/StreamingAssets/content/**`, el PR debe pasar este workflow antes de merge.
 
 ## Política de versionado y migraciones
