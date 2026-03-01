@@ -1,0 +1,354 @@
+"Modelo territorial (regiones) y acoplamiento nacional↔regional
+
+Qué falta decidir: lista final de regiones (y pesos), cómo se agregan a nacional, sesgos regionales de IGs, y cómo eventos afectan región vs país.
+
+Por qué carga técnica: afecta mapa, eventos parametrizados por región, y cálculo de métricas; si cambia tarde, re-trabajo grande en contenido y UI." resuelve esto, toma decisiones para que quede zanjado, si tienes "qué falta" resuelvelos tú
+Pensado durante 2m 33s
+Límite y supuestos
+
+Cierro el modelo territorial (regiones) + acoplamiento nacional↔regional como contrato de motor y datos, sin depender de polígonos/arte de mapa (eso queda como asset). Tomo como base las regiones administrativas de Chile (16) para que el mapa sea reconocible, pero el mundo siga siendo ficticio (sin partidos/personas reales).
+
+Decisiones cerradas
+1) Lista final de regiones (IDs estables) + pesos
+
+N = 16 regiones.
+IDs (snake_case, ASCII) en orden norte→sur:
+
+arica_parinacota
+
+tarapaca
+
+antofagasta
+
+atacama
+
+coquimbo
+
+valparaiso
+
+metropolitana
+
+ohiggins
+
+maule
+
+nuble
+
+biobio
+
+araucania
+
+los_rios
+
+los_lagos
+
+aysen
+
+magallanes
+
+Nombres (display) corresponden al listado oficial usual (BCN/Banco Central).
+
+Pesos (para agregación nacional)
+
+Representación: weight_ppm entero, suma = 1_000_000.
+
+Default MVP (sin datos poblacionales): pesos iguales: 62_500 ppm cada región (1_000_000 / 16 = 62_500 exacto).
+
+Schema:
+
+{
+  "regions": [
+    {"id":"arica_parinacota","name":"Arica y Parinacota","weight_ppm":62500},
+    {"id":"tarapaca","name":"Tarapacá","weight_ppm":62500},
+    {"id":"antofagasta","name":"Antofagasta","weight_ppm":62500},
+    {"id":"atacama","name":"Atacama","weight_ppm":62500},
+    {"id":"coquimbo","name":"Coquimbo","weight_ppm":62500},
+    {"id":"valparaiso","name":"Valparaíso","weight_ppm":62500},
+    {"id":"metropolitana","name":"Metropolitana","weight_ppm":62500},
+    {"id":"ohiggins","name":"O’Higgins","weight_ppm":62500},
+    {"id":"maule","name":"Maule","weight_ppm":62500},
+    {"id":"nuble","name":"Ñuble","weight_ppm":62500},
+    {"id":"biobio","name":"Biobío","weight_ppm":62500},
+    {"id":"araucania","name":"La Araucanía","weight_ppm":62500},
+    {"id":"los_rios","name":"Los Ríos","weight_ppm":62500},
+    {"id":"los_lagos","name":"Los Lagos","weight_ppm":62500},
+    {"id":"aysen","name":"Aysén","weight_ppm":62500},
+    {"id":"magallanes","name":"Magallanes y Antártica Chilena","weight_ppm":62500}
+  ]
+}
+
+2) Macrozona + recursos regionales (dato; MVP neutro)
+
+Se define macrozone (enum) para sesgos de IGs, selectores y contenido regional:
+
+NORTH: 1–5
+
+CENTER: 6–10
+
+SOUTH: 11–14
+
+AUSTRAL: 15–16
+
+Esto es dato de juego (no requiere micro-precisión geográfica).
+
+Además, cada región puede declarar “recursos/capacidades” estáticos (en core/regions.json) para dar valor diferencial regional sin alterar la agregación nacional (weight_ppm) en el MVP.
+
+Campos opcionales (enteros en escala S, 0..10000; default MVP = 5000):
+- admin_capS: capacidad administrativa (infra institucional/servicios públicos).
+- industry_capS: capacidad industrial (manufactura/puertos/energía).
+- extractive_capS: capacidad extractiva (minería/extractivismo).
+- social_capS: capital social/servicios/urbanidad.
+- populationS: “población amortiguada” (proxy demográfico; se guarda como dato, puede no usarse aún).
+
+Reglas de uso (MVP):
+- No modifican agregación regional→nacional: solo sigue weight_ppm.
+- Se usan solo como insumo de selección/ponderación de eventos (ver motor de eventos): un template puede elegir región con pick_region apuntando a regions.*.<recurso> (WEIGHTED o ARGMAX/ARGMIN).
+
+Nota anti “Santiago meta”:
+- El “peso político” (weight_ppm) puede mantenerse moderado; el “valor económico/administrativo” puede venir por recursos/eventos, en un canal separado.
+
+
+
+3) Acoplamiento nacional↔regional (reglas cuantitativas)
+3.1 Orden fijo por tick (evita loops instantáneos)
+
+En cada tick semanal:
+
+Aplicar efectos/scheduler (decisiones/eventos/reformas).
+
+Aggregación interna→métricas nacionales (lo ya definido).
+
+Nacional→regional (drift) usando métricas nacionales ya actualizadas.
+
+Regional→nacional (pull a internals) (impacta desde el próximo tick).
+
+Decisión clave: el feedback regional hacia lo nacional tiene 1 tick de latencia (reduce oscilaciones y hace más legible el reporte causal).
+
+3.2 Nacional → Regional (drift) con inercia y caps (fixed-point S=100)
+
+Para cada región r, se calculan targets y se aproxima con media-vida usando enteros (S=100; 0..10000).
+
+Parámetros fijos (deterministas):
+- S = 100
+- half_life_weeks = 6
+- alpha_ppm = 109101   (≈ 1 - 0.5^(1/6), en ppm para evitar floats)
+- cap_per_weekS = 2*S  (=200)
+
+Helper de redondeo (definición, no código):
+- round_div(num, den): redondeo al entero más cercano con signo:
+  round_div(n,d) = (n + sign(n)*d/2) / d   (división entera trunc hacia 0)
+
+Targets (todo en 0..10000, clamp). Definir midS = 50*S = 5000.
+
+Base (sin reforma activa):
+support_targetS(r) =
+  clamp(
+    5000
+    + round_div(
+        600000*(metrics.legitimacy - 5000)
+      + 300000*(metrics.party_organization - 5000)
+      - 400000*(metrics.social_tension - 5000)
+      , 1000000
+      )
+    , 0, 10000
+  )
+
+tension_targetS(r) =
+  clamp(
+    5000
+    + round_div(
+        500000*(5000 - metrics.economy)
+      + 400000*(5000 - metrics.security)
+      + 300000*(metrics.public_agenda - 5000)
+      , 1000000
+      )
+    , 0, 10000
+  )
+
+organization_targetS(r) =
+  clamp(
+    5000
+    + round_div( 800000*(metrics.party_organization - 5000), 1000000 )
+    , 0, 10000
+  )
+
+rival_presence_targetS(r) =
+  clamp(
+    5000
+    + round_div(
+        700000*(5000 - regions[r].support)
+      + 200000*(5000 - metrics.internal_cohesion)
+      , 1000000
+      )
+    , 0, 10000
+  )
+
+Sesgo adicional por reforma activa (dinámico tipo “Victoria 3”, emergente por IGs):
+- Solo aplica si existe reforms.active_reform_id y su case.status == ACTIVE.
+- Usa ReformTemplate.igs_stance ya expandido (stanceS ∈ [-10000..+10000] por IG).
+- Usa “presencia efectiva” por región: effective_cloutS_r(ig) (ver sección 4).
+
+Constantes del sesgo (balance inicial; se puede tunear sin cambiar schema):
+- PRO_TH_S = 2000                (umbral ±20 para clasificar pro/anti)
+- K_SUPPORT_MAX_S = 600          (máx ±6 puntos al target de support)
+- K_TENSION_MAX_S = 800          (máx +8 puntos al target de tension)
+- stage_factor_ppm = 1000000     (WORK); 1250000 (VOTE); 0 (NONE)
+
+Definiciones por región r (para la reforma activa):
+1) Poder local (weights):
+   w_igS = effective_cloutS_r(ig)
+   W_S = Σ_ig w_igS
+   Si W_S <= 0 ⇒ support_biasS=0 y tension_biasS=0.
+
+2) Alineamiento medio (Σ(power*stance)):
+   mean_stanceS = round_div( Σ_ig (w_igS * stanceS_ig), W_S )
+   (queda en [-10000..+10000])
+
+3) Split ideológico (para “tensión” por polarización real, no por unanimidad):
+   proW_S  = Σ_ig w_igS donde stanceS_ig >= +PRO_TH_S
+   antiW_S = Σ_ig w_igS donde stanceS_ig <= -PRO_TH_S
+   split_ppm = round_div( min(proW_S, antiW_S) * 1000000, W_S )
+   (rango 0..500000)
+
+   mean_abs_stanceS = round_div( Σ_ig (w_igS * abs(stanceS_ig)), W_S )
+   (rango 0..10000)
+
+4) Sesgos (aplicados al target; la traducción a Δ semanal es vía drift + caps):
+   support_biasS_raw = round_div( mean_stanceS * K_SUPPORT_MAX_S, 10000 )
+   support_biasS = clamp(
+       round_div( support_biasS_raw * stage_factor_ppm, 1000000 ),
+       -K_SUPPORT_MAX_S, +K_SUPPORT_MAX_S
+   )
+
+   tension_biasS_raw = round_div(
+       K_TENSION_MAX_S * split_ppm * mean_abs_stanceS,
+       500000 * 10000
+   )
+   tension_biasS = clamp(
+       round_div( tension_biasS_raw * stage_factor_ppm, 1000000 ),
+       0, K_TENSION_MAX_S
+   )
+
+5) Targets finales con sesgo:
+   support_targetS(r) = clamp( support_targetS(r) + support_biasS, 0, 10000 )
+   tension_targetS(r) = clamp( tension_targetS(r) + tension_biasS, 0, 10000 )
+
+Update (por cada métrica regional xS ∈ {support,tension,organization,rival_presence}):
+- deltaS = clamp( round_div( (targetS - xS) * alpha_ppm, 1000000 ), -cap_per_weekS, +cap_per_weekS )
+- xS := clamp(xS + deltaS, 0, 10000)
+
+Causalidad:
+- Drift base: SYSTEM:REG_DRIFT:{region}:{metric}.
+- Sesgo por reforma activa (si aplica):
+  SYSTEM:REG_REFORM_BIAS:{region}:{active_reform_id}:support_biasS
+  SYSTEM:REG_REFORM_BIAS:{region}:{active_reform_id}:tension_biasS
+
+3.3 Regional → Nacional (pull a internals) vía weighted avg
+
+Se define una tabla fija de “acoples” (regiones agregan a internals, no directo a metrics.*):
+
+Weighted average:
+
+wavg(metric) = Σ_r (regions[r].metric * weight_ppm[r]) / 1_000_000
+
+Acoples cerrados:
+
+internals.leg.coalition_strength ← pull hacia wavg(regions.*.support)
+
+internals.party.field_ops ← pull hacia wavg(regions.*.organization)
+
+internals.tension.protest_activity← pull hacia wavg(regions.*.tension)
+
+internals.leg.opposition_obstruction ← pull hacia wavg(regions.*.rival_presence)
+
+internals.agenda.movement_salience← pull hacia wavg(regions.*.tension) (misma señal, distinta elasticidad)
+
+Pull con inercia (para no “teletransportar” la nación):
+
+half_life_weeks = 3 (más rápido que economy, más lento que agenda)
+
+cap_per_week = 4
+
+log: SYSTEM:REG_TO_INT:{internal_component}
+
+4) Sesgos regionales de IGs (mecanismo zanjado, valores por defecto neutros)
+
+No se guarda una matriz enorme IG×Región en estado. Se calcula “presencia efectiva” on-the-fly:
+
+Config por IG:
+
+{
+  "ig_id": "empresariado_finanzas",
+  "regional_mult": {
+    "default": 100,
+    "macrozone": {"NORTH":100,"CENTER":100,"SOUTH":100,"AUSTRAL":100},
+    "region_override": {"metropolitana":100}
+  }
+}
+
+
+Cálculo:
+
+effective_clout_r = ig.clout * mult(ig, r) / 100
+
+Uso:
+
+Selectores de eventos regionales “por IG” (WEIGHTED por effective_cloutS_r).
+
+Drift regional con política “emergente” (cercano a Victoria 3, sin POPs):
+- Si hay reforms.active_reform_id ACTIVE, se calcula por región el sesgo por reforma:
+  mean_stanceS = Σ(w_igS * stanceS_ig) / Σ(w_igS)
+  y un índice de polarización (split_ppm + mean_abs_stanceS),
+  y se traduce a support_biasS/tension_biasS aplicados a support_targetS/tension_targetS (ver 3.2).
+- Si no hay reforma activa, sesgo = 0.
+
+Default: todo mult = 100 (sin sesgo). El sistema está listo para que el contenido agregue sesgos sin cambiar schema.
+
+5) Eventos: región vs país (scope + spillover zanjados)
+
+Cada EventTemplate declara:
+
+scope = NATIONAL | REGION | MULTI_REGION
+
+vars.region (si aplica)
+
+Reglas:
+
+Si scope=REGION, los efectos pueden apuntar a regions.{region_id}.*.
+
+Spillover nacional estándar (sin escribir efectos extra):
+
+Si el evento modifica regions.r.tension en Δ, se aplica además:
+
+admin_mult(r) = 0.75 + 0.50 * (admin_capS(r) / 10000)      (rango 0.75..1.25; admin_capS=5000 ⇒ 1.00)
+
+internals.agenda.media_heat += round(|Δ| * 0.25 * weight(r) * admin_mult(r))
+
+Si modifica regions.r.support en Δ, se aplica además:
+
+internals.leg.opposition_obstruction += round((-Δ) * 0.20 * weight(r))
+
+Nota: en MVP, si admin_capS está neutro (5000) en todas las regiones, admin_mult(r)=1.00 y el spillover queda igual que antes.
+
+
+Causalidad: EVENT:{id} y SYSTEM:SPILLOVER:*.
+
+Esto evita que lo regional quede “encapsulado” y nunca se sienta a nivel país.
+
+Pruebas (hechos verificables usados)
+
+Chile está dividido en 16 regiones y el listado incluye (entre otras) Arica y Parinacota, Tarapacá, …, Magallanes y Antártica Chilena.
+
+Qué falta
+
+No lo sé con la información dada (y no lo invento):
+
+Polígonos/tiles del mapa (asset de Unity) para renderizar regiones y clic/hover.
+
+Si quieres pesos “realistas” (población/PIB), faltan fuentes de datos y fecha de referencia; por eso el default queda igualitario.
+
+Riesgos/ambigüedades
+
+Cambiar la lista de regiones tarde rompe: IDs, saves, plantillas regionales. Mitigación: permitir region_aliases (map de IDs viejos→nuevos) en loader.
+
+Si se permite feedback nacional↔regional sin latencia, aumenta riesgo de oscilación y reportes menos legibles; por eso se fija 1 tick de retardo.

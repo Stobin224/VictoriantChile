@@ -1,0 +1,363 @@
+"Trazabilidad para el “reporte causal” (logging de causas)
+
+Qué falta decidir: cómo cada cambio a una métrica visible queda atribuido a fuentes (decisión/evento/modificador) con deltas por tick y agregación por periodo.
+
+Por qué carga técnica: si se agrega tarde, obliga a reescribir todo el sistema de efectos/eventos para capturar causas." resuelve esto, toma decisiones para que quede zanjado, si tienes "qué falta" resuelvelos tú
+Pensado durante 57s
+Límite y supuestos
+
+Esto zanja solo la trazabilidad necesaria para el reporte causal post-turno (deltas + causas), sin decidir contenido (eventos/reformas). Se asume tick semanal y efectos Δ/semana como ya quedó definido. La exigencia del diseño es: cualquier cambio a métrica visible debe aparecer con causa atribuible, y el reporte debe mostrar Δ total y promedio Δ/semana. 
+
+Base de planeación del juego
+
+Base de planeación del juego
+
+Decisiones cerradas: sistema de “trazabilidad / logging causal”
+1) Qué se loggea (MVP) y con qué granularidad
+
+Se loggea solo targets visibles (los del set cerrado: metrics.*, regions.*, igs.*.clout/approval, movements.*.*).
+
+Granularidad base: por tick (semana) y por target_path, acumulando contribuciones por “causa”.
+
+Se genera un TurnReport por cada acción de “Avanzar” (1/4/12 ticks), con:
+
+Δ total del periodo por target visible
+
+Δ/semana promedio del periodo
+
+causas agregadas por target (top-K)
+Esto responde exactamente al requisito del documento. 
+
+Base de planeación del juego
+
+Base de planeación del juego
+
+2) Modelo de causas (CauseRef) y cadena causal
+
+Cada contribución se atribuye a una CauseRef con identidad estable:
+
+CauseRef:
+
+category: DECISION | EVENT | MODIFIER | SYSTEM
+
+id: string (id del contenido o del sistema)
+
+parent: CauseRef? (opcional; para cadena causal)
+
+Regla de cadena:
+
+Un EffectInstance (MODIFIER) siempre tiene parent apuntando al DECISION/EVENT que lo originó (cuando aplique).
+
+Cambios internos “ocultos” que afecten visibles deben registrar causa atribuible (evento/decisión/modificador). 
+
+Base de planeación del juego
+
+3) Único punto de escritura: API de cambio con contexto
+
+Para evitar “cambios invisibles”, se impone una regla de motor:
+
+Cualquier mutación a un target visible debe pasar por:
+
+ApplyModifier(target, delta/factor/set, causeRef) o
+
+SetTargetValue(target, value, causeRef)
+
+Prohibido (a nivel de disciplina de código): mutar diccionarios del estado directamente para targets visibles.
+
+Esto garantiza la coherencia exigida por el diseño (si cambia algo visible, hay causa). 
+
+Base de planeación del juego
+
+4) Cómo se calcula el delta y cómo se reparte por causa (sin “magia”)
+4.1 Regla general: el log debe cuadrar exacto con el resultado final
+
+Para cada target en un tick, debe cumplirse:
+
+x_end - x_start = Σ(contribuciones por causa)
+
+Si hay clamps, normalizaciones o rounding, se registran como causas SYSTEM para cerrar la contabilidad.
+
+4.2 Aplicación con logging (por target, por tick)
+
+Se define un orden determinista (compatible con el motor de efectos):
+
+Caso A: hay SET activo sobre el target
+
+Se elige el SET ganador (por priority, tie-break determinista).
+
+Se aplica x := clamp(set_value).
+
+Se registra una sola entrada causal:
+
+delta = x - x_start con causa = (MODIFIER del efecto SET, o SYSTEM si fue una acción directa de sistema)
+
+Caso B: no hay SET
+
+ADD: se aplican por causa, exacto:
+
+para cada causa c: x += add_c y loggea add_c a c
+
+MUL: como no es lineal, se aplica secuencialmente (orden determinista por priority, luego effect_instance_id) para que el reparto sea exacto:
+
+para cada factor f con causa c:
+
+x_new = round(x * f / base)
+
+loggea delta = x_new - x a causa c
+
+x = x_new
+
+Clamp final (si corresponde por TargetConfig):
+
+si x se recorta, loggea residuo a causa SYSTEM:CLAMP
+
+Rounding residual (si tu fixed-point hace “half up”):
+
+si queda diferencia por rounding (puede ocurrir en productos encadenados), se loggea a SYSTEM:ROUNDING
+
+4.3 Normalizaciones obligatorias con logging
+
+Ejemplo crítico: igs.*.clout se renormaliza para sumar 100.
+
+Cada ajuste de renormalización se loggea como:
+
+causa SYSTEM:IG_CLOUT_NORMALIZE
+
+delta por cada IG afectado (positivos/negativos)
+Esto es necesario para que el reporte no muestre “cambios fantasmas” sin causa atribuible. 
+
+Base de planeación del juego
+
+5) Estructura de datos del log (lo mínimo)
+5.1 Buffer por tick (interno, durante simulación)
+
+TickCausalBuffer:
+
+tick: int
+
+deltas_by_target: Map<target_path, Map<CauseKey, int deltaS>>
+
+Donde CauseKey es category + ":" + id (más parent si quieres reconstruir cadena).
+
+5.2 TurnReport (salida post-turno)
+
+TurnReport:
+
+tick_start, tick_end, ticks_n
+
+targets_changed[] con:
+
+target_path
+
+delta_totalS
+
+delta_avg_per_weekS = delta_totalS / ticks_n
+
+causes[] (ordenadas por |delta| desc, top-K=3 por defecto)
+
+causeRef (category/id/parent)
+
+delta_totalS (acumulado del periodo)
+
+other_deltaS (resto agrupado)
+
+Esto implementa literalmente el formato de reporte exigido (“Métrica X: Δtotal (y Δ/semana) — causas…”) 
+
+Base de planeación del juego
+
+6) Persistencia (decisión cerrada)
+
+En save se guarda solo last_turn_report_summary (no el log por tick completo) para poder reabrir y ver “último reporte”.
+
+Opcional configurable: report_history ring buffer de últimos N=20 reportes (solo summaries).
+
+Pruebas (alineación con el diseño)
+
+“Si un estado oculto cambia una métrica visible, debe aparecer en el reporte causal con causa atribuible” queda garantizado por la regla de API única + SYSTEM:* para clamps/normalizaciones. 
+
+Base de planeación del juego
+
+“Δ total del periodo y promedio Δ/semana” queda garantizado por TurnReport y ticks 1/4/12. 
+
+Base de planeación del juego
+
+Qué falta
+
+No lo sé con la información dada:
+
+Los IDs finales de decisiones/eventos/reformas para poblar CauseRef.id con contenido real (esto es contenido, no motor).
+
+Si quieres que el reporte muestre además “cadena causal” expandida (p.ej. decisión → efecto → submod), hay que decidir el formato UI, pero el parent ya lo soporta.
+
+Riesgos/ambigüedades
+
+Multiplicadores: el reparto exacto requiere el orden secuencial determinista; si más tarde cambias el orden de aplicación del motor, debes mantener el mismo orden en logging para que cierre la contabilidad.
+
+Clamps/normalizaciones: si no se registran como SYSTEM:*, el reporte no cuadrará y se percibirá arbitrariedad (riesgo explícito del diseño). 
+
+Base de planeación del juego
+
+Si quieres el siguiente “cierre” (sin contenido) sería definir el formato estándar de texto del reporte (plantilla de líneas) y el criterio de “targets principales” (qué mostrar primero) usando el mismo TurnReport.
+
+Fuentes
+hazlo
+Pensado durante 32s
+
+Según el documento (sin fecha en el archivo), el reporte post-turno debe mostrar Δ total del periodo, promedio Δ/semana, y listar causas (“decisión A, evento B, modificador C”), además de derivar bandas, tendencias y alertas desde números visibles. 
+
+Base de planeación del juego
+
+Base de planeación del juego
+
+1) Formato estándar de texto del Reporte Post-Turno (zanjado)
+Encabezado
+
+Periodo: Semana|Mes|Trimestre (N semanas)
+
+Ticks: t_inicio → t_fin
+
+Decisiones tomadas: lista (1–3)
+
+Eventos/resoluciones durante el periodo: lista breve (si aplica)
+Esto calza con el loop “briefing → decisiones → simulación → reporte”. 
+
+Base de planeación del juego
+
+README
+
+Sección A — Alertas y bloqueos (siempre primero)
+
+Imprime solo las que se activan al cierre del periodo (o que se cruzaron durante el periodo, opcional). Umbrales mínimos definidos:
+
+Legitimidad < 30, Tensión social > 70, Seguridad < 30, Cohesión < 30, Organización < 30, Movimiento intensidad > 70. 
+
+Base de planeación del juego
+
+Formato de línea:
+
+ALERTA: {texto} — {target}: {valor_final} (umbral ...)
+
+Sección B — “Principales cambios” (Top N con causas)
+
+Formato canónico por línea (texto):
+
+{Etiqueta}: {valor_inicio} → {valor_final} (Δ {delta_total}; {delta_semana}/sem) — {Banda}, {Tendencia} — Causas: {C1} ({Δ1}), {C2} ({Δ2}), {C3} ({Δ3})
+
+Reglas de diagnóstico (cerradas):
+
+Banda se calcula con el valor_final usando 0–19/20–39/40–59/60–79/80–100. 
+
+Base de planeación del juego
+
+Tendencia se calcula con el promedio Δ/semana del periodo (≤-2.0, (-2.0,-0.5], (-0.5,+0.5), [+0.5,+2.0), ≥+2.0). 
+
+Base de planeación del juego
+
+Causas: mostrar máximo 3 (Top-3 por |Δ|) y el resto como “Otros (Δx)”. El ejemplo de formato está explicitado. 
+
+Base de planeación del juego
+
+Sección C — “Qué ocurrió” (narrativa mínima)
+
+Bullets cortos (máx. 5–7), cada uno con su gancho causal:
+
+Se aprobó/estancó X… (impactó en A/B por …)
+
+Escaló movimiento Y… (subió tensión/agenda…)
+Esto responde al requisito “Qué ocurrió + por qué ocurrió (cadena causal)”. 
+
+README
+
+README
+
+Sección D — Detalle por panel (opcional plegable)
+
+Tablas/blocks por: HUD, Paneles, Movimientos, IGs, Regiones (solo los que cambiaron o relevantes).
+El documento define set visible y rangos, lo que justifica estos bloques. 
+
+Base de planeación del juego
+
+2) Criterio de “targets principales” (orden y selección zanjados)
+2.1 Orden de secciones (fijo)
+
+Alertas/bloqueos
+
+HUD 6 métricas (siempre)
+
+Paneles 4 métricas (siempre)
+
+Reforma activa + movimientos vinculados (si existen)
+
+Movimientos (top cambios/intensidad)
+
+IGs (top cambios en clout/aprobación)
+
+Regiones (solo las más afectadas)
+Justificación: el diseño prioriza legibilidad del sistema y reportes causales sobre números visibles. 
+
+Base de planeación del juego
+
+Base de planeación del juego
+
+2.2 Selección del Top-N (“Principales cambios”)
+
+Defino N = 10 líneas en “Principales cambios”, con reglas deterministas:
+
+Siempre incluir (aunque Δ=0):
+
+HUD 6 + Paneles 4 (ya llenan N=10).
+Si quieres que “Principales cambios” sea solo lo que se movió, entonces:
+
+“Siempre incluir HUD 6” y el resto por score (más abajo). El documento enfatiza HUD/paneles como núcleo visible. 
+
+Base de planeación del juego
+
+Además, siempre incluir aunque exceda N (se agregan en bloque separado o empujan fuera del top):
+
+Cualquier target que dispare una alerta. 
+
+Base de planeación del juego
+
+Cualquier movements.*.intensity si > 70 (bloqueante próxima). 
+
+Base de planeación del juego
+
+Score para ordenar “cambios” cuando hay muchos:
+
+score = |Δtotal| * w + bonus_cross_threshold + bonus_new_alert
+
+w = 3 para HUD, w = 2 para Paneles, w = 1.5 para Movimientos, w = 1 para IGs/Regiones.
+
+bonus_cross_threshold = +50 si cruzó un umbral de alerta durante el periodo (opcional si trackeas cruces intra-periodo).
+
+bonus_new_alert = +100 si termina el periodo con alerta activa.
+
+Región:
+
+Mostrar solo:
+
+la región seleccionada por el jugador (si existe UI de región activa), y
+
+top-2 regiones por max(|Δsupport|, |Δtension|, |Δorganization|, |Δrival_presence|).
+
+IGs:
+
+Mostrar top-3 IGs por |Δapproval| y top-2 por |Δclout| (clout se normaliza; igual es informativo). 
+
+Base de planeación del juego
+
+Qué falta
+
+No lo sé con la información dada:
+
+Nombres finales/labels de cada métrica en UI (si “Legitimidad” se muestra como “Legitimidad gobierno” o similar). El motor puede usar TargetConfig.ui.label, pero no está el catálogo final de labels.
+
+Si quieres que el reporte muestre “cruces intra-periodo” (ej. pasó por 71 aunque terminó en 69), eso requiere guardar min/max por target durante el avance.
+
+Riesgos/ambigüedades
+
+Si no registras como causa de sistema los clamps/normalizaciones, el reporte puede no cuadrar con el número final y se percibe arbitrariedad (el documento lo trata como riesgo). 
+
+Base de planeación del juego
+
+Base de planeación del juego

@@ -1,0 +1,2310 @@
+content/manifest.json:
+
+{
+  "content_pack_id": "base_chile_fictional",
+  "content_pack_version": 1,
+  "content_schema_version": 1,
+  "min_game_schema_version": 1,
+  "languages": ["es"],
+  "default_language": "es",
+  "files": {}
+}
+content/core/regions.json:
+
+{
+  "regions": [
+    { "id": "arica_parinacota", "name": "Arica y Parinacota", "weight_ppm": 62500, "macrozone": "NORTH", "admin_capS": 5000, "industry_capS": 5000, "extractive_capS": 5000, "social_capS": 5000, "populationS": 5000 },
+    { "id": "tarapaca", "name": "Tarapacá", "weight_ppm": 62500, "macrozone": "NORTH", "admin_capS": 5000, "industry_capS": 5000, "extractive_capS": 5000, "social_capS": 5000, "populationS": 5000 },
+    { "id": "antofagasta", "name": "Antofagasta", "weight_ppm": 62500, "macrozone": "NORTH", "admin_capS": 5000, "industry_capS": 5000, "extractive_capS": 5000, "social_capS": 5000, "populationS": 5000 },
+    { "id": "atacama", "name": "Atacama", "weight_ppm": 62500, "macrozone": "NORTH", "admin_capS": 5000, "industry_capS": 5000, "extractive_capS": 5000, "social_capS": 5000, "populationS": 5000 },
+    { "id": "coquimbo", "name": "Coquimbo", "weight_ppm": 62500, "macrozone": "NORTH", "admin_capS": 5000, "industry_capS": 5000, "extractive_capS": 5000, "social_capS": 5000, "populationS": 5000 },
+
+    { "id": "valparaiso", "name": "Valparaíso", "weight_ppm": 62500, "macrozone": "CENTER", "admin_capS": 5000, "industry_capS": 5000, "extractive_capS": 5000, "social_capS": 5000, "populationS": 5000 },
+    { "id": "metropolitana", "name": "Metropolitana", "weight_ppm": 62500, "macrozone": "CENTER", "admin_capS": 5000, "industry_capS": 5000, "extractive_capS": 5000, "social_capS": 5000, "populationS": 5000 },
+    { "id": "ohiggins", "name": "O’Higgins", "weight_ppm": 62500, "macrozone": "CENTER", "admin_capS": 5000, "industry_capS": 5000, "extractive_capS": 5000, "social_capS": 5000, "populationS": 5000 },
+    { "id": "maule", "name": "Maule", "weight_ppm": 62500, "macrozone": "CENTER", "admin_capS": 5000, "industry_capS": 5000, "extractive_capS": 5000, "social_capS": 5000, "populationS": 5000 },
+    { "id": "nuble", "name": "Ñuble", "weight_ppm": 62500, "macrozone": "CENTER", "admin_capS": 5000, "industry_capS": 5000, "extractive_capS": 5000, "social_capS": 5000, "populationS": 5000 },
+
+    { "id": "biobio", "name": "Biobío", "weight_ppm": 62500, "macrozone": "SOUTH", "admin_capS": 5000, "industry_capS": 5000, "extractive_capS": 5000, "social_capS": 5000, "populationS": 5000 },
+    { "id": "araucania", "name": "La Araucanía", "weight_ppm": 62500, "macrozone": "SOUTH", "admin_capS": 5000, "industry_capS": 5000, "extractive_capS": 5000, "social_capS": 5000, "populationS": 5000 },
+    { "id": "los_rios", "name": "Los Ríos", "weight_ppm": 62500, "macrozone": "SOUTH", "admin_capS": 5000, "industry_capS": 5000, "extractive_capS": 5000, "social_capS": 5000, "populationS": 5000 },
+    { "id": "los_lagos", "name": "Los Lagos", "weight_ppm": 62500, "macrozone": "SOUTH", "admin_capS": 5000, "industry_capS": 5000, "extractive_capS": 5000, "social_capS": 5000, "populationS": 5000 },
+
+    { "id": "aysen", "name": "Aysén", "weight_ppm": 62500, "macrozone": "AUSTRAL", "admin_capS": 5000, "industry_capS": 5000, "extractive_capS": 5000, "social_capS": 5000, "populationS": 5000 },
+    { "id": "magallanes", "name": "Magallanes y Antártica Chilena", "weight_ppm": 62500, "macrozone": "AUSTRAL", "admin_capS": 5000, "industry_capS": 5000, "extractive_capS": 5000, "social_capS": 5000, "populationS": 5000 }
+  ]
+}
+
+
+content/core/igs.json:
+
+{
+  "igs": [
+    {
+      "id": "ig_empresariado_finanzas",
+      "name": "Empresariado y Finanzas",
+      "tags": ["ideol.market", "ideol.fiscal_austerity", "ideol.extractive_growth"]
+    },
+    {
+      "id": "ig_sindicatos_trabajo",
+      "name": "Sindicatos y Trabajo Organizado",
+      "tags": ["ideol.labor", "ideol.public_spending", "ideol.statist"]
+    },
+    {
+      "id": "ig_sector_publico_burocracia",
+      "name": "Sector Público y Burocracia",
+      "tags": ["ideol.statist", "ideol.public_spending", "ideol.institutionalism", "ideol.centralization"]
+    },
+    {
+      "id": "ig_orden_seguridad",
+      "name": "Orden y Seguridad",
+      "tags": ["ideol.security_hardline", "ideol.institutionalism", "ideol.centralization"]
+    },
+    {
+      "id": "ig_conservadores_civicos",
+      "name": "Conservadores Cívicos/Religiosos",
+      "tags": ["ideol.social_traditional", "ideol.security_hardline", "ideol.centralization"]
+    },
+    {
+      "id": "ig_progresistas_urbanos",
+      "name": "Progresistas Urbanos (ONG/estudiantes)",
+      "tags": ["ideol.social_progressive", "ideol.civil_liberties", "ideol.green", "ideol.anti_corruption"]
+    },
+    {
+      "id": "ig_profesionales_clase_media",
+      "name": "Profesionales y Clase Media",
+      "tags": ["ideol.institutionalism", "ideol.anti_corruption", "ideol.market"]
+    },
+    {
+      "id": "ig_territorio_productivo",
+      "name": "Territorio Productivo (rural/minería/puertos)",
+      "tags": ["ideol.extractive_growth", "ideol.market", "ideol.decentralization"]
+    },
+    {
+      "id": "ig_ambiental_regionalista",
+      "name": "Ambiental-Regionalista / Pueblos originarios",
+      "tags": ["ideol.green", "ideol.indigenous_rights", "ideol.decentralization", "ideol.civil_liberties"]
+    }
+  ]
+}
+
+content/core/movements.json:
+
+{
+  "movements": [
+    {
+      "id": "mov_seguridad_mano_dura",
+      "name": "Movimiento por mano dura",
+      "tags": ["theme.seguridad"]
+    },
+    {
+      "id": "mov_trabajo_huelgas",
+      "name": "Huelgas y presión sindical",
+      "tags": ["theme.trabajo"]
+    },
+    {
+      "id": "mov_salud_crisis_atencion",
+      "name": "Crisis por atención en salud",
+      "tags": ["theme.salud"]
+    },
+    {
+      "id": "mov_educacion_paros",
+      "name": "Paros y movilización estudiantil",
+      "tags": ["theme.educacion"]
+    },
+    {
+      "id": "mov_pensiones_presion_reforma",
+      "name": "Presión por reforma de pensiones",
+      "tags": ["theme.pensiones"]
+    },
+    {
+      "id": "mov_institucional_reforma",
+      "name": "Presión por reformas institucionales",
+      "tags": ["theme.institucional"]
+    },
+    {
+      "id": "mov_constitucional_proceso",
+      "name": "Presión por proceso constitucional",
+      "tags": ["theme.constitucional"]
+    },
+    {
+      "id": "mov_descentralizacion_regionalista",
+      "name": "Presión regionalista por descentralización",
+      "tags": ["theme.descentralizacion"]
+    },
+    {
+      "id": "mov_pueblos_originarios_autonomia",
+      "name": "Demandas de autonomía y reconocimiento",
+      "tags": ["theme.pueblos_originarios"]
+    }
+  ]
+}
+
+content/rules/target_config.json:
+
+[
+  {
+    "pattern": "metrics.*",
+    "scale": 100,
+    "minS": 0,
+    "maxS": 10000,
+    "defaultS": 5000,
+    "allow_ops": ["ADD", "MUL", "SET"],
+    "ui": { "label": "ui.target.metrics.generic", "decimals": 0 },
+    "qual": {
+      "bands_0_100": [
+        { "lo": 0,  "hi": 19,  "label": "qual.band.critico" },
+        { "lo": 20, "hi": 39,  "label": "qual.band.bajo" },
+        { "lo": 40, "hi": 59,  "label": "qual.band.medio" },
+        { "lo": 60, "hi": 79,  "label": "qual.band.alto" },
+        { "lo": 80, "hi": 100, "label": "qual.band.muy_alto" }
+      ],
+      "trend_per_week": [
+        { "lo": -999.0, "hi": -2.0,  "label": "qual.trend.deterioro_rapido" },
+        { "lo": -2.0,   "hi": -0.5,  "label": "qual.trend.deterioro" },
+        { "lo": -0.5,   "hi": 0.5,   "label": "qual.trend.estable" },
+        { "lo": 0.5,    "hi": 2.0,   "label": "qual.trend.mejoria" },
+        { "lo": 2.0,    "hi": 999.0, "label": "qual.trend.mejoria_rapida" }
+      ]
+    }
+  },
+
+  { "pattern": "metrics.legitimacy",           "scale": 100, "minS": 0, "maxS": 10000, "defaultS": 5000, "allow_ops": ["ADD","MUL","SET"], "ui": { "label": "ui.target.metrics.legitimacy",           "decimals": 0 } },
+  { "pattern": "metrics.economy",              "scale": 100, "minS": 0, "maxS": 10000, "defaultS": 5000, "allow_ops": ["ADD","MUL","SET"], "ui": { "label": "ui.target.metrics.economy",              "decimals": 0 } },
+  { "pattern": "metrics.security",             "scale": 100, "minS": 0, "maxS": 10000, "defaultS": 5000, "allow_ops": ["ADD","MUL","SET"], "ui": { "label": "ui.target.metrics.security",             "decimals": 0 } },
+  { "pattern": "metrics.social_tension",        "scale": 100, "minS": 0, "maxS": 10000, "defaultS": 5000, "allow_ops": ["ADD","MUL","SET"], "ui": { "label": "ui.target.metrics.social_tension",        "decimals": 0 } },
+  { "pattern": "metrics.public_agenda",         "scale": 100, "minS": 0, "maxS": 10000, "defaultS": 5000, "allow_ops": ["ADD","MUL","SET"], "ui": { "label": "ui.target.metrics.public_agenda",         "decimals": 0 } },
+  { "pattern": "metrics.information_quality",   "scale": 100, "minS": 0, "maxS": 10000, "defaultS": 5000, "allow_ops": ["ADD","MUL","SET"], "ui": { "label": "ui.target.metrics.information_quality",   "decimals": 0 } },
+  { "pattern": "metrics.party_organization",    "scale": 100, "minS": 0, "maxS": 10000, "defaultS": 5000, "allow_ops": ["ADD","MUL","SET"], "ui": { "label": "ui.target.metrics.party_organization",    "decimals": 0 } },
+  { "pattern": "metrics.internal_cohesion",     "scale": 100, "minS": 0, "maxS": 10000, "defaultS": 5000, "allow_ops": ["ADD","MUL","SET"], "ui": { "label": "ui.target.metrics.internal_cohesion",     "decimals": 0 } },
+  { "pattern": "metrics.legislative_capacity",  "scale": 100, "minS": 0, "maxS": 10000, "defaultS": 5000, "allow_ops": ["ADD","MUL","SET"], "ui": { "label": "ui.target.metrics.legislative_capacity",  "decimals": 0 } },
+  { "pattern": "metrics.governability",         "scale": 100, "minS": 0, "maxS": 10000, "defaultS": 5000, "allow_ops": ["ADD","MUL","SET"], "ui": { "label": "ui.target.metrics.governability",         "decimals": 0 } },
+
+  {
+    "pattern": "regions.*.support",
+    "scale": 100,
+    "minS": 0,
+    "maxS": 10000,
+    "defaultS": 5000,
+    "allow_ops": ["ADD", "MUL", "SET"],
+    "ui": { "label": "ui.target.regions.support", "decimals": 0 }
+  },
+  {
+    "pattern": "regions.*.tension",
+    "scale": 100,
+    "minS": 0,
+    "maxS": 10000,
+    "defaultS": 5000,
+    "allow_ops": ["ADD", "MUL", "SET"],
+    "ui": { "label": "ui.target.regions.tension", "decimals": 0 }
+  },
+  {
+    "pattern": "regions.*.organization",
+    "scale": 100,
+    "minS": 0,
+    "maxS": 10000,
+    "defaultS": 5000,
+    "allow_ops": ["ADD", "MUL", "SET"],
+    "ui": { "label": "ui.target.regions.organization", "decimals": 0 }
+  },
+  {
+    "pattern": "regions.*.rival_presence",
+    "scale": 100,
+    "minS": 0,
+    "maxS": 10000,
+    "defaultS": 5000,
+    "allow_ops": ["ADD", "MUL", "SET"],
+    "ui": { "label": "ui.target.regions.rival_presence", "decimals": 0 }
+  },
+
+  {
+    "pattern": "igs.*.clout",
+    "scale": 100,
+    "minS": 0,
+    "maxS": 10000,
+    "defaultS": 1111,
+    "allow_ops": ["ADD", "MUL", "SET"],
+    "normalize_group": "igs.clout_sum_100",
+    "ui": { "label": "ui.target.igs.clout", "decimals": 0 }
+  },
+  {
+    "pattern": "igs.*.approval",
+    "scale": 100,
+    "minS": -10000,
+    "maxS": 10000,
+    "defaultS": 0,
+    "allow_ops": ["ADD", "MUL", "SET"],
+    "ui": { "label": "ui.target.igs.approval", "decimals": 0 }
+  },
+
+  {
+    "pattern": "movements.*.intensity",
+    "scale": 100,
+    "minS": 0,
+    "maxS": 10000,
+    "defaultS": 0,
+    "allow_ops": ["ADD", "MUL", "SET"],
+    "ui": { "label": "ui.target.movements.intensity", "decimals": 0 }
+  },
+  {
+    "pattern": "movements.*.direction",
+    "scale": 1,
+    "minS": -1,
+    "maxS": 1,
+    "defaultS": 1,
+    "allow_ops": ["SET"],
+    "ui": { "label": "ui.target.movements.direction", "decimals": 0 }
+  },
+
+  {
+    "pattern": "internals.*.*",
+    "scale": 100,
+    "minS": 0,
+    "maxS": 10000,
+    "defaultS": 5000,
+    "allow_ops": ["ADD", "MUL", "SET"],
+    "ui": { "label": "ui.target.internals.generic", "decimals": 0 }
+  }
+]
+
+content/strings/es.json:
+
+{
+  "effect.eff_agenda_down_small.title": "Agenda pública (↓ leve)",
+  "effect.eff_agenda_up_small.title": "Agenda pública (↑ leve)",
+  "effect.eff_exceptional_route_cost_default.title": "Costo de ruta excepcional",
+  "effect.eff_info_quality_down_small.title": "Calidad de información (↓ leve)",
+  "effect.eff_info_quality_up_small.title": "Calidad de información (↑ leve)",
+  "effect.eff_internal_agenda_media_heat_up_small.title": "Presión mediática (↑ leve)",
+  "effect.eff_internal_economy_growth_down_small.title": "Crecimiento (↓ leve)",
+  "effect.eff_internal_economy_growth_up_small.title": "Crecimiento (↑ leve)",
+  "effect.eff_internal_economy_inflation_up_small.title": "Inflación (↑ leve)",
+  "effect.eff_internal_economy_unemployment_up_small.title": "Desempleo (↑ leve)",
+  "effect.eff_internal_info_media_noise_up_small.title": "Ruido mediático (↑ leve)",
+  "effect.eff_internal_security_crime_rate_up_small.title": "Delincuencia (↑ leve)",
+  "effect.eff_internal_security_police_capacity_up_small.title": "Capacidad policial (↑ leve)",
+  "effect.eff_internal_tension_cost_of_living_up_small.title": "Costo de vida (↑ leve)",
+  "effect.eff_internal_tension_protest_activity_up_small.title": "Actividad de protesta (↑ leve)",
+  "effect.eff_legitimacy_down_small.title": "Legitimidad (↓ leve)",
+  "effect.eff_legitimacy_up_small.title": "Legitimidad (↑ leve)",
+  "event.evt_headlines_cycle.opt_auto.label": "Continuar",
+  "event.evt_headlines_cycle.title": "Ciclo de titulares",
+  "event.evt_inflation_shock.opt_auto.label": "Responder al aumento de precios",
+  "event.evt_inflation_shock.title": "Shock inflacionario",
+  "event.evt_information_leak.opt_ignore.label": "Ignorar y seguir",
+  "event.evt_information_leak.opt_investigate.label": "Investigar a fondo",
+  "event.evt_information_leak.opt_spin.label": "Controlar el relato",
+  "event.evt_information_leak.title": "Filtración de información",
+  "event.evt_labor_pressure_escalation.opt_concede.label": "Conceder parcialmente",
+  "event.evt_labor_pressure_escalation.opt_hold_line.label": "Mantener la línea",
+  "event.evt_labor_pressure_escalation.title": "Escalada de presión laboral",
+  "event.evt_media_scandal.opt_attack_opposition.label": "Desviar la culpa a la oposición",
+  "event.evt_media_scandal.opt_minimize.label": "Minimizar y controlar daños",
+  "event.evt_media_scandal.opt_transparency.label": "Transparencia total",
+  "event.evt_media_scandal.title": "Escándalo mediático",
+  "event.evt_media_scandal_followup.opt_auto.label": "Asumir el costo",
+  "event.evt_media_scandal_followup.title": "Rebote del escándalo",
+  "event.evt_police_operation_success.opt_auto.label": "Capitalizar el resultado",
+  "event.evt_police_operation_success.title": "Operativo policial exitoso",
+  "event.evt_security_incident.opt_auto.label": "Reaccionar con urgencia",
+  "event.evt_security_incident.title": "Incidente de seguridad",
+  "qual.band.alto": "Alto",
+  "qual.band.bajo": "Bajo",
+  "qual.band.critico": "Crítico",
+  "qual.band.medio": "Medio",
+  "qual.band.muy_alto": "Muy alto",
+  "qual.trend.deterioro": "Deterioro",
+  "qual.trend.deterioro_rapido": "Deterioro rápido",
+  "qual.trend.estable": "Estable",
+  "qual.trend.mejoria": "Mejora",
+  "qual.trend.mejoria_rapida": "Mejora rápida",
+  "reform.ref_constitutional_process_call.desc": "Abre un proceso constitucional extraordinario. Aumenta exposición mediática y consume capital político; es de alta dificultad.",
+  "reform.ref_constitutional_process_call.title": "Convocatoria a proceso constituyente",
+  "reform.ref_education_quality_standards.desc": "Define estándares mínimos y refuerza evaluación/acompañamiento. Sube calidad de información y legitimidad gradualmente.",
+  "reform.ref_education_quality_standards.title": "Estándares y evaluación de calidad educativa",
+  "reform.ref_health_waitlist_acceleration.desc": "Paquete de gestión y gasto focalizado para disminuir atrasos. Mejora legitimidad, con presión fiscal de corto plazo.",
+  "reform.ref_health_waitlist_acceleration.title": "Aceleración de reducción de listas de espera",
+  "reform.ref_institutional_anti_corruption_package.desc": "Endurece controles, sanciones y trazabilidad. Mejora calidad de información y legitimidad, con fricción institucional inicial.",
+  "reform.ref_institutional_anti_corruption_package.title": "Paquete anticorrupción y transparencia",
+  "reform.ref_labor_collective_bargaining.desc": "Amplía derechos y cobertura de negociación. Aumenta el apoyo de sindicatos, con resistencia empresarial y riesgo de conflictividad en la implementación.",
+  "reform.ref_labor_collective_bargaining.title": "Fortalecimiento de negociación colectiva",
+  "reform.ref_pensions_solidarity_pillar.desc": "Aumenta transferencias y cobertura del pilar solidario con financiamiento adicional. Mejora legitimidad, pero puede elevar tensión por costo de vida en el corto plazo.",
+  "reform.ref_pensions_solidarity_pillar.title": "Pilar solidario de pensiones",
+  "reform.ref_security_police_modernization.desc": "Refuerza capacidades operativas y reorganiza despliegue. Sube la capacidad policial a mediano plazo, con costos políticos iniciales.",
+  "reform.ref_security_police_modernization.title": "Modernización policial y control territorial",
+  "ui.target.igs.approval": "Aprobación",
+  "ui.target.igs.clout": "Peso (clout)",
+  "ui.target.igs.generic": "Grupo de interés",
+  "ui.target.internals.generic": "Interno",
+  "ui.target.metrics.economy": "Economía",
+  "ui.target.metrics.generic": "Métrica",
+  "ui.target.metrics.governability": "Gobernabilidad",
+  "ui.target.metrics.information_quality": "Información",
+  "ui.target.metrics.internal_cohesion": "Cohesión interna",
+  "ui.target.metrics.legislative_capacity": "Capacidad legislativa",
+  "ui.target.metrics.legitimacy": "Legitimidad",
+  "ui.target.metrics.party_organization": "Organización del partido",
+  "ui.target.metrics.public_agenda": "Agenda pública",
+  "ui.target.metrics.security": "Seguridad",
+  "ui.target.metrics.social_tension": "Tensión social",
+  "ui.target.movements.direction": "Dirección",
+  "ui.target.movements.generic": "Movimiento",
+  "ui.target.movements.intensity": "Intensidad",
+  "ui.target.regions.generic": "Región",
+  "ui.target.regions.organization": "Organización territorial",
+  "ui.target.regions.rival_presence": "Presencia rival",
+  "ui.target.regions.support": "Apoyo regional",
+  "ui.target.regions.tension": "Tensión regional"
+}
+
+
+content/rules/aggregation_config.json:
+
+{
+  "schema_version": 1,
+  "scale": 100,
+  "midS": 5000,
+  "rounding": "HALF_AWAY_FROM_ZERO",
+  "passes": [
+    {
+      "type": "INTERNAL_REVERSION",
+      "cause_prefix": "SYSTEM:REVERSION",
+      "midS": 5000,
+      "groups": [
+        { "pattern": "internals.economy.*", "half_life_weeks": 26, "alpha_ppm": 26307 },
+        { "pattern": "internals.security.*", "half_life_weeks": 20, "alpha_ppm": 34064 },
+        { "pattern": "internals.tension.*", "half_life_weeks": 12, "alpha_ppm": 56126 },
+        { "pattern": "internals.agenda.*", "half_life_weeks": 6, "alpha_ppm": 109101 },
+        { "pattern": "internals.info.*", "half_life_weeks": 20, "alpha_ppm": 34064 },
+        { "pattern": "internals.gov.*", "half_life_weeks": 20, "alpha_ppm": 34064 },
+        { "pattern": "internals.leg.*", "half_life_weeks": 20, "alpha_ppm": 34064 },
+        { "pattern": "internals.party.*", "half_life_weeks": 20, "alpha_ppm": 34064 },
+        { "pattern": "internals.cohesion.*", "half_life_weeks": 20, "alpha_ppm": 34064 },
+        { "pattern": "internals.legitimacy.*", "half_life_weeks": 20, "alpha_ppm": 34064 }
+      ],
+      "skip_targets": [
+        "internals.legitimacy.performance",
+        "internals.legitimacy.social_tension_load"
+      ]
+    },
+    {
+      "type": "METRIC_AGGREGATION",
+      "cause_prefix": "SYSTEM:AGG",
+      "log_components": true,
+      "weights_abs_sum_ppm_required": 1000000,
+      "metrics": [
+        {
+          "metric": "metrics.economy",
+          "half_life_weeks": 8,
+          "alpha_ppm": 82996,
+          "cap_per_weekS": 200,
+          "components": [
+            { "target": "internals.economy.growth", "weight_ppm": 350000 },
+            { "target": "internals.economy.unemployment", "weight_ppm": -250000 },
+            { "target": "internals.economy.inflation", "weight_ppm": -250000 },
+            { "target": "internals.economy.fiscal_stability", "weight_ppm": 150000 }
+          ]
+        },
+        {
+          "metric": "metrics.security",
+          "half_life_weeks": 6,
+          "alpha_ppm": 109101,
+          "cap_per_weekS": 300,
+          "components": [
+            { "target": "internals.security.police_capacity", "weight_ppm": 350000 },
+            { "target": "internals.security.crime_rate", "weight_ppm": -250000 },
+            { "target": "internals.security.violent_crime", "weight_ppm": -250000 },
+            { "target": "internals.security.organized_crime", "weight_ppm": -150000 }
+          ]
+        },
+        {
+          "metric": "metrics.social_tension",
+          "half_life_weeks": 4,
+          "alpha_ppm": 159104,
+          "cap_per_weekS": 400,
+          "components": [
+            { "target": "internals.tension.cost_of_living", "weight_ppm": -350000 },
+            { "target": "internals.tension.polarization", "weight_ppm": -250000 },
+            { "target": "internals.tension.protest_activity", "weight_ppm": -250000 },
+            { "target": "internals.tension.institutional_trust", "weight_ppm": 150000 }
+          ]
+        },
+        {
+          "metric": "metrics.public_agenda",
+          "half_life_weeks": 2,
+          "alpha_ppm": 292893,
+          "cap_per_weekS": 600,
+          "components": [
+            { "target": "internals.agenda.media_heat", "weight_ppm": 400000 },
+            { "target": "internals.agenda.policy_conflict", "weight_ppm": 300000 },
+            { "target": "internals.agenda.movement_salience", "weight_ppm": 300000 }
+          ]
+        },
+        {
+          "metric": "metrics.information_quality",
+          "half_life_weeks": 6,
+          "alpha_ppm": 109101,
+          "cap_per_weekS": 300,
+          "components": [
+            { "target": "internals.info.intel_capacity", "weight_ppm": 450000 },
+            { "target": "internals.info.media_noise", "weight_ppm": -350000 },
+            { "target": "internals.info.institutional_access", "weight_ppm": 200000 }
+          ]
+        },
+        {
+          "metric": "metrics.governability",
+          "half_life_weeks": 8,
+          "alpha_ppm": 82996,
+          "cap_per_weekS": 200,
+          "components": [
+            { "target": "internals.gov.bureaucracy_capacity", "weight_ppm": 350000 },
+            { "target": "internals.gov.budget_flexibility", "weight_ppm": 250000 },
+            { "target": "internals.gov.execution_focus", "weight_ppm": 200000 },
+            { "target": "internals.gov.legal_friction", "weight_ppm": -200000 }
+          ]
+        },
+        {
+          "metric": "metrics.legislative_capacity",
+          "half_life_weeks": 3,
+          "alpha_ppm": 206299,
+          "cap_per_weekS": 400,
+          "components": [
+            { "target": "internals.leg.coalition_strength", "weight_ppm": 350000 },
+            { "target": "internals.leg.party_discipline", "weight_ppm": 350000 },
+            { "target": "internals.leg.opposition_obstruction", "weight_ppm": -200000 },
+            { "target": "internals.leg.senate_inertia", "weight_ppm": -100000 }
+          ]
+        },
+        {
+          "metric": "metrics.party_organization",
+          "half_life_weeks": 5,
+          "alpha_ppm": 129449,
+          "cap_per_weekS": 300,
+          "components": [
+            { "target": "internals.party.field_ops", "weight_ppm": 300000 },
+            { "target": "internals.party.funding", "weight_ppm": 250000 },
+            { "target": "internals.party.cadre_quality", "weight_ppm": 250000 },
+            { "target": "internals.party.internal_scandal", "weight_ppm": -200000 }
+          ]
+        },
+        {
+          "metric": "metrics.internal_cohesion",
+          "half_life_weeks": 5,
+          "alpha_ppm": 129449,
+          "cap_per_weekS": 300,
+          "components": [
+            { "target": "internals.cohesion.factionalism", "weight_ppm": -350000 },
+            { "target": "internals.cohesion.leadership_unity", "weight_ppm": 300000 },
+            { "target": "internals.cohesion.discipline_culture", "weight_ppm": 200000 },
+            { "target": "internals.cohesion.ambition_rivalries", "weight_ppm": -150000 }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "DERIVED_INTERNALS",
+      "cause_prefix": "SYSTEM:DERIVED",
+      "rules": [
+        {
+          "target": "internals.legitimacy.performance",
+          "op": "SET",
+          "expr": {
+            "kind": "AVG",
+            "targets": [ "metrics.economy", "metrics.security", "metrics.governability" ]
+          }
+        },
+        {
+          "target": "internals.legitimacy.social_tension_load",
+          "op": "SET",
+          "expr": {
+            "kind": "COPY",
+            "target": "metrics.social_tension"
+          }
+        }
+      ]
+    },
+    {
+      "type": "METRIC_AGGREGATION",
+      "cause_prefix": "SYSTEM:AGG",
+      "log_components": true,
+      "weights_abs_sum_ppm_required": 1000000,
+      "metrics": [
+        {
+          "metric": "metrics.legitimacy",
+          "half_life_weeks": 8,
+          "alpha_ppm": 82996,
+          "cap_per_weekS": 200,
+          "components": [
+            { "target": "internals.legitimacy.performance", "weight_ppm": 350000 },
+            { "target": "internals.legitimacy.integrity", "weight_ppm": 250000 },
+            { "target": "internals.legitimacy.scandal_pressure", "weight_ppm": -200000 },
+            { "target": "internals.legitimacy.social_tension_load", "weight_ppm": -200000 }
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+content/rules/legislative_config.json:
+
+{
+  "schema_version": 1,
+  "scale": 100,
+  "midS": 5000,
+  "rounding": "HALF_AWAY_FROM_ZERO",
+  "limits": {
+    "max_active_reforms": 1,
+    "max_stages": 5
+  },
+  "constants": {
+    "S": 100,
+    "HUNDRED_S": 10000
+  },
+  "gates": {
+    "normal_legitimacy_minS": 3000,
+    "cohesion_block_minS": 3000,
+    "exceptional_movement_minS": 7000,
+    "anti_movement_crisis_minS": 8500
+  },
+  "senate": {
+    "brakeS": 1000
+  },
+  "movement_matching": {
+    "reform_tags_source": "movement_tags",
+    "match_mode": "ANY",
+    "direction_pro": 1,
+    "direction_anti": -1
+  },
+  "exceptional_route": {
+    "enabled": true,
+    "bypass_legitimacy_gate": true,
+    "requires_pro_movement": true,
+    "costs_per_tick": [
+      {
+        "target": "metrics.social_tension",
+        "deltaS": 100,
+        "cause": "SYSTEM:LEG:EXCEPTION_COST"
+      },
+      {
+        "target": "metrics.legitimacy",
+        "deltaS": -50,
+        "cause": "SYSTEM:LEG:EXCEPTION_COST"
+      }
+    ]
+  },
+  "support_model": {
+    "support_rangeS": {
+      "minS": 0,
+      "maxS": 10000
+    },
+    "discipline": {
+      "party_organization_weight_ppm": 500000,
+      "internal_cohesion_weight_ppm": 500000
+    },
+    "base_component": {
+      "metric": "metrics.legislative_capacity",
+      "addS": 0
+    },
+    "legitimacy_component": {
+      "metric": "metrics.legitimacy",
+      "midS": 5000,
+      "divS": 2
+    },
+    "ig_alignment_component": {
+      "uses": {
+        "clout_target_pattern": "igs.*.clout",
+        "approval_target_pattern": "igs.*.approval"
+      },
+      "approval_to_01": {
+        "offsetS": 10000,
+        "divS": 2
+      },
+      "effective_stance_factor": {
+        "baseS": 5000,
+        "approval01_divS": 2,
+        "denomS": 10000
+      },
+      "stance_input_range": 100,
+      "stance_scale_to_S": 100,
+      "clout_denomS": 10000,
+      "term_div": 100,
+      "apply_discipline": true,
+      "post_divS": 2
+    },
+    "movement_component": {
+      "term_clampS": 10000,
+      "support_divS": 5
+    },
+    "upper_chamber": {
+      "type": "SUBTRACT_CONST",
+      "deltaS": -1000
+    }
+  },
+  "stage_model": {
+    "base_difficulty_defaultS": 10000,
+    "stage_weight": {
+      "scale_denomS": 10000,
+      "default_weightS": {
+        "WORK": 10000,
+        "VOTE": 12000
+      }
+    },
+    "throughput": {
+      "baseS": 20000,
+      "governability_metric": "metrics.governability",
+      "metric_denomS": 10000,
+      "support_denomS": 10000,
+      "chamber_both_support": "MIN"
+    },
+    "vote": {
+      "support_floorS": 4500,
+      "support_spanS": 5500,
+      "pass_thresholdS": 5500,
+      "fail_reset_progressS": 6000,
+      "fail_penalties": [
+        {
+          "target": "metrics.internal_cohesion",
+          "deltaS": -100,
+          "cause": "SYSTEM:LEG:VOTE_FAIL"
+        },
+        {
+          "target": "metrics.public_agenda",
+          "deltaS": 100,
+          "cause": "SYSTEM:LEG:VOTE_FAIL"
+        }
+      ]
+    }
+  },
+  "player_strategies": {
+    "STEADY": {
+      "support_bonusS": 0,
+      "throughput_multiplier_ppm": 1000000,
+      "per_tick_deltas": []
+    },
+    "PUSH": {
+      "support_bonusS": 300,
+      "throughput_multiplier_ppm": 1000000,
+      "per_tick_deltas": [
+        {
+          "target": "metrics.internal_cohesion",
+          "deltaS": -100,
+          "cause": "DECISION:LEG:PUSH"
+        },
+        {
+          "target": "metrics.public_agenda",
+          "deltaS": 50,
+          "cause": "DECISION:LEG:PUSH"
+        }
+      ]
+    },
+    "COMPROMISE": {
+      "support_bonusS": 200,
+      "throughput_multiplier_ppm": 1000000,
+      "implementation_effect_multiplier_ppm": 850000,
+      "per_tick_deltas": []
+    },
+    "DELAY": {
+      "support_bonusS": 0,
+      "throughput_multiplier_ppm": 700000,
+      "per_tick_deltas": [
+        {
+          "target": "metrics.social_tension",
+          "deltaS": -50,
+          "cause": "DECISION:LEG:DELAY"
+        },
+        {
+          "target": "metrics.public_agenda",
+          "deltaS": -50,
+          "cause": "DECISION:LEG:DELAY"
+        }
+      ]
+    }
+  },
+  "cause_prefixes": {
+    "progress": "SYSTEM:LEG:PROGRESS",
+    "support": "SYSTEM:LEG:SUPPORT",
+    "block": "SYSTEM:LEG:BLOCK",
+    "exception_cost": "SYSTEM:LEG:EXCEPTION_COST",
+    "vote_fail": "SYSTEM:LEG:VOTE_FAIL"
+  }
+}
+
+content/templates/effects.json:
+
+{
+  "effects": [
+    {
+      "id": "eff_legitimacy_down_small",
+      "loc_title": "effect.eff_legitimacy_down_small.title",
+      "mods": [
+        {
+          "target": "metrics.legitimacy",
+          "op": "ADD",
+          "valueS": -50,
+          "is_per_tick": true
+        }
+      ],
+      "tags": ["theme.institucional", "theme.corrupcion"]
+    },
+    {
+      "id": "eff_legitimacy_up_small",
+      "loc_title": "effect.eff_legitimacy_up_small.title",
+      "mods": [
+        {
+          "target": "metrics.legitimacy",
+          "op": "ADD",
+          "valueS": 50,
+          "is_per_tick": true
+        }
+      ],
+      "tags": ["theme.institucional"]
+    },
+    {
+      "id": "eff_agenda_down_small",
+      "loc_title": "effect.eff_agenda_down_small.title",
+      "mods": [
+        {
+          "target": "metrics.public_agenda",
+          "op": "ADD",
+          "valueS": -50,
+          "is_per_tick": true
+        }
+      ],
+      "tags": ["theme.institucional"]
+    },
+    {
+      "id": "eff_agenda_up_small",
+      "loc_title": "effect.eff_agenda_up_small.title",
+      "mods": [
+        {
+          "target": "metrics.public_agenda",
+          "op": "ADD",
+          "valueS": 50,
+          "is_per_tick": true
+        }
+      ],
+      "tags": ["theme.institucional"]
+    },
+    {
+      "id": "eff_info_quality_down_small",
+      "loc_title": "effect.eff_info_quality_down_small.title",
+      "mods": [
+        {
+          "target": "metrics.information_quality",
+          "op": "ADD",
+          "valueS": -50,
+          "is_per_tick": true
+        }
+      ],
+      "tags": ["theme.institucional", "theme.corrupcion"]
+    },
+    {
+      "id": "eff_info_quality_up_small",
+      "loc_title": "effect.eff_info_quality_up_small.title",
+      "mods": [
+        {
+          "target": "metrics.information_quality",
+          "op": "ADD",
+          "valueS": 50,
+          "is_per_tick": true
+        }
+      ],
+      "tags": ["theme.institucional"]
+    },
+
+    {
+      "id": "eff_internal_economy_growth_up_small",
+      "loc_title": "effect.eff_internal_economy_growth_up_small.title",
+      "mods": [
+        {
+          "target": "internals.economy.growth",
+          "op": "ADD",
+          "valueS": 100,
+          "is_per_tick": true
+        }
+      ],
+      "tags": ["theme.economia"]
+    },
+    {
+      "id": "eff_internal_economy_growth_down_small",
+      "loc_title": "effect.eff_internal_economy_growth_down_small.title",
+      "mods": [
+        {
+          "target": "internals.economy.growth",
+          "op": "ADD",
+          "valueS": -100,
+          "is_per_tick": true
+        }
+      ],
+      "tags": ["theme.economia"]
+    },
+    {
+      "id": "eff_internal_economy_inflation_up_small",
+      "loc_title": "effect.eff_internal_economy_inflation_up_small.title",
+      "mods": [
+        {
+          "target": "internals.economy.inflation",
+          "op": "ADD",
+          "valueS": 100,
+          "is_per_tick": true
+        }
+      ],
+      "tags": ["theme.economia"]
+    },
+    {
+      "id": "eff_internal_economy_unemployment_up_small",
+      "loc_title": "effect.eff_internal_economy_unemployment_up_small.title",
+      "mods": [
+        {
+          "target": "internals.economy.unemployment",
+          "op": "ADD",
+          "valueS": 100,
+          "is_per_tick": true
+        }
+      ],
+      "tags": ["theme.economia", "theme.trabajo"]
+    },
+
+    {
+      "id": "eff_internal_security_police_capacity_up_small",
+      "loc_title": "effect.eff_internal_security_police_capacity_up_small.title",
+      "mods": [
+        {
+          "target": "internals.security.police_capacity",
+          "op": "ADD",
+          "valueS": 100,
+          "is_per_tick": true
+        }
+      ],
+      "tags": ["theme.seguridad"]
+    },
+    {
+      "id": "eff_internal_security_crime_rate_up_small",
+      "loc_title": "effect.eff_internal_security_crime_rate_up_small.title",
+      "mods": [
+        {
+          "target": "internals.security.crime_rate",
+          "op": "ADD",
+          "valueS": 100,
+          "is_per_tick": true
+        }
+      ],
+      "tags": ["theme.seguridad"]
+    },
+
+    {
+      "id": "eff_internal_tension_cost_of_living_up_small",
+      "loc_title": "effect.eff_internal_tension_cost_of_living_up_small.title",
+      "mods": [
+        {
+          "target": "internals.tension.cost_of_living",
+          "op": "ADD",
+          "valueS": 100,
+          "is_per_tick": true
+        }
+      ],
+      "tags": ["theme.economia"]
+    },
+    {
+      "id": "eff_internal_tension_protest_activity_up_small",
+      "loc_title": "effect.eff_internal_tension_protest_activity_up_small.title",
+      "mods": [
+        {
+          "target": "internals.tension.protest_activity",
+          "op": "ADD",
+          "valueS": 100,
+          "is_per_tick": true
+        }
+      ],
+      "tags": ["theme.trabajo", "theme.institucional"]
+    },
+
+    {
+      "id": "eff_internal_agenda_media_heat_up_small",
+      "loc_title": "effect.eff_internal_agenda_media_heat_up_small.title",
+      "mods": [
+        {
+          "target": "internals.agenda.media_heat",
+          "op": "ADD",
+          "valueS": 100,
+          "is_per_tick": true
+        }
+      ],
+      "tags": ["theme.institucional", "theme.corrupcion"]
+    },
+
+    {
+      "id": "eff_internal_info_media_noise_up_small",
+      "loc_title": "effect.eff_internal_info_media_noise_up_small.title",
+      "mods": [
+        {
+          "target": "internals.info.media_noise",
+          "op": "ADD",
+          "valueS": 100,
+          "is_per_tick": true
+        }
+      ],
+      "tags": ["theme.institucional", "theme.corrupcion"]
+    },
+
+    {
+      "id": "eff_exceptional_route_cost_default",
+      "loc_title": "effect.eff_exceptional_route_cost_default.title",
+      "mods": [
+        {
+          "target": "metrics.social_tension",
+          "op": "ADD",
+          "valueS": 100,
+          "is_per_tick": true
+        },
+        {
+          "target": "metrics.legitimacy",
+          "op": "ADD",
+          "valueS": -50,
+          "is_per_tick": true
+        }
+      ],
+      "tags": ["theme.constitucional", "theme.institucional"]
+    }
+  ]
+}
+
+content/templates/events.json:
+
+{
+  "schema_version": 1,
+  "events": [
+    {
+      "id": "evt_headlines_cycle",
+      "loc_title": "event.evt_headlines_cycle.title",
+      "kind": "AUTO",
+      "scope": "NATIONAL",
+      "blocking": false,
+      "base_priority": 10,
+      "weight": 40,
+      "cooldown_weeks": 2,
+      "max_per_campaign": 999,
+      "tags": [
+        "theme.institucional"
+      ],
+      "vars": {
+        "severity": {
+          "bind": "severity_from",
+          "target": "metrics.public_agenda",
+          "bands": [
+            [
+              0,
+              3999,
+              1
+            ],
+            [
+              4000,
+              6999,
+              2
+            ],
+            [
+              7000,
+              10000,
+              3
+            ]
+          ]
+        }
+      },
+      "conditions": {
+        "all": [
+          {
+            "cooldown_ready": true
+          },
+          {
+            "max_count_not_reached": true
+          }
+        ]
+      },
+      "options": [
+        {
+          "id": "auto",
+          "loc_label": "event.evt_headlines_cycle.opt_auto.label",
+          "requirements": {
+            "all": []
+          },
+          "effects": [
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_internal_agenda_media_heat_up_small",
+              "duration_weeks": 1
+            },
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_internal_info_media_noise_up_small",
+              "duration_weeks": 1
+            }
+          ],
+          "memory": {
+            "set_cooldown": true
+          }
+        }
+      ],
+      "auto_option_id": "auto"
+    },
+    {
+      "id": "evt_media_scandal",
+      "loc_title": "event.evt_media_scandal.title",
+      "kind": "CHOICE",
+      "scope": "NATIONAL",
+      "blocking": false,
+      "base_priority": 55,
+      "weight": 100,
+      "cooldown_weeks": 12,
+      "max_per_campaign": 2,
+      "tags": [
+        "theme.corrupcion",
+        "theme.institucional"
+      ],
+      "vars": {
+        "region": {
+          "bind": "pick_region",
+          "mode": "ARGMAX",
+          "target": "regions.*.tension"
+        },
+        "ig": {
+          "bind": "pick_ig",
+          "mode": "WEIGHTED",
+          "target": "igs.*.clout"
+        },
+        "severity": {
+          "bind": "severity_from",
+          "target": "metrics.public_agenda",
+          "bands": [
+            [
+              0,
+              4999,
+              1
+            ],
+            [
+              5000,
+              6999,
+              2
+            ],
+            [
+              7000,
+              10000,
+              3
+            ]
+          ]
+        }
+      },
+      "conditions": {
+        "all": [
+          {
+            "cmp": {
+              "target": "metrics.information_quality",
+              "op": "<",
+              "value": 5200
+            }
+          },
+          {
+            "cmp": {
+              "target": "metrics.public_agenda",
+              "op": ">",
+              "value": 5100
+            }
+          },
+          {
+            "cooldown_ready": true
+          },
+          {
+            "max_count_not_reached": true
+          }
+        ]
+      },
+      "options": [
+        {
+          "id": "minimize",
+          "loc_label": "event.evt_media_scandal.opt_minimize.label",
+          "requirements": {
+            "all": []
+          },
+          "effects": [
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_agenda_down_small",
+              "duration_weeks": 4
+            },
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_legitimacy_down_small",
+              "duration_weeks": 2
+            }
+          ],
+          "memory": {
+            "set_flag": [
+              "flag.scandal_active"
+            ],
+            "set_cooldown": true
+          },
+          "followups": [
+            {
+              "after_weeks": 2,
+              "event_id": "evt_media_scandal_followup"
+            }
+          ]
+        },
+        {
+          "id": "transparency",
+          "loc_label": "event.evt_media_scandal.opt_transparency.label",
+          "requirements": {
+            "all": []
+          },
+          "effects": [
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_legitimacy_up_small",
+              "duration_weeks": 2
+            },
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_agenda_up_small",
+              "duration_weeks": 2
+            },
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_internal_agenda_media_heat_up_small",
+              "duration_weeks": 2
+            }
+          ],
+          "memory": {
+            "set_flag": [
+              "flag.scandal_active"
+            ],
+            "set_cooldown": true
+          }
+        },
+        {
+          "id": "attack_opposition",
+          "loc_label": "event.evt_media_scandal.opt_attack_opposition.label",
+          "requirements": {
+            "all": []
+          },
+          "effects": [
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_agenda_up_small",
+              "duration_weeks": 4
+            },
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_info_quality_down_small",
+              "duration_weeks": 4
+            },
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_internal_info_media_noise_up_small",
+              "duration_weeks": 4
+            },
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_legitimacy_down_small",
+              "duration_weeks": 1
+            }
+          ],
+          "memory": {
+            "set_flag": [
+              "flag.scandal_active"
+            ],
+            "set_cooldown": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_media_scandal_followup",
+      "loc_title": "event.evt_media_scandal_followup.title",
+      "kind": "AUTO",
+      "scope": "NATIONAL",
+      "blocking": false,
+      "base_priority": 40,
+      "weight": 80,
+      "cooldown_weeks": 8,
+      "max_per_campaign": 2,
+      "tags": [
+        "theme.corrupcion",
+        "theme.institucional"
+      ],
+      "vars": {
+        "severity": {
+          "bind": "severity_from",
+          "target": "metrics.public_agenda",
+          "bands": [
+            [
+              0,
+              4999,
+              1
+            ],
+            [
+              5000,
+              6999,
+              2
+            ],
+            [
+              7000,
+              10000,
+              3
+            ]
+          ]
+        }
+      },
+      "conditions": {
+        "all": [
+          {
+            "flag_is_set": "flag.scandal_active"
+          },
+          {
+            "cooldown_ready": true
+          },
+          {
+            "max_count_not_reached": true
+          }
+        ]
+      },
+      "options": [
+        {
+          "id": "auto",
+          "loc_label": "event.evt_media_scandal_followup.opt_auto.label",
+          "requirements": {
+            "all": []
+          },
+          "effects": [
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_internal_agenda_media_heat_up_small",
+              "duration_weeks": 2
+            },
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_legitimacy_down_small",
+              "duration_weeks": 1
+            }
+          ],
+          "memory": {
+            "clear_flag": [
+              "flag.scandal_active"
+            ],
+            "set_cooldown": true
+          }
+        }
+      ],
+      "auto_option_id": "auto"
+    },
+    {
+      "id": "evt_inflation_shock",
+      "loc_title": "event.evt_inflation_shock.title",
+      "kind": "AUTO",
+      "scope": "NATIONAL",
+      "blocking": false,
+      "base_priority": 25,
+      "weight": 60,
+      "cooldown_weeks": 10,
+      "max_per_campaign": 6,
+      "tags": [
+        "theme.economia"
+      ],
+      "vars": {
+        "severity": {
+          "bind": "severity_from",
+          "target": "metrics.economy",
+          "bands": [
+            [
+              0,
+              3999,
+              3
+            ],
+            [
+              4000,
+              5999,
+              2
+            ],
+            [
+              6000,
+              10000,
+              1
+            ]
+          ]
+        }
+      },
+      "conditions": {
+        "all": [
+          {
+            "cooldown_ready": true
+          },
+          {
+            "max_count_not_reached": true
+          }
+        ]
+      },
+      "options": [
+        {
+          "id": "auto",
+          "loc_label": "event.evt_inflation_shock.opt_auto.label",
+          "requirements": {
+            "all": []
+          },
+          "effects": [
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_internal_economy_inflation_up_small",
+              "duration_weeks": 2
+            },
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_internal_tension_cost_of_living_up_small",
+              "duration_weeks": 2
+            },
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_agenda_up_small",
+              "duration_weeks": 1
+            }
+          ],
+          "memory": {
+            "set_cooldown": true
+          }
+        }
+      ],
+      "auto_option_id": "auto"
+    },
+    {
+      "id": "evt_security_incident",
+      "loc_title": "event.evt_security_incident.title",
+      "kind": "AUTO",
+      "scope": "REGION",
+      "blocking": false,
+      "base_priority": 30,
+      "weight": 70,
+      "cooldown_weeks": 8,
+      "max_per_campaign": 8,
+      "tags": [
+        "theme.seguridad"
+      ],
+      "vars": {
+        "region": {
+          "bind": "pick_region",
+          "mode": "ARGMAX",
+          "target": "regions.*.tension"
+        },
+        "severity": {
+          "bind": "severity_from",
+          "target": "metrics.security",
+          "bands": [
+            [
+              0,
+              3999,
+              3
+            ],
+            [
+              4000,
+              5999,
+              2
+            ],
+            [
+              6000,
+              10000,
+              1
+            ]
+          ]
+        }
+      },
+      "conditions": {
+        "all": [
+          {
+            "cooldown_ready": true
+          },
+          {
+            "max_count_not_reached": true
+          }
+        ]
+      },
+      "options": [
+        {
+          "id": "auto",
+          "loc_label": "event.evt_security_incident.opt_auto.label",
+          "requirements": {
+            "all": []
+          },
+          "effects": [
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_internal_security_crime_rate_up_small",
+              "duration_weeks": 2
+            },
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_agenda_up_small",
+              "duration_weeks": 2
+            }
+          ],
+          "memory": {
+            "set_cooldown": true
+          }
+        }
+      ],
+      "auto_option_id": "auto"
+    },
+    {
+      "id": "evt_police_operation_success",
+      "loc_title": "event.evt_police_operation_success.title",
+      "kind": "AUTO",
+      "scope": "REGION",
+      "blocking": false,
+      "base_priority": 22,
+      "weight": 55,
+      "cooldown_weeks": 10,
+      "max_per_campaign": 6,
+      "tags": [
+        "theme.seguridad"
+      ],
+      "vars": {
+        "region": {
+          "bind": "pick_region",
+          "mode": "WEIGHTED",
+          "target": "regions.*.admin_capS"
+        },
+        "severity": {
+          "bind": "severity_from",
+          "target": "metrics.public_agenda",
+          "bands": [
+            [
+              0,
+              4999,
+              1
+            ],
+            [
+              5000,
+              6999,
+              2
+            ],
+            [
+              7000,
+              10000,
+              3
+            ]
+          ]
+        }
+      },
+      "conditions": {
+        "all": [
+          {
+            "cooldown_ready": true
+          },
+          {
+            "max_count_not_reached": true
+          }
+        ]
+      },
+      "options": [
+        {
+          "id": "auto",
+          "loc_label": "event.evt_police_operation_success.opt_auto.label",
+          "requirements": {
+            "all": []
+          },
+          "effects": [
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_internal_security_police_capacity_up_small",
+              "duration_weeks": 2
+            },
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_legitimacy_up_small",
+              "duration_weeks": 1
+            }
+          ],
+          "memory": {
+            "set_cooldown": true
+          }
+        }
+      ],
+      "auto_option_id": "auto"
+    },
+    {
+      "id": "evt_information_leak",
+      "loc_title": "event.evt_information_leak.title",
+      "kind": "CHOICE",
+      "scope": "NATIONAL",
+      "blocking": false,
+      "base_priority": 45,
+      "weight": 90,
+      "cooldown_weeks": 14,
+      "max_per_campaign": 3,
+      "tags": [
+        "theme.institucional"
+      ],
+      "vars": {
+        "ig": {
+          "bind": "pick_ig",
+          "mode": "WEIGHTED",
+          "target": "igs.*.clout"
+        },
+        "severity": {
+          "bind": "severity_from",
+          "target": "metrics.information_quality",
+          "bands": [
+            [
+              0,
+              3999,
+              3
+            ],
+            [
+              4000,
+              5999,
+              2
+            ],
+            [
+              6000,
+              10000,
+              1
+            ]
+          ]
+        }
+      },
+      "conditions": {
+        "all": [
+          {
+            "cmp": {
+              "target": "metrics.information_quality",
+              "op": "<",
+              "value": 5400
+            }
+          },
+          {
+            "cooldown_ready": true
+          },
+          {
+            "max_count_not_reached": true
+          }
+        ]
+      },
+      "options": [
+        {
+          "id": "investigate",
+          "loc_label": "event.evt_information_leak.opt_investigate.label",
+          "requirements": {
+            "all": []
+          },
+          "effects": [
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_info_quality_up_small",
+              "duration_weeks": 2
+            },
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_agenda_up_small",
+              "duration_weeks": 2
+            }
+          ],
+          "memory": {
+            "set_cooldown": true
+          }
+        },
+        {
+          "id": "ignore",
+          "loc_label": "event.evt_information_leak.opt_ignore.label",
+          "requirements": {
+            "all": []
+          },
+          "effects": [
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_internal_info_media_noise_up_small",
+              "duration_weeks": 2
+            },
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_agenda_up_small",
+              "duration_weeks": 1
+            }
+          ],
+          "memory": {
+            "set_cooldown": true
+          }
+        },
+        {
+          "id": "spin",
+          "loc_label": "event.evt_information_leak.opt_spin.label",
+          "requirements": {
+            "all": []
+          },
+          "effects": [
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_info_quality_down_small",
+              "duration_weeks": 3
+            },
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_internal_info_media_noise_up_small",
+              "duration_weeks": 3
+            },
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_legitimacy_down_small",
+              "duration_weeks": 1
+            }
+          ],
+          "memory": {
+            "set_cooldown": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "evt_labor_pressure_escalation",
+      "loc_title": "event.evt_labor_pressure_escalation.title",
+      "kind": "CRISIS",
+      "scope": "REGION",
+      "blocking": true,
+      "base_priority": 90,
+      "weight": 100,
+      "cooldown_weeks": 20,
+      "max_per_campaign": 2,
+      "tags": [
+        "theme.trabajo"
+      ],
+      "vars": {
+        "region": {
+          "bind": "pick_region",
+          "mode": "WEIGHTED",
+          "target": "regions.*.industry_capS"
+        },
+        "severity": {
+          "bind": "severity_from",
+          "target": "metrics.public_agenda",
+          "bands": [
+            [
+              0,
+              4999,
+              1
+            ],
+            [
+              5000,
+              6999,
+              2
+            ],
+            [
+              7000,
+              10000,
+              3
+            ]
+          ]
+        }
+      },
+      "conditions": {
+        "all": [
+          {
+            "movement_cmp": {
+              "movement_id": "mov_trabajo_huelgas",
+              "op": ">",
+              "value": 8500
+            }
+          },
+          {
+            "cooldown_ready": true
+          },
+          {
+            "max_count_not_reached": true
+          }
+        ]
+      },
+      "options": [
+        {
+          "id": "concede",
+          "loc_label": "event.evt_labor_pressure_escalation.opt_concede.label",
+          "requirements": {
+            "all": []
+          },
+          "effects": [
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_legitimacy_up_small",
+              "duration_weeks": 2
+            },
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_internal_economy_growth_down_small",
+              "duration_weeks": 2
+            },
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_agenda_down_small",
+              "duration_weeks": 2
+            }
+          ],
+          "memory": {
+            "set_cooldown": true
+          }
+        },
+        {
+          "id": "hold_line",
+          "loc_label": "event.evt_labor_pressure_escalation.opt_hold_line.label",
+          "requirements": {
+            "all": []
+          },
+          "effects": [
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_legitimacy_down_small",
+              "duration_weeks": 2
+            },
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_internal_tension_protest_activity_up_small",
+              "duration_weeks": 3
+            },
+            {
+              "type": "MODIFIER",
+              "template_id": "eff_agenda_up_small",
+              "duration_weeks": 3
+            }
+          ],
+          "memory": {
+            "set_cooldown": true
+          }
+        }
+      ]
+    }
+  ]
+}
+
+content/templates/reforms.json:
+
+{
+  "reforms": [
+    {
+      "id": "ref_security_police_modernization",
+      "loc_title": "reform.ref_security_police_modernization.title",
+      "loc_desc": "reform.ref_security_police_modernization.desc",
+      "area": "seguridad",
+      "kind": "NORMAL",
+      "cooldown_weeks": 8,
+      "max_per_campaign": 1,
+      "movement_tags": [
+        "theme.seguridad"
+      ],
+      "policy_tags": [
+        "policy.security_crackdown"
+      ],
+      "igs_stance": {
+        "ig_orden_seguridad": 70,
+        "ig_conservadores_civicos": 35,
+        "ig_sector_publico_burocracia": 15,
+        "ig_sindicatos_trabajo": -10,
+        "ig_empresariado_finanzas": 10
+      },
+      "prereqs": [
+        {
+          "type": "METRIC",
+          "target": "metrics.legitimacy",
+          "op": ">=",
+          "valueS": 3000
+        }
+      ],
+      "base_difficultyS": 10500,
+      "stages": [
+        {
+          "id": "filed",
+          "kind": "WORK",
+          "chamber": "NONE",
+          "weightS": 10000
+        },
+        {
+          "id": "committee_lower",
+          "kind": "WORK",
+          "chamber": "LOWER",
+          "weightS": 10000
+        },
+        {
+          "id": "vote_lower",
+          "kind": "VOTE",
+          "chamber": "LOWER",
+          "weightS": 12000
+        },
+        {
+          "id": "vote_upper",
+          "kind": "VOTE",
+          "chamber": "UPPER",
+          "weightS": 12000
+        }
+      ],
+      "on_pass_effects": [
+        {
+          "type": "MODIFIER",
+          "template_id": "eff_internal_security_police_capacity_up_small",
+          "duration_weeks": 52
+        },
+        {
+          "type": "MODIFIER",
+          "template_id": "eff_legitimacy_up_small",
+          "duration_weeks": 8
+        }
+      ]
+    },
+    {
+      "id": "ref_labor_collective_bargaining",
+      "loc_title": "reform.ref_labor_collective_bargaining.title",
+      "loc_desc": "reform.ref_labor_collective_bargaining.desc",
+      "area": "trabajo",
+      "kind": "NORMAL",
+      "cooldown_weeks": 8,
+      "max_per_campaign": 1,
+      "movement_tags": [
+        "theme.trabajo"
+      ],
+      "policy_tags": [
+        "policy.labor_rights_up"
+      ],
+      "igs_stance": {
+        "ig_sindicatos_trabajo": 75,
+        "ig_sector_publico_burocracia": 25,
+        "ig_empresariado_finanzas": -65,
+        "ig_conservadores_civicos": -10
+      },
+      "prereqs": [
+        {
+          "type": "METRIC",
+          "target": "metrics.legitimacy",
+          "op": ">=",
+          "valueS": 3200
+        }
+      ],
+      "base_difficultyS": 11500,
+      "stages": [
+        {
+          "id": "filed",
+          "kind": "WORK",
+          "chamber": "NONE",
+          "weightS": 10000
+        },
+        {
+          "id": "committee_lower",
+          "kind": "WORK",
+          "chamber": "LOWER",
+          "weightS": 10000
+        },
+        {
+          "id": "vote_lower",
+          "kind": "VOTE",
+          "chamber": "LOWER",
+          "weightS": 12000
+        },
+        {
+          "id": "vote_upper",
+          "kind": "VOTE",
+          "chamber": "UPPER",
+          "weightS": 12000
+        }
+      ],
+      "on_pass_effects": [
+        {
+          "type": "MODIFIER",
+          "template_id": "eff_internal_tension_protest_activity_up_small",
+          "duration_weeks": 8
+        },
+        {
+          "type": "MODIFIER",
+          "template_id": "eff_legitimacy_up_small",
+          "duration_weeks": 6
+        }
+      ]
+    },
+    {
+      "id": "ref_health_waitlist_acceleration",
+      "loc_title": "reform.ref_health_waitlist_acceleration.title",
+      "loc_desc": "reform.ref_health_waitlist_acceleration.desc",
+      "area": "salud",
+      "kind": "NORMAL",
+      "cooldown_weeks": 8,
+      "max_per_campaign": 1,
+      "movement_tags": [
+        "theme.salud"
+      ],
+      "policy_tags": [
+        "policy.spending_increase"
+      ],
+      "igs_stance": {
+        "ig_sector_publico_burocracia": 45,
+        "ig_sindicatos_trabajo": 20,
+        "ig_empresariado_finanzas": -25,
+        "ig_conservadores_civicos": 5
+      },
+      "prereqs": [
+        {
+          "type": "METRIC",
+          "target": "metrics.legitimacy",
+          "op": ">=",
+          "valueS": 3000
+        }
+      ],
+      "base_difficultyS": 10000,
+      "stages": [
+        {
+          "id": "filed",
+          "kind": "WORK",
+          "chamber": "NONE",
+          "weightS": 10000
+        },
+        {
+          "id": "committee_lower",
+          "kind": "WORK",
+          "chamber": "LOWER",
+          "weightS": 10000
+        },
+        {
+          "id": "vote_lower",
+          "kind": "VOTE",
+          "chamber": "LOWER",
+          "weightS": 12000
+        },
+        {
+          "id": "vote_upper",
+          "kind": "VOTE",
+          "chamber": "UPPER",
+          "weightS": 12000
+        }
+      ],
+      "on_pass_effects": [
+        {
+          "type": "MODIFIER",
+          "template_id": "eff_internal_economy_growth_down_small",
+          "duration_weeks": 10
+        },
+        {
+          "type": "MODIFIER",
+          "template_id": "eff_legitimacy_up_small",
+          "duration_weeks": 10
+        }
+      ]
+    },
+    {
+      "id": "ref_education_quality_standards",
+      "loc_title": "reform.ref_education_quality_standards.title",
+      "loc_desc": "reform.ref_education_quality_standards.desc",
+      "area": "educacion",
+      "kind": "NORMAL",
+      "cooldown_weeks": 8,
+      "max_per_campaign": 1,
+      "movement_tags": [
+        "theme.educacion"
+      ],
+      "policy_tags": [
+        "policy.regulation_increase",
+        "policy.spending_increase"
+      ],
+      "igs_stance": {
+        "ig_sector_publico_burocracia": 40,
+        "ig_sindicatos_trabajo": 25,
+        "ig_empresariado_finanzas": -15,
+        "ig_conservadores_civicos": 10
+      },
+      "prereqs": [
+        {
+          "type": "METRIC",
+          "target": "metrics.legitimacy",
+          "op": ">=",
+          "valueS": 3000
+        }
+      ],
+      "base_difficultyS": 10000,
+      "stages": [
+        {
+          "id": "filed",
+          "kind": "WORK",
+          "chamber": "NONE",
+          "weightS": 10000
+        },
+        {
+          "id": "committee_lower",
+          "kind": "WORK",
+          "chamber": "LOWER",
+          "weightS": 10000
+        },
+        {
+          "id": "vote_lower",
+          "kind": "VOTE",
+          "chamber": "LOWER",
+          "weightS": 12000
+        },
+        {
+          "id": "vote_upper",
+          "kind": "VOTE",
+          "chamber": "UPPER",
+          "weightS": 12000
+        }
+      ],
+      "on_pass_effects": [
+        {
+          "type": "MODIFIER",
+          "template_id": "eff_info_quality_up_small",
+          "duration_weeks": 12
+        },
+        {
+          "type": "MODIFIER",
+          "template_id": "eff_legitimacy_up_small",
+          "duration_weeks": 8
+        }
+      ]
+    },
+    {
+      "id": "ref_pensions_solidarity_pillar",
+      "loc_title": "reform.ref_pensions_solidarity_pillar.title",
+      "loc_desc": "reform.ref_pensions_solidarity_pillar.desc",
+      "area": "pensiones",
+      "kind": "NORMAL",
+      "cooldown_weeks": 12,
+      "max_per_campaign": 1,
+      "movement_tags": [
+        "theme.pensiones"
+      ],
+      "policy_tags": [
+        "policy.spending_increase",
+        "policy.tax_increase"
+      ],
+      "igs_stance": {
+        "ig_sector_publico_burocracia": 35,
+        "ig_sindicatos_trabajo": 30,
+        "ig_empresariado_finanzas": -35,
+        "ig_conservadores_civicos": -5
+      },
+      "prereqs": [
+        {
+          "type": "METRIC",
+          "target": "metrics.legitimacy",
+          "op": ">=",
+          "valueS": 3300
+        }
+      ],
+      "base_difficultyS": 12000,
+      "stages": [
+        {
+          "id": "filed",
+          "kind": "WORK",
+          "chamber": "NONE",
+          "weightS": 10000
+        },
+        {
+          "id": "committee_lower",
+          "kind": "WORK",
+          "chamber": "LOWER",
+          "weightS": 10000
+        },
+        {
+          "id": "vote_lower",
+          "kind": "VOTE",
+          "chamber": "LOWER",
+          "weightS": 12000
+        },
+        {
+          "id": "vote_upper",
+          "kind": "VOTE",
+          "chamber": "UPPER",
+          "weightS": 12000
+        }
+      ],
+      "on_pass_effects": [
+        {
+          "type": "MODIFIER",
+          "template_id": "eff_internal_tension_cost_of_living_up_small",
+          "duration_weeks": 8
+        },
+        {
+          "type": "MODIFIER",
+          "template_id": "eff_legitimacy_up_small",
+          "duration_weeks": 12
+        }
+      ]
+    },
+    {
+      "id": "ref_institutional_anti_corruption_package",
+      "loc_title": "reform.ref_institutional_anti_corruption_package.title",
+      "loc_desc": "reform.ref_institutional_anti_corruption_package.desc",
+      "area": "institucional",
+      "kind": "NORMAL",
+      "cooldown_weeks": 10,
+      "max_per_campaign": 1,
+      "movement_tags": [
+        "theme.institucional",
+        "theme.corrupcion"
+      ],
+      "policy_tags": [
+        "policy.anti_corruption",
+        "policy.institutional_reform"
+      ],
+      "igs_stance": {
+        "ig_sector_publico_burocracia": 25,
+        "ig_empresariado_finanzas": -5,
+        "ig_conservadores_civicos": 20,
+        "ig_orden_seguridad": 10
+      },
+      "prereqs": [
+        {
+          "type": "METRIC",
+          "target": "metrics.legitimacy",
+          "op": ">=",
+          "valueS": 3000
+        },
+        {
+          "type": "METRIC",
+          "target": "metrics.information_quality",
+          "op": ">=",
+          "valueS": 3500
+        }
+      ],
+      "base_difficultyS": 9500,
+      "stages": [
+        {
+          "id": "filed",
+          "kind": "WORK",
+          "chamber": "NONE",
+          "weightS": 10000
+        },
+        {
+          "id": "committee_lower",
+          "kind": "WORK",
+          "chamber": "LOWER",
+          "weightS": 10000
+        },
+        {
+          "id": "vote_lower",
+          "kind": "VOTE",
+          "chamber": "LOWER",
+          "weightS": 12000
+        },
+        {
+          "id": "vote_upper",
+          "kind": "VOTE",
+          "chamber": "UPPER",
+          "weightS": 12000
+        }
+      ],
+      "on_pass_effects": [
+        {
+          "type": "MODIFIER",
+          "template_id": "eff_info_quality_up_small",
+          "duration_weeks": 12
+        },
+        {
+          "type": "MODIFIER",
+          "template_id": "eff_legitimacy_up_small",
+          "duration_weeks": 10
+        }
+      ]
+    },
+    {
+      "id": "ref_constitutional_process_call",
+      "loc_title": "reform.ref_constitutional_process_call.title",
+      "loc_desc": "reform.ref_constitutional_process_call.desc",
+      "area": "constitucional",
+      "kind": "SPECIAL_CONSTITUTIONAL",
+      "cooldown_weeks": 0,
+      "max_per_campaign": 1,
+      "movement_tags": [
+        "theme.constitucional"
+      ],
+      "policy_tags": [
+        "policy.institutional_reform"
+      ],
+      "igs_stance": {
+        "ig_conservadores_civicos": -20,
+        "ig_sector_publico_burocracia": 10,
+        "ig_orden_seguridad": -10,
+        "ig_empresariado_finanzas": -5,
+        "ig_sindicatos_trabajo": 15
+      },
+      "prereqs": [
+        {
+          "type": "METRIC",
+          "target": "metrics.legitimacy",
+          "op": ">=",
+          "valueS": 4500
+        },
+        {
+          "type": "METRIC",
+          "target": "metrics.social_tension",
+          "op": "<=",
+          "valueS": 7000
+        }
+      ],
+      "base_difficultyS": 13000,
+      "stages": [
+        {
+          "id": "filed",
+          "kind": "WORK",
+          "chamber": "NONE",
+          "weightS": 10000
+        },
+        {
+          "id": "committee_lower",
+          "kind": "WORK",
+          "chamber": "LOWER",
+          "weightS": 10000
+        },
+        {
+          "id": "negotiation",
+          "kind": "WORK",
+          "chamber": "BOTH",
+          "weightS": 10000
+        },
+        {
+          "id": "vote_lower",
+          "kind": "VOTE",
+          "chamber": "LOWER",
+          "weightS": 12000
+        },
+        {
+          "id": "vote_upper",
+          "kind": "VOTE",
+          "chamber": "UPPER",
+          "weightS": 12000
+        }
+      ],
+      "on_pass_effects": [
+        {
+          "type": "MODIFIER",
+          "template_id": "eff_internal_agenda_media_heat_up_small",
+          "duration_weeks": 12
+        },
+        {
+          "type": "MODIFIER",
+          "template_id": "eff_legitimacy_down_small",
+          "duration_weeks": 6
+        }
+      ]
+    }
+  ]
+}
+
+content/manifest.json:
+
+{
+  "content_pack_id": "base_chile_fictional",
+  "content_pack_version": 1,
+  "content_schema_version": 1,
+  "default_language": "es",
+  "files": {
+    "core/igs.json": "sha256:2e98776970987a4e9e4fe7915d6a0bf54d1ee8668e4a6e373a0ed9cf5644a63f",
+    "core/movements.json": "sha256:5c40818f1fc1d344dfbf7d5ae2094d027fbb2f97a9a0eb2dc3a844e9b67322f2",
+    "core/regions.json": "sha256:5d89a947f23e175ccb389dbc15f190112caeb9e39459c3fbe64af3574be3c794",
+    "rules/aggregation_config.json": "sha256:cd7f546f7d12d95bcfef4c9b5543c1cb1e65e6dcc37e5eed702ac61ba43f5233",
+    "rules/legislative_config.json": "sha256:02dc3f66090c025272bd9b246f6bef452e10311ca6185eaa1bbfc4ca3203a933",
+    "rules/target_config.json": "sha256:dbddc074293781fb50b524b5cf457acb5021eae32126cbc7b5e73fb8e06a7f77",
+    "strings/es.json": "sha256:519adab990a978c79639d0c784dbf54b4aeba810f088833cf0e2f96b85ffb4c8",
+    "templates/effects.json": "sha256:82ad36548681860d520a3dadf0d522dc5f8e13d29f94e42f7c723518f9c40c67",
+    "templates/events.json": "sha256:97b5edab09615eb3ed99f8e7a7a4cbf05c0d09856298edc6cf0141393d7cd4b5",
+    "templates/reforms.json": "sha256:c4abebc193d41648908aca337eff889ce542dcb65ad7951ae8d6ab6669bcf402"
+  },
+  "languages": [
+    "es"
+  ],
+  "min_game_schema_version": 1
+}

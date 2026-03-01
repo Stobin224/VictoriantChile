@@ -1,0 +1,335 @@
+"Motor de eventos/movimientos/crisis (reglas de disparo y resolución)
+
+Qué falta decidir: formato de plantillas (condiciones, opciones, efectos, cooldowns, cadenas), prioridad cuando chocan eventos, y qué genera “decisión bloqueante”.
+
+Por qué carga técnica: define el sistema de contenido parametrizable; si el “schema” cambia, rehaces decenas de eventos." resuelve esto, toma decisiones para que quede zanjado, si tienes "qué falta" resuelvelos tú
+Pensado durante 1m 44s
+Límite y supuestos
+
+Se cierra el contrato del motor (schema + reglas) para “eventos/movimientos/crisis”, consistente con: plantillas parametrizadas, cadenas cortas, memoria/cooldowns, scheduler y decisiones bloqueantes. 
+
+Base de planeación del juego
+
+ 
+
+README
+
+ 
+
+Base de planeación del juego
+
+Decisiones cerradas
+1) Qué es un “evento” en el motor
+
+Un EventTemplate es contenido parametrizable (región+IG+tema+severidad) y, al disparar, genera una EventInstance con variables ya resueltas. Esto es el “sistema de eventos por plantillas parametrizadas” para evitar explosión de contenido. 
+
+Base de planeación del juego
+
+ 
+
+Base de planeación del juego
+
+2) Memoria, cooldowns, “ya ocurrió”, cadenas
+
+El motor soporta explícitamente memoria de eventos (cooldowns, “ya ocurrió”, cadenas) y timers/scheduler de consecuencias diferidas como estado interno permitido. 
+
+Base de planeación del juego
+
+3) Decisiones bloqueantes
+
+Una decisión bloqueante es un “lock” (crisis o plazo) que impide avanzar hasta resolver. Se crea cuando:
+
+Se dispara un evento marcado blocking=true, o
+
+Se vence un deadline_tick de una crisis abierta, o
+
+Un movimiento cruza umbral de crisis (definido abajo).
+Esto corresponde al “manejo de decisiones bloqueantes” descrito. 
+
+Base de planeación del juego
+
+ 
+
+README
+
+Schema zanjado (contenido)
+A) EventTemplate (plantilla)
+
+Formato mínimo (JSON conceptual):
+
+{
+  "id": "evt_media_scandal",
+  "kind": "AUTO|CHOICE|CRISIS",
+  "blocking": false,
+  "base_priority": 50,
+  "weight": 100,
+  "cooldown_weeks": 12,
+  "max_per_campaign": 2,
+
+  "tags": ["prensa", "corrupcion"],
+  "vars": {
+    "region": {"bind": "pick_region", "mode": "ARGMAX", "target": "regions.*.tension"},
+    "ig":     {"bind": "pick_ig",     "mode": "WEIGHTED", "target": "igs.*.clout"},
+    "theme":  {"const": "media"},
+    "severity": {"bind": "severity_from", "target": "metrics.social_tension", "bands": [[0,49,1],[50,69,2],[70,100,3]]}
+  },
+
+  "conditions": {
+    "all": [
+      {"cmp": {"target": "metrics.information_quality", "op": "<", "value": 6000}},
+      {"cmp": {"target": "metrics.public_agenda", "op": ">", "value": 5500}},
+      {"cooldown_ready": true},
+      {"max_count_not_reached": true}
+    ]
+  },
+
+  "options": [
+    {
+      "id": "minimize",
+      "label": "Minimizar y controlar daños",
+      "requirements": {"all": []},
+      "effects": [
+        {"type": "MODIFIER", "template_id": "eff_agenda_down_small", "duration_weeks": 4},
+        {"type": "MODIFIER", "template_id": "eff_legitimacy_down_small", "duration_weeks": 2}
+      ],
+      "memory": {"set_flag": ["flag.scandal_active"], "set_cooldown": true},
+      "followups": [{"after_weeks": 2, "event_id": "evt_followup_media"}]
+    }
+  ]
+}
+
+
+Este schema cubre exactamente “condiciones, variables, opciones (2–4), efectos inmediatos y diferidos, memoria/flags” y selector de eventos. 
+
+README
+
+ 
+
+README
+
+Tipos permitidos
+
+kind:
+
+AUTO: se resuelve sin input del jugador (elige auto_option_id o única opción).
+
+CHOICE: genera decisión no bloqueante (se encola para el próximo checkpoint).
+
+CRISIS: siempre genera/actualiza una crisis (puede o no ser bloqueante según umbrales).
+
+blocking: si true, crea lock inmediato.
+
+vars.bind (bindings) soportados:
+
+ARGMAX / ARGMIN sobre un target con wildcard (p.ej. regions.*.tension)
+
+WEIGHTED (muestreo ponderado por target, con RNG seed del estado)
+
+CONST
+
+Nota (recursos regionales):
+El target en bindings puede apuntar tanto a métricas regionales dinámicas (p.ej. regions.*.tension/support/organization/rival_presence)
+como a recursos/capacidades regionales estáticos declarados en core/regions.json (p.ej. regions.*.admin_capS/industry_capS/extractive_capS/social_capS/populationS).
+
+Ejemplos de uso:
+- Elegir región “industrial” para un evento: mode=WEIGHTED, target=regions.*.industry_capS.
+- Elegir región “más administrativamente relevante”: mode=ARGMAX, target=regions.*.admin_capS.
+En MVP, si estos recursos están neutros (5000), la selección queda efectivamente uniforme.
+
+
+
+B) Predicados de condición (DSL mínima, sin scripting)
+
+Solo se permite:
+
+cmp(target, op, value) con target_path (incluye wildcards solo en bindings, no en cmp directo).
+
+flag_is_set("flag.x")
+
+cooldown_ready (derivado de memoria)
+
+max_count_not_reached (derivado de memoria)
+
+chain_state(chain_id, step op n)
+
+movement_cmp(movement_id, intensity op value) (para templates ligados a un movimiento)
+
+Esta restricción evita que el schema “crezca” y fuerce reescrituras.
+
+Estado del motor (en GameState)
+EventMemory (obligatorio)
+{
+  "event_counts": {"evt_media_scandal": 1},
+  "cooldown_until_tick": {"evt_media_scandal": 240},
+  "flags": {"flag.scandal_active": true},
+  "chains": {
+    "chain_constitutional_crisis": {
+      "step": 2,
+      "vars": {"region": "rm", "ig": "igs.orden_seguridad", "theme": "institucional"},
+      "last_tick": 312
+    }
+  },
+  "queued_choices": ["inst_123", "inst_456"]
+}
+
+
+Memoria/cooldowns/cadenas están explícitamente contemplados como estado interno permitido. 
+
+Base de planeación del juego
+
+CrisisState (obligatorio)
+
+Una crisis abierta:
+
+{
+  "id": "crs_transport_strike_rm",
+  "template_id": "crisis_transport_strike",
+  "vars": {"region": "rm", "ig": "igs.sindicatos", "severity": 2},
+  "opened_tick": 310,
+  "deadline_tick": 312,
+  "stage": 1,
+  "resolved": false
+}
+
+Reglas de disparo y resolución (zanjadas)
+1) Orden por tick (1 semana)
+
+En cada tick:
+
+Ejecutar ScheduledAction (timers) del scheduler.
+
+Aplicar efectos (ya definido).
+
+EventEngine.Tick():
+
+3.1) Si existe crisis con deadline vencido (tick >= deadline_tick y resolved=false) ⇒ genera BlockingDecision “plazo vencido” y detiene el avance.
+
+3.2) Evaluar candidatos CRISIS/blocking (ver selector) ⇒ si alguno dispara y es bloqueante ⇒ detiene el avance.
+
+3.3) Si no hay bloqueo: puede disparar AUTO (máx 1 por tick) y puede encolar CHOICE (máx 1 por tick) para el siguiente checkpoint.
+
+Esto implementa “scheduler + decisiones bloqueantes” en el avance de tiempo. 
+
+README
+
+ 
+
+README
+
+2) Selector de eventos (prioridades, evitar repetición) — determinista
+
+Se construye lista eligible de templates donde:
+
+conditions cumplen
+
+cooldown_ready y max_per_campaign cumplen
+
+si es parte de cadena, chain_state cumple
+
+Luego se asigna un score determinista:
+
+score = base_priority * 1_000_000 + severity * 10_000 + weight * 100 + rng(0..99)
+
+Selección por clase:
+
+deadline blocking (no hay elección: siempre primero)
+
+blocking CRISIS (max 1)
+
+blocking CHOICE (max 1)
+
+AUTO (max 1/tick)
+
+CHOICE encolable (max 1/tick; cola total máx 3)
+
+“Evitar repetición” se logra por cooldown_weeks + max_per_campaign + flags “ya ocurrió” (si se desea). 
+
+Base de planeación del juego
+
+ 
+
+README
+
+3) Qué genera una “decisión bloqueante” (regla cerrada)
+
+Se crea lock inmediato si:
+
+El EventTemplate tiene blocking=true, o
+
+Es kind=CRISIS y severity >= 3, o
+
+Cualquier movimiento llega a intensidad ≥ 85 (umbral de crisis), lo que dispara automáticamente un CRISIS ligado a ese movimiento con blocking=true.
+
+Además, si un movimiento supera 70, puede generarse presión (CHOICE no bloqueante) porque está definido como “decisión bloqueante próxima” a nivel de alerta. 
+
+Base de planeación del juego
+
+4) Resolución de evento
+
+AUTO: aplica effects y memory de la opción automática; registra causalidad como EVENT→MODIFIER (ya definido en trazabilidad).
+
+CHOICE:
+
+Si no bloqueante: se agrega a queued_choices y se presenta en el próximo briefing.
+
+Si bloqueante: corta el avance inmediatamente y abre pantalla de decisión.
+
+CRISIS:
+
+Crea/actualiza CrisisState.
+
+Define deadline_tick = tick + deadline_weeks (por defecto deadline_weeks = 2 si no se especifica).
+
+Las opciones pueden: resolver, escalar (subir stage/severity), o “contener” (aplicar efectos persistentes).
+
+Motor de movimientos (zanjado)
+MovementState mínimo
+{
+  "id": "mov_security_crackdown",
+  "theme": "security",
+  "direction": -1,
+  "intensity": 4200,
+  "region_focus": "rm",
+  "ig_anchor": "igs.orden_seguridad",
+  "last_addressed_tick": 305
+}
+
+Escalada “si se ignora” (regla cerrada)
+
+Cada tick, por cada movimiento:
+
+Si tick - last_addressed_tick >= 4 ⇒ intensity += +1*S por semana (base).
+
+Si además metrics.social_tension > 70 ⇒ intensity += +1*S extra.
+
+Si se elige una opción de evento/decisión con tag del mismo theme, se actualiza last_addressed_tick = tick y pueden aplicarse deltas directos al movimiento (por efectos del contenido).
+
+Esto implementa “movimientos que escalan si se ignoran y pueden forzar crisis”. 
+
+Base de planeación del juego
+
+ 
+
+README
+
+Qué falta (ya es contenido/configuración, no motor)
+
+Definir el catálogo de 15–25 eventos MVP (y luego 50–80), que el diseño separa como contenido sobre un motor ya definido. 
+
+Base de planeación del juego
+
+ 
+
+README
+
+Definir IDs finales de region_id, ig_id, theme_id (solo para poblar plantillas).
+
+Riesgos/ambigüedades
+
+Si más adelante se permite un DSL con expresiones arbitrarias, el schema deja de ser estable y sube el costo de tooling/validación (contra el objetivo de “1 programador”). 
+
+Base de planeación del juego
+
+La cola de CHOICE debe mantenerse pequeña para no romper el loop “1–3 decisiones por checkpoint”; por eso se fija límite estricto. 
+
+README

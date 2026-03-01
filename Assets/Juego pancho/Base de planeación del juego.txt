@@ -1,0 +1,285 @@
+Motor: Unity
+Trabajadores: 1 artista, 1 programador
+tiempo de finalizacion: sin tiempo
+vision: el programa resultante debe ser lo mas profesional posible para un solo programador
+
+## Base de planeación del juego (documento para el proyecto)
+
+### 1) Visión
+
+Juego singleplayer de simulación política seria, ambientado en un Chile contemporáneo ficticio (sin partidos ni personas reales), inspirado en Victoria 3 pero simplificado: la experiencia se centra en tomar decisiones estratégicas con consecuencias sistémicas (sin minijuegos, sin tablero/cartas, sin micromecánicas visibles). La interfaz se organiza como “mapa + paneles” (sede del partido, Senado, Cámara, gobierno, justicia, prensa, etc.).
+
+“Destruir/eliminar” a la oposición se entiende únicamente como neutralización política-institucional (derrota electoral, fragmentación, pérdida de representación, pérdida de capacidad operativa), nunca como violencia física.
+
+### 2) Principio de diseño clave (Victoria 3 adaptado)
+
+El núcleo se basa en la lógica de Victoria 3:
+
+* **Interest Groups (IGs)**: bloques sociales con preferencias ideológicas/intereses que apoyan u obstaculizan reformas.
+* **Gobierno/coalición**: composición del gobierno afecta la capacidad real de gobernar.
+* **Legitimidad**: actúa como “compuerta” sistémica. Con legitimidad baja, empujar reformas se vuelve difícil o se bloquea; con legitimidad alta se abren ventanas de cambio.
+* **Leyes/Reformas como proceso** (no “toggle”): una reforma se empuja por etapas, requiere soporte político y puede estancarse/retroceder por crisis, presión social o fractura de coalición.
+* **Movimientos**: presiones temáticas (pro/anti reforma) que escalan si se ignoran y pueden forzar crisis o habilitar rutas extraordinarias.
+
+Todo lo anterior existe como simulación interna; el jugador ve indicadores numéricos (acotados) y diagnósticos cualitativos derivados, además de reportes explicativos post-acción.
+n.
+
+### 3) Alcance territorial y marco institucional
+
+* El juego se sitúa “como si fuera Chile”: presidencialismo fuerte y **Congreso bicameral** (Cámara + Senado), con dinámica consistente con el espíritu del sistema chileno contemporáneo.
+* Aunque originalmente se discutió “una región”, el requerimiento del amigo incluye **mapa general de Chile por regiones**. El diseño base queda en: **mapa de Chile por regiones (macro)**, sin bajar a comunas en el MVP.
+* Elecciones **cada 4 años fijas** como ancla de la campaña (ritmo estratégico y horizonte de planificación).
+
+### 4) Loop de juego y control del tiempo
+
+El juego opera por “checkpoints” de decisión con simulación intermedia:
+
+1. El jugador recibe briefings (titulares, informes internos, señales regionales, rumores, estado del Congreso).
+2. Toma decisiones estratégicas (selección limitada por turno).
+3. Avanza el tiempo y se ejecutan consecuencias.
+
+El jugador puede **decidir la velocidad del tiempo** en cada avance:
+
+* Opciones típicas: 1 semana / 1 mes / 1 trimestre.
+* La simulación interna procesa eventos y efectos durante el periodo elegido.
+* Existen “decisiones bloqueantes” (crisis o plazos institucionales) que fuerzan elegir antes de poder seguir avanzando.
+
+### 5) “Solo decisiones” con indicadores numéricos visibles y explicación posterior
+
+No hay minijuegos. El jugador sí ve (y puede optimizar) indicadores numéricos; el estado se muestra como:
+
+* métricas numéricas acotadas (por ejemplo 0–100) para variables núcleo (p.ej., legitimidad, estabilidad, economía, seguridad, servicios),
+* apoyo/oposición por IG (valores o %),
+* tendencias (Δ por periodo) y alertas (umbrales),
+* y un reporte causal posterior que explica cambios numéricos (“Legitimidad -6 por X; Seguridad +3 por Y”).
+
+Esto reduce arbitrariedad percibida: el jugador puede correlacionar decisiones con variaciones observables, manteniendo incertidumbre solo donde sea intencional (información imperfecta).
+
+#### 5.1 Indicadores numéricos visibles (MVP) — set cerrado y rangos
+
+Regla: casi todo lo “visible” usa escala **0–100** (clamp), salvo donde se indique.
+
+**HUD (siempre visible, 6 métricas núcleo 0–100):**
+1) Legitimidad
+2) Economía (índice agregado: empleo/crecimiento/inflación percibida)
+3) Seguridad (índice agregado: delito + capacidad + percepción)
+4) Tensión social (agregada nacional)
+5) Organización del partido
+6) Cohesión interna (facciones)
+
+**Paneles (visibles en su ventana; 0–100):**
+- Capacidad legislativa (coalición + disciplina + negociación)
+- Gobernabilidad/implementación (capacidad de ejecutar políticas)
+- Información (calidad de briefings / ruido)
+- Agenda/saliencia temática (cuánto domina el debate público; usado para riesgos y movimientos)
+
+**Mapa por región (cada región tiene 0–100):**
+- Apoyo regional al gobierno (o al partido)
+- Tensión regional
+- Organización territorial (capacidad operativa)
+- Presencia rival (capacidad de oposición en la región)
+
+**Recursos/capacidades regionales (dato estático del Content Pack; MVP neutro):**
+- admin_capS, industry_capS, extractive_capS, social_capS, populationS (0..100; internamente 0..10000).
+Regla MVP: se setean en 50 (5000) para todas las regiones ⇒ no afectan balance de testeo.
+Uso inicial: solo ponderación/selección de eventos regionales (no cambian el peso político de la región en agregación nacional).
+
+**Interest Groups (IGs) (visibles):**
+- **Clout** (peso): 0–100, normalizado a nivel nacional para que la suma de IGs sea 100.
+- **Aprobación**: -100 a +100 (0 = neutral). (Opcional UI: mostrar también etiqueta Contento/Neutral/Enojado).
+
+**Movimientos (visibles):**
+- Intensidad 0–100 (0 = irrelevante; 100 = crisis inminente)
+- Dirección: pro/anti (respecto de una reforma/tema)
+
+#### 5.2 Estados internos (ocultos) — permitidos y acotados
+
+Se permite ocultar SOLO:
+- subcomponentes de índices agregados (p.ej. desempleo real, inflación, tasa de delito, backlog hospitalario),
+- modificadores temporales (“buff/debuff”) y flags (escándalo activo, rumor, investigación judicial),
+- memoria de eventos (cooldowns, “ya ocurrió”, cadenas),
+- timers/scheduler de consecuencias diferidas.
+
+Regla de coherencia: si un estado oculto cambia una métrica visible, debe aparecer en el **reporte causal** con causa atribuible (evento/decisión/modificador).
+
+#### 5.3 Normalización del tiempo (semana/mes/trimestre) y deltas interpretables
+
+Unidad base del motor: **semana**.
+
+- Paso “1 semana” = 1 tick (1 semana)
+- Paso “1 mes” = 4 ticks (4 semanas)
+- Paso “1 trimestre” = 12 ticks (12 semanas)
+
+Regla de aplicación:
+- Efectos “instantáneos” (decisión/evento) se aplican 1 vez cuando ocurren.
+- Efectos “persistentes” se expresan como **Δ por semana** durante N semanas (scheduler).
+- El reporte post-turno muestra:
+  - **Δ total del periodo** (lo que cambió en este avance),
+  - y, para diagnósticos de tendencia, usa el **promedio Δ/semana** del periodo (independiente de si elegiste semana/mes/trimestre).
+
+#### 5.4 Traducción número → diagnóstico cualitativo + alertas
+
+Bandas (para 0–100):
+- 0–19: **Crítico**
+- 20–39: **Bajo**
+- 40–59: **Medio**
+- 60–79: **Alto**
+- 80–100: **Muy alto**
+
+Tendencia (usa promedio Δ/semana del periodo):
+- ≤ -2.0: **Deterioro rápido**
+- (-2.0, -0.5]: **Deterioro**
+- (-0.5, +0.5): **Estable**
+- [+0.5, +2.0): **Mejora**
+- ≥ +2.0: **Mejora rápida**
+
+Alertas (mínimas, globales):
+- Legitimidad < 30: “Compuerta cerrándose” (reformas normales bloquean o suben mucho su fricción).
+- Tensión social > 70: “Riesgo de crisis” (probabilidad alta de eventos duros/bloqueos).
+- Seguridad < 30: “Escalada de inseguridad” (movimientos/agenda penal suben).
+- Cohesión < 30: “Riesgo de fractura” (penaliza organización y capacidad legislativa).
+- Organización < 30: “Máquina política debilitada” (penaliza ejecución/territorio).
+- Movimiento intensidad > 70: “Decisión bloqueante próxima” (puede forzar resolución).
+
+El reporte causal post-turno debe listar los principales cambios como:
+“Métrica X: Δtotal (y Δ/semana) — causas: decisión A, evento B, modificador C”.
+
+### 6) Paneles/ventanas (estructura UI tipo Victoria 3)
+
+Pantalla principal:
+
+* **Mapa de Chile por regiones** con “lentes” (capas): apoyo, tensión social, organización, control institucional, presencia rival, etc.
+* Outliner/resumen: reforma activa, movimientos escalando, crisis abiertas, votaciones próximas.
+* Botón **Avanzar tiempo** con selector de paso.
+
+Ventanas principales (requeridas por el concepto):
+
+1. **Sede del Partido**: cuadros, facciones, disciplina, línea estratégica, asignación de roles.
+2. **Cámara**: agenda, comisiones, disciplina y negociación.
+3. **Senado**: agenda y negociación con inercia distinta (cámara “freno”).
+4. **Gobierno/Presidencia**: coalición, gabinete, prioridades, manejo de crisis.
+5. **Justicia/Constitucional**: riesgo de judicialización/constitucionalidad (como fricción).
+6. **Prensa/Opinión**: ciclo mediático, escándalos, marcos dominantes.
+7. **Movimientos**: presiones temáticas y su escalamiento.
+8. **Objetivos (Journal)**: metas de campaña y subcondiciones.
+
+### 7) Estados internos (motor del sistema)
+
+Estados internos del motor (parte se expone como números; parte queda como subcomponentes/modificadores ocultos):
+
+
+* Legitimidad del gobierno
+* Organización del partido
+* Cohesión interna (facciones)
+* Capacidad institucional / gobernabilidad
+* Información (calidad de briefings, incertidumbre)
+* Agenda pública / saliencia temática
+* Tensión social (por región y nacional)
+* Capacidad legislativa (coalición + disciplina + negociación)
+
+Se diseñó un “triángulo de estabilidad” (idea rectora):
+
+* Legitimidad ↔ Organización ↔ Cohesión
+  Impide que la estrategia dominante sea “ataque permanente” o “solo propaganda”.
+
+### 8) Metaprogresión (cuadros + reputación) con control de balance
+
+El juego es campaña larga y persiste progreso entre turnos:
+
+* **Cuadros** (personas/roles del partido): voceros, operadores territoriales, negociadores, whip legislativo, policy lead, contralor interno.
+  Atributos internos: competencia, lealtad, ambición, redes, riesgo (escándalo).
+  Progresión contextual: suben por experiencia real (negociación, crisis, campañas), no por XP genérico.
+* **Reputación multieje** (no una barra única): integridad, competencia, firmeza, empatía, pragmatismo, coherencia.
+
+Medidas anti “snowball” (para no romper balance):
+
+* decaimiento (lo que no se sostiene se enfría),
+* trade-offs reales (p.ej. pragmatismo vs coherencia),
+* costos de mantenimiento de cuadros fuertes (exposición, rivalidades),
+* rendimientos decrecientes,
+* shocks/crisis que obligan a gastar capital político.
+
+### 9) Interest Groups (IGs) definidos para un MVP de un solo programador
+
+Para mantener el scope, se fijó un set pequeño: **9 IGs** (estables y reutilizables en eventos/leyes):
+
+1. Empresariado y Finanzas
+2. Sindicatos y Trabajo Organizado
+3. Sector Público y Burocracia
+4. Orden y Seguridad
+5. Conservadores Cívicos/Religiosos
+6. Progresistas Urbanos (ONG/estudiantes)
+7. Profesionales y Clase Media
+8. Territorio Productivo (rural/minería/puertos)
+9. Ambiental-Regionalista / Pueblos originarios (abstracto)
+
+Cada IG se modela con:
+
+* peso (clout) nacional + sesgo regional,
+* aprobación (contento/neutral/enojado),
+* tags ideológicos que determinan apoyo/oposición a reformas.
+
+### 10) Congreso bicameral (decisiones, no micro)
+
+Se modela Cámara + Senado con:
+
+* composición por bloques y disciplina,
+* comisiones y agenda,
+* negociación por hitos (comisión/sala/otra cámara),
+* inercia distinta entre cámaras (Senado como freno).
+
+No se simulan individuos ni voto detallado; se simula correlación de fuerzas y negociaciones.
+
+### 11) Rutas para “cambiar/abolir constitución” (dos vías jugables)
+
+Se definió que el juego soporte ambas “formas que se pueda”:
+
+**Ruta A: Reforma constitucional por Congreso**
+
+* Tratada como “reforma especial” dentro del mismo motor de leyes (altos requisitos de legitimidad/soporte, alta fricción institucional).
+
+**Ruta B: Proceso constituyente**
+
+* Implementado como un “Journal Entry” largo multi-fase (habilitación → consulta/plebiscito → órgano redactor → borrador → salida → implementación).
+* Se activa por crisis/movimientos fuertes y/o por habilitante previa (según decisión de diseño posterior).
+* Reutiliza el mismo motor (IGs + movimientos + legitimidad), evitando un sistema paralelo.
+
+### 12) Objetivos de campaña (victorias)
+
+La campaña termina al cumplir una condición institucional (“Journal”):
+
+* Lograr que un miembro del partido sea Presidente.
+* Concretar una reforma constitucional profunda o un proceso constituyente exitoso.
+* Neutralizar políticamente a la oposición (fragmentación/pérdida de representación/pérdida de capacidad de coalición) con riesgos sistémicos (crisis, ilegitimidad, judicialización, movilización).
+
+### 13) Alcance implementable por 1 programador (MVP)
+
+Decisiones tomadas para que sea realizable:
+
+* Mapa por regiones (sin comunas en MVP).
+* 9 IGs.
+* Motor de reformas por etapas (una reforma activa principal a la vez, o pocas en paralelo).
+* Sistema de eventos por plantillas parametrizadas (para campaña larga sin escribir cientos a mano).
+* Reporte causal post-turno como herramienta principal de “legibilidad” del sistema.
+
+### 14) Decisiones diferibles (no bloquean la base)
+
+Se identificaron como “qué falta para cerrarlo y programarlo”, pero se definió que se pueden tomar después de tener la base:
+
+* Año de inicio y estado inicial exacto (composición Cámara/Senado, popularidad base, crisis inicial).
+* Catálogo completo de reformas iniciales (25–30 en 6 paquetes: seguridad, trabajo, salud, educación, pensiones, institucional/constitucional).
+* Catálogo de eventos plantilla (50–80 parametrizados por región + IG + tema).
+
+Estas decisiones se tratan como configuración/contenido sobre un motor ya definido.
+
+### 15) Riesgos y mitigaciones adoptadas
+
+* Ambigüedad percibida (incluso con números) → sensación de arbitrariedad: mitigación = deltas visibles + reporte causal post-turno + umbrales/alertas consistentes.
+
+* Explosión de contenido: mitigación = plantillas parametrizadas + cadenas cortas reutilizables.
+* Estrategia dominante (neutralizar oposición) rompe balance: mitigación = legitimidad como compuerta + costos sistémicos + triángulo de estabilidad.
+* Metaprogresión rompe dificultad: mitigación = decaimiento, trade-offs, mantenimiento, shocks.
+
+---
+
+Si necesitas, puedo transformar este documento en un “README de diseño” con secciones de MVP/No-MVP y un backlog técnico (motor de estado, motor de eventos, motor legislativo, UI paneles, persistencia, telemetría).

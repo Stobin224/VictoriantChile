@@ -1,0 +1,198 @@
+According to a document from (date not provided), los IGs tienen **“tags ideológicos (2–4) para soporte a reformas/eventos”**, pero el motor legislativo hoy toma `stance` desde `ReformTemplate.igs_stance` y los eventos eligen IGs vía selectores ponderados (clout / effective_clout regional).
+
+A continuación dejo esto **zanjado**: vocabulario cerrado + convención + reglas exactas (deterministas) de uso en reformas y eventos.
+
+---
+
+## 1) Decisión zanjada: convención y namespaces
+
+**Formato de tag (string):** `namespace.snake_case`
+
+* `.` separa namespace (como en TargetPaths).
+* `snake_case` ASCII, sin tildes.
+
+**Namespaces y dónde se usan:**
+
+* `ideol.*` → **solo** en `core/igs.json` (`igs[].tags`)
+* `theme.*` → tags temáticos para **movimientos** y **eventos** (ya existe `movement_tags: ["theme.trabajo"]`).
+* `policy.*` → tags direccionales para **reformas** (sirven para derivar stances por defecto cuando no se declaran explícitos).
+
+---
+
+## 2) Vocabulario cerrado v1
+
+### 2.1 `ideol.*` (permitidos en IG.tags)
+
+1. `ideol.market`
+2. `ideol.labor`
+3. `ideol.statist`
+4. `ideol.fiscal_austerity`
+5. `ideol.public_spending`
+6. `ideol.security_hardline`
+7. `ideol.civil_liberties`
+8. `ideol.social_traditional`
+9. `ideol.social_progressive`
+10. `ideol.green`
+11. `ideol.extractive_growth`
+12. `ideol.decentralization`
+13. `ideol.centralization`
+14. `ideol.anti_corruption`
+15. `ideol.indigenous_rights`
+16. `ideol.institutionalism`
+
+**Regla:** cada IG debe tener **2–4** `ideol.*` (lint lo valida).
+
+### 2.2 `theme.*` (permitidos para movimientos/eventos)
+
+MVP mínimo:
+
+* `theme.seguridad`
+* `theme.trabajo`
+* `theme.salud`
+* `theme.educacion`
+* `theme.pensiones`
+* `theme.institucional`
+* `theme.constitucional`
+* `theme.economia`
+* `theme.medio_ambiente`
+* `theme.descentralizacion`
+* `theme.corrupcion`
+* `theme.migracion`
+* `theme.pueblos_originarios`
+
+### 2.3 `policy.*` (permitidos para reformas)
+
+MVP mínimo:
+
+* Fiscal/estado: `policy.tax_cut`, `policy.tax_increase`, `policy.spending_increase`, `policy.spending_cut`
+* Regulación/economía: `policy.deregulation`, `policy.regulation_increase`
+* Trabajo: `policy.labor_rights_up`, `policy.labor_flexibility`
+* Seguridad/derechos: `policy.security_crackdown`, `policy.police_accountability`
+* Medio ambiente/territorio: `policy.environment_protection`, `policy.extractive_promotion`
+* Territorial: `policy.decentralization`, `policy.centralization`
+* Social/cultural: `policy.social_traditional`, `policy.social_progressive`
+* Institucional: `policy.anti_corruption`, `policy.institutional_reform`
+* Pueblos originarios: `policy.indigenous_recognition`
+
+---
+
+## 3) Reglas exactas: cómo afectan el soporte a reformas
+
+### 3.1 Mantener el contrato del motor (sin romperlo)
+
+El motor legislativo usa `stance ∈ [-100..+100]` desde `ReformTemplate.igs_stance`.
+**Decisión:** `igs_stance` sigue existiendo, pero **puede ser parcial** (no tiene por qué listar los 9 IGs). Los IGs no listados se calculan automáticamente por tags.
+
+### 3.2 Nuevo campo de contenido (para habilitar auto-stance)
+
+Agregar a `ReformTemplate` (opcional, pero recomendado):
+
+* `policy_tags: string[]` (solo `policy.*`)
+
+### 3.3 Algoritmo determinista de “auto-stance”
+
+Para cada IG faltante en `igs_stance`:
+
+1. `stance = 0`
+2. Para cada `t` en `policy_tags`, sumar `score(t, ideol_tag)` para cada `ideol_tag` del IG (tabla fija abajo).
+3. `stance = clamp(stance, -100, +100)`
+4. Guardar ese valor como `igs_stance[ig_id]`.
+
+**Dónde se ejecuta:** en `validate_content` / `pack_content` (expande el JSON). En runtime el motor sigue leyendo `igs_stance` como siempre. (Esto mantiene el motor simple y el contenido liviano.)
+
+### 3.4 Tabla fija `score(policy_tag, ideol_tag)` (v1)
+
+Puntajes (solo los no-cero):
+
+* `policy.tax_cut`: `market +25`, `fiscal_austerity +15`, `public_spending -15`, `labor -10`
+
+* `policy.tax_increase`: `public_spending +15`, `labor +10`, `market -20`, `fiscal_austerity -10`
+
+* `policy.spending_increase`: `public_spending +25`, `statist +10`, `fiscal_austerity -20`, `market -10`
+
+* `policy.spending_cut`: `fiscal_austerity +25`, `market +10`, `public_spending -20`, `statist -10`
+
+* `policy.deregulation`: `market +25`, `extractive_growth +10`, `statist -15`, `green -10`
+
+* `policy.regulation_increase`: `statist +15`, `green +10`, `market -20`, `extractive_growth -10`
+
+* `policy.labor_rights_up`: `labor +30`, `public_spending +5`, `market -25`
+
+* `policy.labor_flexibility`: `market +20`, `labor -30`
+
+* `policy.security_crackdown`: `security_hardline +30`, `social_traditional +10`, `civil_liberties -25`, `social_progressive -10`
+
+* `policy.police_accountability`: `civil_liberties +25`, `social_progressive +15`, `security_hardline -25`
+
+* `policy.environment_protection`: `green +30`, `indigenous_rights +10`, `extractive_growth -25`, `market -5`
+
+* `policy.extractive_promotion`: `extractive_growth +30`, `market +10`, `green -25`, `indigenous_rights -10`
+
+* `policy.decentralization`: `decentralization +30`, `indigenous_rights +10`, `centralization -25`
+
+* `policy.centralization`: `centralization +30`, `institutionalism +5`, `decentralization -25`
+
+* `policy.social_traditional`: `social_traditional +30`, `social_progressive -25`
+
+* `policy.social_progressive`: `social_progressive +30`, `civil_liberties +10`, `social_traditional -25`
+
+* `policy.anti_corruption`: `anti_corruption +30`, `institutionalism +10`
+
+* `policy.institutional_reform`: `institutionalism +25`, `anti_corruption +10`, `statist +5`
+
+* `policy.indigenous_recognition`: `indigenous_rights +30`, `decentralization +10`, `centralization -10`, `social_traditional -5`
+
+**Override explícito:** si una reforma necesita excepciones, se pone `igs_stance` explícito para esos IGs y listo.
+
+---
+
+## 4) Reglas exactas: cómo afectan selección/ponderación de eventos
+
+El motor de eventos ya define plantillas con `tags` y variables resueltas, incluyendo selección de `ig` por ponderación.
+
+### 4.1 Filtro por tags al elegir el IG “actor” del evento
+
+Extender `vars.ig` en `EventTemplate` (opcional):
+
+* `ig_tag_any: string[]` (solo `ideol.*`)
+* `ig_tag_all: string[]` (solo `ideol.*`)
+
+**Regla:**
+
+1. Candidatos = IGs cuyo `IG.tags` cumple el filtro (`any` / `all`).
+2. Si el filtro deja 0 candidatos → fallback a “todos los IGs” (para evitar eventos inválidos).
+3. Peso:
+
+   * Si `scope=REGION`: usar `effective_clout_r = ig.clout * mult(ig,r)/100` (mecanismo ya definido).
+   * Si `scope=NATIONAL`: usar `ig.clout`.
+4. Selección determinista con WEIGHTED (como ya está).
+
+### 4.2 Ponderación del template por “relevancia ideológica” (opcional, v1)
+
+Agregar a EventTemplate (opcional): `boost_if_top_ig_has_tags: ideol.*[]`
+**Regla:** si alguno de los **Top-3 IGs por clout** tiene intersección con esos tags, multiplicar `weight` por `1.25`. (Determinista; no cambia elegibilidad.)
+
+---
+
+## Pruebas (por qué esto calza con tu diseño)
+
+* IG tags existen explícitamente para “soporte a reformas/eventos”.
+* Reformas usan `igs_stance` como fuente de `stance` en el cálculo de soporte.
+* Eventos ya seleccionan `ig` ponderado por clout y el modelo territorial define `effective_clout_r` + uso en selectores regionales por IG.
+* `theme.*` ya existe en `movement_tags`.
+
+---
+
+## Qué falta
+
+Nada obligatorio para “cerrar” la decisión. Opcionalmente, más adelante puedes:
+
+* ampliar el set `policy.*` si aparecen reformas nuevas,
+* ajustar puntajes (balance) sin cambiar schema.
+
+---
+
+## Riesgos / ambigüedades
+
+* Si los puntajes `score()` son muy altos, muchas reformas saturarán en ±100 y perderás matices (mitigación: mantener contribuciones 5–30 como arriba).
+* Si no ejecutas la expansión en `pack_content/validate_content`, entonces `igs_stance` parcial exige lógica en runtime (mitigación: expandir al empaquetar y mantener runtime simple).

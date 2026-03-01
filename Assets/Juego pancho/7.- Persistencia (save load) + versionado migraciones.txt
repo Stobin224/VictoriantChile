@@ -1,0 +1,183 @@
+"Persistencia (save/load) + versionado/migraciones
+
+Qué falta decidir: formato de guardado, compatibilidad entre versiones, y estrategia de migración de estado y contenido.
+
+Por qué carga técnica: cuanto más tarde, más difícil migrar campañas en curso y depurar."  resuelve esto, toma decisiones para que quede zanjado, si tienes "qué falta" resuelvelos tú
+Pensado durante 1m 43s
+
+According to a document from (sin fecha en el archivo), el MVP exige Save/Load del GameState y versionado con migraciones simples. 
+
+README
+
+README
+
+Límite y supuestos
+
+Esto zanja formato de guardado, política de compatibilidad, y pipeline de migraciones. No define contenido (catálogos), solo el contrato técnico.
+
+Asumo target PC/Unity (por referencias a assets de Unity en el diseño territorial). Si no es Unity, el contrato igual aplica.
+
+Decisiones cerradas (especificación implementable)
+1) Qué se guarda (source of truth)
+
+Source of truth: GameState completo (incluye meta.save_version, rng_seed, tick, etc.). 
+
+1.-Modelo de estado canónico + …
+
+Sin floats en el estado guardado: todo en fixed-point entero (escala S=100) para evitar drift y asegurar determinismo. 
+
+1.-Modelo de estado canónico + …
+
+2) Formato de archivo (container) y layout interno
+
+Decisión: un único archivo “contenedor” (tipo zip) con JSON dentro.
+
+Extensión: *.juego-save (o *.save si prefieres).
+
+Contenido mínimo dentro del contenedor:
+
+meta.json (cabecera liviana)
+
+state.json (GameState completo)
+
+integrity.json (hashes/checksums)
+
+(opcional) last_report.json (último TurnReport ya renderizado, para abrir el save y mostrar “lo último que pasó” sin recalcular UI)
+
+Por qué: es fácil de versionar, inspeccionar, comprimir y migrar por JSON; y permite agregar archivos sin romper formato.
+
+3) Versiones: 3 niveles (separados)
+
+Para evitar “romper campañas” por mezclar cambios, se versiona por capas:
+
+save_format_version (del contenedor): cambia raramente (p.ej., si dejas de usar zip o cambias layout).
+
+schema_version (del GameState): es el meta.save_version del estado. 
+
+1.-Modelo de estado canónico + …
+
+content_version (pack de contenido): versión del set de plantillas/eventos/reformas y diccionarios core (regions/igs/etc.).
+
+Regla: cambios “solo de contenido” (incluye agregar campos estáticos en core/regions.json como admin_capS/industry_capS/...):
+- incrementan content_pack_version
+- NO requieren migración de schema_version (GameState) si esos campos no se guardan en el save (se rehidratan desde el pack)
+- pueden gatillar warning o best-effort si content_pack_hash no coincide (según política del punto 3 y riesgos)
+
+
+En meta.json:
+
+save_format_version: int
+
+schema_version: int (duplica para lectura rápida; debe coincidir con state.meta.save_version)
+
+game_build: string (versión del ejecutable)
+
+created_utc, updated_utc
+
+tick, rng_seed (para preview rápido; también deben coincidir con state.meta.*) 
+
+1.-Modelo de estado canónico + …
+
+content_pack_id, content_pack_version, content_pack_hash
+
+4) Política de compatibilidad (regla simple y estricta)
+
+Backward compatible: el juego actual debe poder cargar saves con schema_version <= current_schema_version aplicando migraciones secuenciales.
+
+Forward incompatible: si schema_version > current_schema_version, se rechaza (mensaje claro).
+
+Ventana de soporte: “N versiones mayores” (decisión: N=2). Saves más antiguos requieren “converter” externo o se rechazan.
+
+5) Migraciones (pipeline zanjado)
+
+Decisión: migraciones puras sobre JSON, en cadena, 1 paso por versión.
+
+Tabla/registro en código: Migration(fromVersion, toVersion, apply(JsonRoot) -> JsonRoot)
+
+Loader:
+
+lee state.json
+
+obtiene schema_version
+
+mientras schema_version < CURRENT aplica Migration[schema_version]
+
+valida invariantes (clamps, ids, rangos)
+
+termina con schema_version == CURRENT
+
+Reglas de migración (para mantener estabilidad):
+
+No se re-balancea nada en migración (no “tuning”); solo transformaciones estructurales / renombres / defaults.
+
+Cada migración debe ser idempotente si se ejecuta una sola vez (no depende del orden fuera de la cadena).
+
+Cuando se agregan campos nuevos: defaults deterministas.
+
+Cuando se renombra un ID: usar alias map (ver punto 6).
+
+6) Estrategia para cambios de IDs (evitar romper saves)
+
+Decisión: mantener “alias maps” por dominio (regiones, eventos, reformas, IGs).
+
+Ejemplo: region_aliases: { old_id -> new_id } aplicado en load/migración.
+
+Esto está alineado con el riesgo ya identificado: cambiar regiones/IDs tarde rompe saves; mitigación propuesta: alias map en loader. 
+
+6.- Modelo territorial (regione…
+
+7) Integridad y escritura atómica
+
+integrity.json incluye:
+
+sha256_state
+
+sha256_meta
+
+Guardado atómico:
+
+escribir a tmp
+
+fsync/close
+
+rename/replace al nombre final
+
+Mantener backup_1, backup_2 (rotación simple) al guardar manual.
+
+Pruebas (hechos verificables usados)
+
+El backlog exige explícitamente Save/Load del GameState y versionado con migraciones simples. 
+
+README
+
+El GameState ya define meta.save_version, rng_seed, tick como parte del contrato del motor. 
+
+1.-Modelo de estado canónico + …
+
+El diseño base ya fija que el estado guardado evita floats usando fixed-point. 
+
+1.-Modelo de estado canónico + …
+
+Para IDs territoriales se anticipa que cambios tardíos rompen saves y se sugiere aliasing como mitigación. 
+
+6.- Modelo territorial (regione…
+
+Qué falta
+
+No lo sé con la información dada (y no lo invento):
+
+Si habrá editor de contenido que requiera “cargar save con contenido distinto” como flujo oficial (impacta cuán estricta es la verificación content_pack_hash).
+
+Requisito de cloud sync / multi-dispositivo (impacta path, encriptación opcional, conflictos).
+
+Requisito de anti-cheat (si importa, cambia la política de integridad).
+
+Riesgos/ambigüedades
+
+Cambios de contenido (plantillas/reformas) con saves existentes: si no se fija content_pack_hash, pierdes determinismo; si se fija demasiado estricto, frustras iteración. Mitigación: content_pack_hash estricto + modo “best-effort” con warning.
+
+Migraciones acumuladas: si se dejan crecer sin disciplina, el loader se vuelve frágil. Mitigación: ventana N=2 + “consolidación” ocasional (export/import a schema nuevo).
+
+Corrupción de archivo: mitigado con hash + backup rotativo, pero igual puede ocurrir si se corta energía durante write (de ahí el write atómico).
+
+Si implementas exactamente este contrato, queda “listo” en el sentido técnico: puedes programar save/load sin volver a rediseñar el motor después.

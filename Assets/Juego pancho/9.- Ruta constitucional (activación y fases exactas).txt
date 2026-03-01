@@ -1,0 +1,450 @@
+"Ruta constitucional (activación y fases exactas)
+
+Qué falta decidir: condiciones exactas de activación de Ruta B, fases, checks, y cómo reutiliza el motor existente.
+
+Por qué carga técnica: es un “macro-sistema” encima de eventos/reformas; puede implementarse después si el motor base está bien." resuelve esto, toma decisiones para que quede zanjado, si tienes "qué falta" resuelvelos tú
+Pensado durante 3m 11s
+
+Según un documento (sin fecha en el archivo), el juego soporta dos rutas constitucionales: Ruta A (reforma constitucional vía Congreso) y Ruta B (proceso constituyente tipo “Journal” multi-fase); y Ruta B se activa por crisis/movimiento fuerte y/o por una habilitante previa, reutilizando el motor existente (IGs + movimientos + legitimidad, sin sistema paralelo).
+
+README
+
+Base de planeación del juego
+
+A continuación dejo Ruta B cerrada: activación exacta, fases, checks, fail states, y cómo se implementa con el motor ya definido.
+
+1) Activación exacta de Ruta B (reglas cerradas)
+1.1 Estado mínimo (en GameState)
+
+Agregar un bloque (serializable):
+
+constitution.route_b.status: NOT_STARTED | ACTIVE | COOLDOWN | COMPLETED
+
+constitution.route_b.phase: 0..5 (ver fases)
+
+constitution.route_b.started_tick, phase_started_tick
+
+constitution.route_b.deadline_tick (si aplica)
+
+constitution.route_b.flags: diccionario de flags de fase (por ejemplo entry_approved, draft_ready)
+
+constitution.route_b.cooldown_until_tick (si aplica)
+
+Esto se guarda en save/load (ya exigido en el backlog de persistencia/versionado).
+
+README
+
+1.2 Umbrales canónicos (usar los de alertas ya definidos)
+
+Fixed-point S=100:
+
+Legitimidad < 30 → < 3000
+
+Tensión social > 70 → > 7000
+
+Seguridad < 30 → < 3000
+
+Movimiento intensidad > 70 → > 7000
+
+2.-Trazabilidad para el “report…
+
+1.3 Disparadores (solo 2 vías; deterministas)
+
+Ruta B puede iniciar solo si status=NOT_STARTED y se cumple (A) o (B):
+
+(A) Vía habilitante previa (“institucional”)
+constitution.route_b.flags.enabled_by_habilitante = true
+
+Este flag se obtiene al aprobar una reforma especial (Ruta A-Habilitante) dentro del motor de reformas por etapas (reforma “SPECIAL_CONSTITUTIONAL”).
+
+README
+
+Base de planeación del juego
+
+(B) Vía crisis/movimiento fuerte (“extraordinaria”)
+Se cumple cualquiera:
+
+mov_constitucion.intensityS >= 8000 y metrics.legitimacyS <= 3500
+
+o metrics.social_tensionS >= 8000 y metrics.securityS <= 3000
+
+o evento de crisis marca flags.crisis_constitutional = true (plantilla de crisis).
+Justificación: “movimientos generan crisis y pueden habilitar vías excepcionales”
+
+README
+
+ y Ruta B “activa por crisis/movimiento fuerte”.
+
+README
+
+1.4 Momento de activación (y decisión bloqueante)
+
+Evaluación al cierre de cada tick semanal (y en avance 1 mes/1 trimestre, durante la simulación interna).
+
+Si (A) o (B) se cumple, se dispara un evento bloqueante evt_route_b_trigger (no puedes avanzar sin elegir) porque el loop define “decisiones bloqueantes” para crisis/plazos.
+
+Base de planeación del juego
+
+Opciones del trigger:
+
+Iniciar ahora (entra a Fase 0)
+
+Postergar 4 semanas (scheduler: reintento en tick+4; coste: +tensión/+agenda, +intensidad de movimiento)
+
+Reprimir/negociar para desactivar (solo si NO es habilitante; reduce intensidad pero cuesta legitimidad y puede crear crisis secundaria)
+
+Todo con logging causal (evento + option + mods), consistente con “reporte causal”.
+
+Base de planeación del juego
+
+2) Fases exactas (6) + checks + tiempos
+
+Cadena de Ruta B (coincide con la cadena indicada): habilitación → plebiscito entrada → órgano redactor → borrador → plebiscito salida → implementación.
+
+README
+
+Base de planeación del juego
+
+Fase 0 — Habilitación (máx. 8 semanas)
+
+Objetivo: obtener “mandato” para convocar proceso.
+
+Entrada
+
+Si vienes por (A) habilitante previa: entry_condition = AUTO_PASS (dura 1 tick; solo setea flags).
+
+Si vienes por (B) extraordinaria: debes “regularizar” con una decisión de habilitación (evento) en ≤ 8 ticks.
+
+Check de éxito
+
+flags.habilitated = true si:
+
+(A) ya lo trae, o
+
+se resuelve el evento evt_habilitation_decision con opción “convocar consulta”.
+
+Fail
+
+Si pasan 8 ticks y mov_constitucion.intensityS < 7000, la Ruta B colapsa → status=COOLDOWN por 52 semanas.
+
+Reutilización motor:
+
+usa eventos + scheduler + flags (sin nuevo sistema).
+
+Base de planeación del juego
+
+Fase 1 — Plebiscito/consulta de entrada (campaña 4 semanas + resolución)
+
+Duración: 4 ticks desde inicio de fase (scheduler crea resolve_entry_plebiscite en tick+4).
+
+Score de aprobación (determinista, S=100)
+
+𝑠
+𝑢
+𝑝
+𝑝
+𝑜
+𝑟
+𝑡
+𝑆
+=
+5000
++
+0.35
+(
+𝑙
+𝑒
+𝑔
+𝑖
+𝑡
+𝑖
+𝑚
+𝑎
+𝑐
+𝑦
+𝑆
+−
+5000
+)
++
+0.15
+(
+𝑒
+𝑐
+𝑜
+𝑛
+𝑜
+𝑚
+𝑦
+𝑆
+−
+5000
+)
++
+0.15
+(
+𝑖
+𝑛
+𝑓
+𝑜
+𝑆
+−
+5000
+)
+−
+0.25
+(
+𝑡
+𝑒
+𝑛
+𝑠
+𝑖
+𝑜
+𝑛
+𝑆
+−
+5000
+)
++
+𝐼
+𝐺
+_
+𝑡
+𝑒
+𝑟
+𝑚
+supportS=5000+0.35(legitimacyS−5000)+0.15(economyS−5000)+0.15(infoS−5000)−0.25(tensionS−5000)+IG_term
+
+IG_term: suma normalizada usando IG.clout y postura (igs_stance) asociada a la “consulta” (se modela como un pseudo-template de reforma solo para stances; no requiere un sistema nuevo).
+Esto encaja con que IGs determinan apoyo/oposición y con la lógica “IGs → legitimidad → reformas/movimientos”.
+
+README
+
+Pass
+
+si supportS >= 5000: flags.entry_approved=true, avanzar a Fase 2.
+
+Fail
+
+status=COOLDOWN por 52 semanas; aplicar efecto instantáneo (ej.: legitimacy -8, agenda +6, tension +6) con causalidad PLEBISCITE_ENTRY:FAIL.
+
+Fase 2 — Órgano redactor (definición + elección) (6 semanas)
+
+Paso A (bloqueante): elegir diseño del órgano (1 decisión):
+
+Opción ELECTED_100: +legitimidad inicial, +volatilidad (más shocks en redacción)
+
+Opción MIXED: balance
+
+Opción EXPERTS: +gobernabilidad, pero +movimiento (rechazo social)
+
+Paso B: elección/constitución del órgano en tick+6.
+
+Estado de fase (variables internas, 0–10000)
+
+draft_balanceS (radicalidad del órgano)
+
+draft_cohesionS (capacidad de acordar)
+
+draft_legitS (legitimidad percibida del órgano)
+
+Checks
+
+Si draft_cohesionS < 3000 al cierre: evento de “bloqueo” → puede forzar concesiones o reiniciar fase (coste político).
+
+Fase 3 — Redacción/Borrador (12 semanas, hitos cada 4)
+
+Duración: 12 ticks; hitos en +4/+8/+12 (eventos bloqueantes de “hito de borrador”).
+
+Progreso (por tick)
+
+draft_progressS += base(=900) + mods(gobernability, info_quality, cohesion) - penalties(tension, agenda)
+
+clamp 0..10000
+
+Checks duros
+
+Éxito: draft_progressS >= 10000 al tick 12 → flags.draft_ready=true.
+
+Fracaso: si en cualquier tick ocurre:
+
+draft_cohesionS <= 2500 y tensionS >= 8000 → colapso (“no hay condiciones”) → cooldown 104 semanas.
+
+Fase 4 — Plebiscito de salida (campaña 4 semanas + resolución)
+
+Duración: 4 ticks.
+
+Score de aprobación
+
+𝑠
+𝑢
+𝑝
+𝑝
+𝑜
+𝑟
+𝑡
+𝑆
+=
+5000
++
+0.30
+(
+𝑙
+𝑒
+𝑔
+𝑖
+𝑡
+𝑖
+𝑚
+𝑎
+𝑐
+𝑦
+𝑆
+−
+5000
+)
++
+0.20
+(
+𝑑
+𝑟
+𝑎
+𝑓
+𝑡
+_
+𝑞
+𝑢
+𝑎
+𝑙
+𝑖
+𝑡
+𝑦
+𝑆
+−
+5000
+)
++
+0.20
+(
+𝑑
+𝑟
+𝑎
+𝑓
+𝑡
+_
+𝑐
+𝑜
+ℎ
+𝑒
+𝑠
+𝑖
+𝑜
+𝑛
+𝑆
+−
+5000
+)
+−
+0.20
+(
+𝑡
+𝑒
+𝑛
+𝑠
+𝑖
+𝑜
+𝑛
+𝑆
+−
+5000
+)
+−
+0.10
+(
+𝑎
+𝑔
+𝑒
+𝑛
+𝑑
+𝑎
+𝑆
+−
+5000
+)
++
+𝐼
+𝐺
+_
+𝑡
+𝑒
+𝑟
+𝑚
+supportS=5000+0.30(legitimacyS−5000)+0.20(draft_qualityS−5000)+0.20(draft_cohesionS−5000)−0.20(tensionS−5000)−0.10(agendaS−5000)+IG_term
+
+Pass
+
+supportS >= 5000 → Fase 5.
+
+Fail
+
+status=COOLDOWN 104 semanas; efectos: legitimacy -12, tension +8, movement +10 (todos loggeados).
+
+Fase 5 — Implementación (8 semanas)
+
+Objetivo: traducir el resultado en cambios del sistema sin un “sistema paralelo”.
+
+Implementación cerrada:
+
+Se encola un paquete de 2–4 reformas especiales (área constitucional/institucional, kind SPECIAL_CONSTITUTIONAL) que se ejecutan una a la vez (reusa “reformas por etapas”).
+
+README
+
+Base de planeación del juego
+
+Duración total fija: 8 ticks (si se traba, dispara crisis institucional).
+
+Fin
+
+Al completar el paquete: status=COMPLETED y se marca el Journal de victoria correspondiente (objetivo ya definido: “proceso constituyente exitoso”).
+
+README
+
+3) Cómo reutiliza el motor existente (sin macro-sistema nuevo)
+
+Eventos plantilla para: trigger, campañas, hitos, crisis, bloqueos (con “decisiones bloqueantes”).
+
+Base de planeación del juego
+
+README
+
+Movimientos como condición de activación y presión durante fases (habilitan vías excepcionales).
+
+README
+
+Reformas por etapas para: habilitante (Ruta A) y paquete de implementación final (Fase 5).
+
+README
+
+README
+
+Scheduler para: deadlines y resoluciones diferidas (plebiscitos, hitos, elecciones).
+
+Base de planeación del juego
+
+Reporte causal: cada transición de fase y cada delta relevante se atribuye a EVENT:* / DECISION:* / SYSTEM:* (ya es requisito del diseño).
+
+Base de planeación del juego
+
+Qué falta
+
+No lo sé con la información dada:
+
+IDs concretos de los templates (eventos/reformas/efectos) del catálogo; el contrato de fases no depende de esos IDs mientras existan templates equivalentes en contenido.
+
+Riesgos/ambigüedades
+
+Umbrales muy “duros” pueden hacer que Ruta B se sienta binaria; mitigación: mantener triggers duros pero permitir que el jugador poste rgue con costos (ya incluido).
+
+Si no se fuerza el trigger como “bloqueante”, el jugador puede ignorar la escalada indefinidamente, contradiciendo el loop de decisiones bloqueantes.
+
+Base de planeación del juego

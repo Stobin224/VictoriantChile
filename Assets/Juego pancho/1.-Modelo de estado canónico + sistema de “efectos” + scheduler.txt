@@ -1,0 +1,518 @@
+"Modelo de estado canónico + sistema de “efectos” + scheduler
+
+Qué falta decidir: estructura de datos del “GameState”, cómo se aplican cambios (aditivo/multiplicativo, clamps), duraciones, stacking, prioridades, y timers (efectos Δ/semana por N semanas).
+
+Por qué carga técnica: todo el motor (ticks, eventos, reformas, crisis, UI, saves) depende de esto; cambiarlo después rompe contenido y balance." resuelve esto, toma decisiones para que quede zanjado, si tienes "qué falta"  resuelvelos tú
+Pensado durante 1m 11s
+Límite y supuestos
+
+Esto zanja solo: (a) estructura mínima de GameState, (b) sistema de efectos/modificadores, (c) scheduler de ticks y orden de aplicación. No fija el contenido (catálogo de reformas/eventos), solo el contrato técnico para que ese contenido sea implementable.
+
+Decisiones cerradas (especificación implementable)
+1) Unidad de tiempo y determinismo numérico
+
+Unidad base de simulación: 1 tick = 1 semana.
+
+Avance del jugador:
+
+1 semana = 1 tick
+
+1 mes = 4 ticks
+
+1 trimestre = 12 ticks
+
+Todas las variables numéricas que se guardan en save usan fixed-point entero para evitar drift:
+
+Escala S = 100 (2 decimales) o S = 100 basta; para robustez uso S = 100 (0.01).
+
+Métricas 0–100 → 0..100*S
+
+Aprobación -100..+100 → -100*S .. +100*S
+
+Multiplicadores se guardan como factorS con base 1.00 = 100*S (ej. 1.05 = 105*S)
+
+Con esto no hay floats en el estado guardado.
+
+2) GameState canónico (runtime) — estructura mínima
+
+GameState se define como un objeto serializable con estos campos (IDs como string):
+
+meta
+
+save_version: int
+
+rng_seed: int
+
+tick: int (semanas transcurridas desde inicio)
+
+date: { year:int, month:int, day:int } (o solo tick si prefieres; pero si hay UI de calendario, guarda fecha)
+
+metrics: Dictionary<MetricId, int>
+(incluye las 6 del HUD, paneles y cualquier métrica interna si decide existir)
+
+regions: Dictionary<RegionId, RegionState>
+
+RegionState.metrics: Dictionary<RegionMetricId, int>
+(estado dinámico por región: support/tension/organization/rival_presence, etc. en 0..100*S)
+
+Nota (datos estáticos por región desde contenido, no desde el save):
+Los campos de definición regional (core/regions.json) NO se guardan en GameState; se cargan desde el Content Pack:
+- weight_ppm, macrozone
+- recursos/capacidades: admin_capS, industry_capS, extractive_capS, social_capS, populationS
+
+Regla de acceso por TargetPath:
+- regions.{id}.{metric} resuelve primero a RegionState.metrics (dinámico).
+- si no existe, puede resolver a RegionDef (read-only) para los campos estáticos anteriores.
+Esto permite que eventos/selección usen regions.*.industry_capS sin agregar ruido al save ni requerir migración de schema.
+
+
+
+igs: Dictionary<IGId, IGState>
+
+IGState.clout: int (0..100*S)
+
+IGState.approval: int (-100S..+100S)
+
+movements: Dictionary<MovementId, MovementState>
+
+MovementState.intensity: int (0..100*S)
+
+MovementState.direction: int (+1 pro / -1 anti)
+
+reforms: Dictionary<ReformId, ReformCaseState>
+(progreso por etapas; schema específico va en el motor legislativo, pero el estado vive aquí)
+
+effects_active: Dictionary<EffectInstanceId, EffectInstance>
+
+scheduled_actions: List<ScheduledAction> (cola del scheduler)
+
+Nada más es obligatorio para el motor base.
+
+3) Contrato del sistema de efectos
+
+Un “efecto” en runtime es una instancia que aplica uno o más modificadores por tick (o instantáneo).
+
+3.1 EffectInstance
+
+Campos obligatorios:
+
+id: string (uuid o incremental)
+
+template_id: string (o embebido si no hay templates aún)
+
+source: SourceRef
+
+type: DECISION|EVENT|REFORM|SYSTEM
+
+key: string (id del contenido)
+
+start_tick: int
+
+end_tick_exclusive: int | null (null = infinito)
+
+stack_key: string (para resolver stacking)
+
+stack_mode: STACK | REPLACE | REFRESH | MAX | STACK_LIMIT_N
+
+stack_limit_n: int? (solo si STACK_LIMIT_N)
+
+priority: int (entero; default 0)
+
+magnitudeS: int (escala; default 100*S para “1.00”; permite reutilizar templates)
+
+3.2 EffectTemplate (contenido)
+
+Campos:
+
+id, name, tags[]
+
+mods[]: ModifierSpec
+
+3.3 ModifierSpec (lo que cambia)
+
+Cada mod define:
+
+target: TargetPath (string, p.ej. metrics.legitimidad, igs.sindicatos.approval, regions.rm.support)
+
+op: ADD | MUL | SET
+
+valueS: int
+
+ADD: delta por tick en escala S
+
+MUL: factorS (base = 100*S)
+
+SET: valor absoluto en escala S
+
+is_per_tick: bool
+
+true: se aplica cada tick mientras esté activo
+
+false: se aplica una sola vez al activarse (instantáneo)
+
+clamp_minS, clamp_maxS: int? (opcional; si no, usa clamps globales del target)
+
+Regla: el motor no adivina clamps; cada target tiene clamps globales en una tabla TargetConfig.
+
+4) Reglas de stacking (cerradas)
+
+Al aplicar una nueva EffectInstance con stack_key:
+
+STACK: se agrega; convive con otras instancias mismo stack_key.
+
+REPLACE: elimina todas las instancias activas con stack_key y agrega la nueva.
+
+REFRESH: si existe alguna activa con stack_key, solo actualiza su end_tick_exclusive al de la nueva (y opcionalmente su magnitude al de la nueva). No crea otra instancia.
+
+MAX: si existe alguna activa con stack_key, mantiene una sola:
+
+Para efectos ADD: gana la de mayor abs(delta_total_por_tick) (si empatan, gana la de mayor priority, luego id).
+
+Para MUL: gana la de mayor desviación desde 1.00 (abs(factorS - 100*S)).
+
+STACK_LIMIT_N: se permite hasta N instancias; si excede, se expulsan las más antiguas (menor start_tick, luego id).
+
+5) Orden de aplicación por tick (scheduler)
+
+Para ejecutar 1 tick:
+
+Tick(t → t+1):
+
+tick += 1 y actualiza date (si se usa calendario).
+
+Expirar: elimina efectos con end_tick_exclusive != null && end_tick_exclusive <= tick.
+
+Aplicar instantáneos de inicio:
+
+Para cada efecto cuya start_tick == tick, aplica mods con is_per_tick=false (una vez).
+
+Aplicar mods per-tick:
+
+Construye una lista de ModifierRuntime activos con is_per_tick=true y start_tick <= tick < end.
+
+Agrupa por target.
+
+Para cada target, computa el update con estas reglas (deterministas):
+
+5.1 Regla matemática por target (cerrada)
+
+Sea x el valor actual del target (int escala S).
+
+Si existe al menos un SET activo sobre el target:
+
+Selecciona uno: el de mayor priority, si empata el menor effect_instance_id lexicográfico.
+
+Define x_new = clamp(SET.valueS, min, max).
+
+Ignora todos los ADD/MUL para ese target en ese tick.
+
+Si no hay SET:
+
+add_total = suma(ADD.valueS) (de todas las instancias activas)
+
+mul_total = producto(MUL.factorS) con escala (ver abajo)
+
+delta_mul = round( x * (mul_total - base) / base ) donde base = 100*S
+
+x_new = clamp( x + add_total + delta_mul, min, max )
+
+Producto escalado determinista (enteros):
+
+mul_total = base
+
+por cada f en factores:
+
+mul_total = round(mul_total * f / base) usando rounding “half up”.
+
+Normalización posterior obligatoria (una vez por tick):
+
+IG.clout se renormaliza para que la suma sea exactamente 100*S (ajuste por residuo al mayor clout).
+
+Clamps finales por cada target (si algún target no clamp-eó antes).
+
+Fin tick: emite al log causal (ver abajo) y procesa colas si las hay.
+
+6) Scheduler de acciones diferidas (cerrado)
+
+Además de efectos, existen acciones “discretas” que deben ocurrir en un tick específico (spawn de evento, inicio de reforma, cambio de gobierno, etc.).
+
+ScheduledAction:
+
+id
+
+run_tick: int
+
+priority: int (mayor primero)
+
+type: string
+
+payload: JSON (o struct)
+
+source: SourceRef
+
+Ejecución: al inicio del tick, después de expirar efectos y antes de aplicar instantáneos, ejecuta todas las acciones con run_tick == tick en orden:
+
+mayor priority
+
+luego id lexicográfico
+
+Estas acciones pueden:
+
+mutar GameState directamente (cambios puntuales)
+
+crear/expirar efectos
+
+encolar nuevas acciones
+
+7) API mínima del motor (lo que implementas primero)
+
+ApplyEffect(instance: EffectInstance)
+(resuelve stacking inmediatamente y agrega/actualiza effects_active)
+
+ScheduleAction(action: ScheduledAction)
+
+AdvanceTicks(n: int) → ejecuta el ciclo n veces
+
+GetTargetValue(path) / SetTargetValue(path) (resolver TargetPath)
+
+Pruebas (qué garantiza esta definición)
+
+Determinismo: mismo rng_seed + mismas decisiones + mismo orden → mismos resultados (sin drift de floats).
+
+No hay ambigüedad en stacking ni en orden de aplicación.
+
+“SET” funciona como bloqueo/override limpio (y evita combinatoria rara con ADD/MUL).
+
+Cambiar contenido (eventos/reformas) no obliga a cambiar motor, solo a instanciar efectos/acciones con este contrato.
+
+Qué falta (fuera de este bloque, pero necesario después)
+
+No lo sé con la información dada:
+
+Lista final de MetricId y RegionMetricId (aunque el motor ya soporta diccionarios genéricos).
+
+TargetConfig (clamps por target + display rounding). Sin eso, no puedes validar datos al cargar contenido.
+
+Cómo se genera/usa RNG en eventos (pero el hook está: rng_seed).
+
+Riesgos/ambigüedades
+
+Si más adelante quieres “efectos que dependen de otra métrica” (p.ej. +0.2 * Tensión), este contrato lo permite pero requiere extender ModifierSpec con expresiones; si crees que lo necesitarás, conviene decidirlo ahora.
+
+SET ignorando ADD/MUL es intencional (simple y predecible). Si quisieras “SET base + luego ADD”, sería otro sistema de capas; no lo recomiendo para MVP por complejidad.
+
+Si quieres, el siguiente paso lógico (sin cambiar nada de esto) es definir TargetConfig y la tabla canónica de targets (IDs y clamps).
+
+hazlo
+Pensado durante 1m 27s
+
+Según los documentos cargados (los archivos no traen fecha), el set visible y sus rangos quedan definidos así: HUD 6 (0–100), paneles 4 (0–100), 4 métricas por región (0–100), IGs con clout 0–100 normalizado (suma=100) y aprobación -100..+100, movimientos con intensidad 0–100 y dirección pro/anti. 
+
+Base de planeación del juego
+
+Decisiones cerradas: TargetConfig + tabla canónica de targets
+A) Convención de TargetPath (IDs estables, ASCII)
+
+Paths en snake_case, sin tildes, separados por punto.
+
+Nacional (HUD + paneles) en: metrics.*
+
+IGs: igs.{ig_id}.clout, igs.{ig_id}.approval
+
+Regiones: regions.{region_id}.support|tension|organization|rival_presence
+
+Movimientos: movements.{mov_id}.intensity, movements.{mov_id}.direction
+
+B) Escalas y clamps (por defecto)
+
+Escala fija base: S = 100 (0.01).
+
+Targets 0–100 → clamp [0, 100*S] (regla general). 
+
+Base de planeación del juego
+
+Aprobación IG → clamp [-100*S, +100*S]. 
+
+Base de planeación del juego
+
+Dirección movimiento → enum {-1, +1} (no usa escala S; solo SET). 
+
+Base de planeación del juego
+
+Clout IG → clamp [0, 100*S] + renormalización nacional para que la suma sea 100*S. 
+
+Base de planeación del juego
+
+C) Matching de config (para soportar “patrones”)
+
+Lookup: exact match primero.
+
+Si no existe exact, usar patrones con * (wildcards) y elegir el de mayor especificidad:
+
+más segmentos literales (no-*)
+
+si empate, patrón más largo
+
+si empate, orden de carga (determinista)
+
+Schema mínimo de TargetConfig (lo que el motor necesita)
+{
+  "pattern": "metrics.legitimacy",
+  "scale": 100,
+  "minS": 0,
+  "maxS": 10000,
+  "defaultS": 5000,
+  "allow_ops": ["ADD", "MUL", "SET"],
+  "normalize_group": null,
+  "ui": { "label": "Legitimidad", "decimals": 0 },
+  "qual": {
+    "bands_0_100": [[0,19,"CRITICO"],[20,39,"BAJO"],[40,59,"MEDIO"],[60,79,"ALTO"],[80,100,"MUY_ALTO"]],
+    "trend_per_week": [[-999,-2.0,"DETERIORO_RAPIDO"],[-2.0,-0.5,"DETERIORO"],[-0.5,0.5,"ESTABLE"],[0.5,2.0,"MEJORA"],[2.0,999,"MEJORA_RAPIDA"]]
+  }
+}
+
+
+Las bandas y tendencias se toman tal cual del documento (para 0–100 y Δ/semana promedio). 
+
+Base de planeación del juego
+
+El reporte post-turno debe mostrar Δ total del periodo y Δ/semana; esto se apoya en la misma normalización de tiempo del diseño. 
+
+Base de planeación del juego
+
+Base de planeación del juego
+
+Registro canónico de targets (MVP)
+1) Nacional: HUD (6) + Paneles (4)
+
+Todos: scale=S, clamp 0..100*S, allow_ops=[ADD,MUL,SET], ui.decimals=0. 
+
+Base de planeación del juego
+
+metrics.legitimacy (Legitimidad) 
+
+Base de planeación del juego
+
+metrics.economy (Economía) 
+
+Base de planeación del juego
+
+metrics.security (Seguridad) 
+
+Base de planeación del juego
+
+metrics.social_tension (Tensión social nacional) 
+
+Base de planeación del juego
+
+metrics.party_organization (Organización del partido) 
+
+Base de planeación del juego
+
+metrics.internal_cohesion (Cohesión interna) 
+
+Base de planeación del juego
+
+metrics.legislative_capacity (Capacidad legislativa) 
+
+Base de planeación del juego
+
+metrics.governability (Gobernabilidad/implementación) 
+
+Base de planeación del juego
+
+metrics.information_quality (Información) 
+
+Base de planeación del juego
+
+metrics.public_agenda (Agenda/saliencia) 
+
+Base de planeación del juego
+
+2) Regiones (patrones)
+
+Todos: scale=S, clamp 0..100*S, allow_ops=[ADD,MUL,SET], ui.decimals=0. 
+
+Base de planeación del juego
+
+regions.*.support
+
+regions.*.tension
+
+regions.*.organization
+
+regions.*.rival_presence
+
+3) IGs (patrones)
+
+igs.*.clout
+
+scale=S, clamp 0..100*S
+
+normalize_group="igs.clout_sum_100" (se renormaliza al final de cada tick)
+
+allow_ops=[ADD,MUL,SET] (MVP: permitido; si quieres restringir, puedes dejar solo ADD/SET)
+
+
+Base de planeación del juego
+
+igs.*.approval
+
+scale=S, clamp -100*S..+100*S
+
+allow_ops=[ADD,MUL,SET]
+
+ui.decimals=0
+
+
+Base de planeación del juego
+
+4) Movimientos (patrones)
+
+movements.*.intensity
+
+scale=S, clamp 0..100*S, allow_ops=[ADD,MUL,SET]
+
+
+Base de planeación del juego
+
+movements.*.direction
+
+scale=1, clamp -1..+1, allow_ops=[SET] (solo setear pro/anti)
+
+
+Base de planeación del juego
+
+Alertas globales (configurable, pero definidas ahora)
+
+Se implementan como reglas sobre targets (evaluadas al final de cada tick), con estos umbrales mínimos: 
+
+Base de planeación del juego
+
+metrics.legitimacy < 30*S → “Compuerta cerrándose”
+
+metrics.social_tension > 70*S → “Riesgo de crisis”
+
+metrics.security < 30*S → “Escalada de inseguridad”
+
+metrics.internal_cohesion < 30*S → “Riesgo de fractura”
+
+metrics.party_organization < 30*S → “Máquina política debilitada”
+
+movements.*.intensity > 70*S → “Decisión bloqueante próxima”
+
+Qué falta (realmente) después de esto
+
+No lo sé con la información dada (y no lo invento):
+
+La lista final de region_id (nombres/IDs) y si habrá “regiones agregadas”.
+
+IDs definitivos de ig_id y mov_id (los nombres existen, pero no el identificador técnico).
+
+Si habrá más métricas visibles (p.ej. “control institucional” aparece como lente “etc.” pero no está en el set cerrado). 
+
+Base de planeación del juego
+
+Riesgo/ambigüedad
+
+Si más adelante introduces targets con otra escala o tipo (p.ej. probabilidades 0–1), conviene mantener el mismo mecanismo (scale, clamps, allow_ops) para no bifurcar el sistema.

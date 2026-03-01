@@ -1,0 +1,367 @@
+"Schema de contenido “cerrado” para reformas/eventos (aunque el catálogo sea después)
+
+Qué falta decidir: campos obligatorios, validación, IDs, localización de textos, y herramientas mínimas (aunque sea JSON/YAML manual).
+
+Por qué carga técnica: sin schema estable, el contenido “crece torcido” y luego es caro normalizar." resuelve esto, toma decisiones para que quede zanjado, si tienes "qué falta" resuelvelos tú
+Pensado durante 46s
+Límite y supuestos
+
+Esto zanja un schema de contenido estable para eventos y reformas (y lo mínimo que necesitan: efectos/modificadores y diccionarios base). La decisión es deliberadamente “simple + validable” para que el contenido no crezca torcido.
+
+Decisiones cerradas
+1) Formato y estructura de “Content Pack”
+
+Formato: JSON únicamente (no YAML).
+Unidad de entrega: un “pack” versionado con manifest.json + archivos de datos.
+
+Estructura mínima:
+
+content/
+  manifest.json
+  strings/
+    es.json
+    en.json              (opcional)
+  core/
+    regions.json
+    igs.json
+    movements.json
+  rules/
+    target_config.json
+    aggregation_config.json
+    legislative_config.json
+  templates/
+    effects.json
+    events.json
+    reforms.json
+
+2) IDs estables (convención obligatoria)
+
+snake_case ASCII, sin espacios.
+
+Prefijos por tipo:
+
+eff_* effects
+
+evt_* events
+
+ref_* reforms
+
+mov_* movements
+
+ig_* IGs
+
+Regiones: IDs sin prefijo (p.ej. metropolitana) o reg_*. Decisión: sin prefijo (más legible en paths regions.metropolitana.*).
+
+Prohibido renombrar IDs: si cambia, se hace alias map (ver validación).
+
+3) Localización (sin strings hardcodeadas)
+
+Todo texto visible usa claves de localización, no texto embebido.
+
+Archivo por idioma: strings/es.json con diccionario { "key": "texto" }.
+
+Claves recomendadas:
+
+event.evt_media_scandal.title
+
+event.evt_media_scandal.desc
+
+event.evt_media_scandal.opt.minimize
+
+reform.ref_labor.title
+
+etc.
+
+4) Unidades numéricas (determinismo)
+
+Todo valor que toque el estado usa fixed-point int:
+
+Métricas 0–100: 0..10000 (S=100)
+
+Aprobación -100..+100: -10000..+10000
+
+Multiplicadores: factorS con base 10000 = 1.00
+
+En contenido no se permiten floats. Solo int.
+
+Schema cerrado (campos obligatorios)
+A) manifest.json
+{
+  "content_pack_id": "base_chile_fictional",
+  "content_pack_version": 1,
+  "content_schema_version": 1,
+  "min_game_schema_version": 1,
+  "languages": ["es"],
+  "default_language": "es",
+  "files": {
+    "core/regions.json": "sha256:...",
+    "core/igs.json": "sha256:...",
+    "templates/effects.json": "sha256:...",
+    "templates/events.json": "sha256:...",
+    "templates/reforms.json": "sha256:..."
+  }
+}
+
+B) core/regions.json
+
+Raíz:
+
+{ "regions": [ RegionDef... ] }
+
+RegionDef (obligatorio):
+
+{
+  "id": "metropolitana",
+  "name": "Metropolitana",
+  "weight_ppm": 62500,
+  "macrozone": "CENTER",
+
+  "admin_capS": 5000,
+  "industry_capS": 5000,
+  "extractive_capS": 5000,
+  "social_capS": 5000,
+  "populationS": 5000
+}
+
+Campos requeridos:
+id, name, weight_ppm, macrozone
+
+Campos opcionales (0..10000; default recomendado 5000):
+admin_capS, industry_capS, extractive_capS, social_capS, populationS
+
+Restricciones:
+- Σ weight_ppm = 1_000_000.
+- macrozone ∈ { "NORTH","CENTER","SOUTH","AUSTRAL" }.
+- Los campos *_capS y populationS no deben cambiar durante una campaña; son “data estática” del pack (se versiona por content_pack_version).
+
+C) templates/effects.json
+
+
+Raíz:
+
+{ "effects": [ EffectTemplate... ] }
+
+
+EffectTemplate (obligatorio):
+
+{
+  "id": "eff_legitimacy_down_small",
+  "loc_title": "effect.eff_legitimacy_down_small.title",
+  "mods": [
+    {
+      "target": "metrics.legitimacy",
+      "op": "ADD",
+      "valueS": -50,
+      "is_per_tick": true,
+      "clamp_minS": 0,
+      "clamp_maxS": 10000
+    }
+  ],
+  "tags": ["theme.media"]
+}
+
+
+Campos requeridos:
+
+id, loc_title, mods[]
+
+En mods[]: target, op, valueS, is_per_tick
+
+clamp_* opcional (si no, se usa TargetConfig)
+
+D) templates/events.json
+
+
+Raíz:
+
+{ "events": [ EventTemplate... ] }
+
+
+EventTemplate (obligatorio):
+
+{
+  "id": "evt_media_scandal",
+  "loc_title": "event.evt_media_scandal.title",
+  "loc_desc": "event.evt_media_scandal.desc",
+
+  "kind": "AUTO|CHOICE|CRISIS",
+  "scope": "NATIONAL|REGION|MULTI_REGION",
+  "blocking": false,
+
+  "base_priority": 50,
+  "weight": 100,
+  "cooldown_weeks": 12,
+  "max_per_campaign": 2,
+
+  "vars": {
+    "region": { "bind": "pick_region", "mode": "ARGMAX", "target": "regions.*.tension" },
+    "ig": { "bind": "pick_ig", "mode": "WEIGHTED", "target": "igs.*.clout" },
+    "severity": { "bind": "severity_from", "target": "metrics.social_tension", "bands": [[0,4999,1],[5000,6999,2],[7000,10000,3]] }
+  },
+
+  "conditions": { "all": [
+    { "cmp": { "target": "metrics.information_quality", "op": "<", "valueS": 6000 } },
+    { "cooldown_ready": true },
+    { "max_count_not_reached": true }
+  ]},
+
+  "options": [
+    {
+      "id": "minimize",
+      "loc_label": "event.evt_media_scandal.opt.minimize",
+      "requirements": { "all": [] },
+      "effects": [
+        { "type": "MODIFIER", "template_id": "eff_legitimacy_down_small", "duration_weeks": 2 }
+      ],
+      "memory": {
+        "set_flags": ["flag.scandal_active"],
+        "set_cooldown": true
+      },
+      "followups": [
+        { "after_weeks": 2, "event_id": "evt_media_followup" }
+      ]
+    }
+  ]
+}
+
+
+Campos requeridos:
+
+id, loc_title, kind, scope, blocking, base_priority, weight, cooldown_weeks, max_per_campaign, conditions, options[]
+
+options[]: id, loc_label, effects[]
+
+effects[] puede ser:
+
+{ "type":"MODIFIER", "template_id":"eff_*", "duration_weeks": int }
+
+{ "type":"SET_TARGET", "target":"...", "valueS": int }
+
+{ "type":"SCHEDULE_ACTION", "action_type":"...", "after_weeks": int, "payload": {...} }
+
+D) templates/reforms.json
+
+Raíz:
+
+{ "reforms": [ ReformTemplate... ] }
+
+
+ReformTemplate (obligatorio):
+
+{
+  "id": "ref_labor_reform",
+  "loc_title": "reform.ref_labor_reform.title",
+  "loc_desc": "reform.ref_labor_reform.desc",
+
+  "area": "seguridad|trabajo|salud|educacion|pensiones|institucional|constitucional",
+  "kind": "NORMAL|SPECIAL_CONSTITUTIONAL",
+
+  "cooldown_weeks": 8,
+  "max_per_campaign": 1,
+
+  "movement_tags": ["theme.trabajo"],
+  "igs_stance": { "ig_sindicatos": 60, "ig_empresariado": -40 },
+
+  "prereqs": [
+    { "type": "METRIC", "target": "metrics.legitimacy", "op": ">=", "valueS": 3000 }
+  ],
+
+  "base_difficultyS": 10000,
+
+  "stages": [
+    { "id": "filed", "kind": "WORK", "chamber": "NONE", "weightS": 10000 },
+    { "id": "committee_lower", "kind": "WORK", "chamber": "LOWER", "weightS": 10000 },
+    { "id": "vote_lower", "kind": "VOTE", "chamber": "LOWER", "weightS": 12000 },
+    { "id": "vote_upper", "kind": "VOTE", "chamber": "UPPER", "weightS": 12000 }
+  ],
+
+  "on_pass_effects": [
+    { "type": "MODIFIER", "template_id": "eff_labor_productivity_up", "duration_weeks": 52 }
+  ]
+}
+
+
+Campos requeridos:
+
+id, loc_title, area, kind, cooldown_weeks, max_per_campaign, igs_stance, base_difficultyS, stages[]
+
+stages[]: id, kind, chamber, weightS
+
+Validación (obligatoria) — reglas cerradas
+1) Validación estructural (JSON Schema)
+
+Cada archivo tiene su jsonschema (v2020-12 o similar).
+
+Falla si falta un campo requerido, tipo incorrecto, enum inválido.
+
+2) Validación semántica (lint del pack)
+
+Debe fallar si:
+
+IDs duplicados por tipo.
+
+Referencias rotas:
+
+template_id inexistente (effects).
+
+event_id inexistente en followups.
+
+ig_* inexistente en igs_stance.
+
+target no existe en TargetConfig (incluye internals.* y wildcards permitidos).
+
+Claves de localización inexistentes en strings/{lang}.json.
+
+Rangos inválidos:
+
+valueS fuera de clamps del target (cuando sea determinable).
+
+duration_weeks <= 0, cooldown_weeks < 0, etc.
+
+Uso inválido del DSL:
+
+cmp sin valueS, o usando value float.
+
+scope=REGION sin vars.region (o sin región resoluble).
+
+max_per_campaign = 0 (se considera inválido: usar disabled=true si se quiere apagar).
+
+3) Compatibilidad de contenido
+
+manifest.min_game_schema_version debe ser <= versión del ejecutable.
+
+content_schema_version se migra con scripts de contenido (separado de migración de save).
+
+Herramientas mínimas (zanjadas)
+
+validate_content (CLI)
+
+validate_content content/:
+
+valida JSON Schema
+
+valida semántica
+
+imprime errores con ruta y contexto
+
+pack_content (CLI)
+
+genera content_pack.zip (o carpeta export) y calcula hashes del manifest.files.
+
+dump_refs (CLI)
+
+lista todas las referencias cruzadas (events -> effects, reforms -> effects, strings missing, etc.) para depurar rápido.
+
+Qué falta
+
+No lo sé con la información dada:
+
+La lista final de IGs (IDs) y su archivo core/igs.json con nombres/props (el motor ya está; falta poblar catálogo).
+
+Si quieres pluralidad de idiomas desde el día 1 (tienes languages, pero no lo has fijado como requisito).
+
+Riesgos/ambigüedades
+
+Si permites “scripting” en condiciones (expresiones libres), el schema deja de ser estable y la validación se vuelve difícil. Por eso se fija DSL mínima.
+
+Si se permiten strings embebidas, luego migrar a localización es costoso; por eso se prohíbe desde el inicio.
