@@ -3,47 +3,66 @@
     {
       "id": "mov_seguridad_mano_dura",
       "name": "Movimiento por mano dura",
-      "tags": ["theme.seguridad"]
+      "tags": [
+        "theme.seguridad"
+      ]
     },
     {
       "id": "mov_trabajo_huelgas",
       "name": "Huelgas y presión sindical",
-      "tags": ["theme.trabajo"]
+      "tags": [
+        "theme.trabajo"
+      ]
     },
     {
       "id": "mov_salud_crisis_atencion",
       "name": "Crisis por atención en salud",
-      "tags": ["theme.salud"]
+      "tags": [
+        "theme.salud"
+      ]
     },
     {
       "id": "mov_educacion_paros",
       "name": "Paros y movilización estudiantil",
-      "tags": ["theme.educacion"]
+      "tags": [
+        "theme.educacion"
+      ]
     },
     {
       "id": "mov_pensiones_presion_reforma",
       "name": "Presión por reforma de pensiones",
-      "tags": ["theme.pensiones"]
+      "tags": [
+        "theme.pensiones"
+      ]
     },
     {
       "id": "mov_institucional_reforma",
       "name": "Presión por reformas institucionales",
-      "tags": ["theme.institucional"]
+      "tags": [
+        "theme.institucional",
+        "theme.corrupcion"
+      ]
     },
     {
       "id": "mov_constitucional_proceso",
       "name": "Presión por proceso constitucional",
-      "tags": ["theme.constitucional"]
+      "tags": [
+        "theme.constitucional"
+      ]
     },
     {
       "id": "mov_descentralizacion_regionalista",
       "name": "Presión regionalista por descentralización",
-      "tags": ["theme.descentralizacion"]
+      "tags": [
+        "theme.descentralizacion"
+      ]
     },
     {
       "id": "mov_pueblos_originarios_autonomia",
       "name": "Demandas de autonomía y reconocimiento",
-      "tags": ["theme.pueblos_originarios"]
+      "tags": [
+        "theme.pueblos_originarios"
+      ]
     }
   ]
 }
