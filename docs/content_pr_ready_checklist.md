@@ -13,6 +13,12 @@ python3 scripts/recompute_manifest_hashes.py
 ```
 
 ## 2) Validaciones locales mínimas
+- [ ] Contexto y trazabilidad:
+
+```bash
+python3 scripts/validate_project_docs.py
+```
+
 - [ ] Sintaxis JSON:
 
 ```bash

@@ -1,2 +1,4 @@
 ﻿<Solution>
+  <Project Path="VictoriantChile.Simulation.Tests.csproj" />
+  <Project Path="VictoriantChile.Simulation.csproj" />
 </Solution>

@@ -6,7 +6,13 @@ Simulador político en Unity ambientado en un Chile contemporáneo ficticio, ori
 - **Editor**: `6000.3.10f1`. (fuente: `ProjectSettings/ProjectVersion.txt`)
 
 ## Estructura del repositorio
-- `Assets/Juego pancho/`: documentación de diseño de juego (visión, sistemas y reglas).
+- `AGENTS.md`: contrato operativo y orden de lectura para agentes.
+- `docs/`: documentación canónica versionada.
+  - `INDEX.md`: mapa de requisitos, contratos, decisiones, incrementos, código y pruebas.
+  - `contracts/`: comportamiento requerido.
+  - `decisions/`: ADRs que explican decisiones arquitectónicas.
+  - `implementation/`: estado real, roadmap y fichas de incremento.
+  - `archive/`: antecedentes originales no normativos.
 - `Assets/StreamingAssets/content/`: contenido data-driven consumido por el juego.
   - `core/`: catálogos base (IGs, movimientos, regiones).
   - `rules/`: parámetros y reglas cuantitativas del motor.
@@ -18,32 +24,38 @@ Simulador político en Unity ambientado en un Chile contemporáneo ficticio, ori
 ## Flujo de validación de contenido
 Desde la raíz del repositorio:
 
-1. Validación de sintaxis JSON:
+1. Validación de contexto y trazabilidad:
+
+```bash
+python3 scripts/validate_project_docs.py
+```
+
+2. Validación de sintaxis JSON:
 
 ```bash
 for f in $(rg --files Assets/StreamingAssets/content -g '*.json'); do jq empty "$f" || exit 1; done
 ```
 
-2. Validación semántica (IDs, referencias cruzadas, loc_*, enums y rangos `S`):
+3. Validación semántica (IDs, referencias cruzadas, loc_*, enums y rangos `S`):
 
 ```bash
 python3 scripts/validate_content.py
 ```
 
-3. Recalcular hashes de `manifest.json` (y opcionalmente bump de pack):
+4. Recalcular hashes de `manifest.json` (y opcionalmente bump de pack):
 
 ```bash
 python3 scripts/recompute_manifest_hashes.py
 python3 scripts/recompute_manifest_hashes.py --bump-pack
 ```
 
-4. Enforcement de versionado de manifest (comparando base/head):
+5. Enforcement de versionado de manifest (comparando base/head):
 
 ```bash
 python3 scripts/check_manifest_bump.py --base <sha_base> --head <sha_head>
 ```
 
-5. Prueba de humo de simulación mínima (2 ticks):
+6. Prueba de humo de simulación mínima (2 ticks):
 
 ```bash
 python3 scripts/smoke_simulation.py
