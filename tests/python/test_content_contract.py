@@ -121,6 +121,44 @@ class ContentFixtureTest(unittest.TestCase):
         write_json(path, data)
         self.assertValidationFailsWith("metrics target is not explicitly declared")
 
+    def test_manifest_bool_version_fails(self) -> None:
+        path = self.content_dir / "manifest.json"
+        data = load_json(path)
+        data["content_pack_version"] = True
+        write_json(path, data)
+        self.assertValidationFailsWith("content_pack_version must be a positive integer")
+
+    def test_target_config_bool_scale_fails(self) -> None:
+        path = self.content_dir / "rules" / "target_config.json"
+        data = load_json(path)
+        data[0]["scale"] = True
+        write_json(path, data)
+        self.assertValidationFailsWith("target_config[0].scale: must be a positive integer")
+
+    def test_effect_bool_value_fails(self) -> None:
+        path = self.content_dir / "templates" / "effects.json"
+        data = load_json(path)
+        data["effects"][0]["mods"][0]["valueS"] = True
+        write_json(path, data)
+        self.assertValidationFailsWith("valueS: must be an integer")
+
+    def test_event_bool_numeric_field_fails(self) -> None:
+        path = self.content_dir / "templates" / "events.json"
+        data = load_json(path)
+        data["events"][0]["base_priority"] = True
+        write_json(path, data)
+        self.assertValidationFailsWith("base_priority: must be an integer")
+
+    def test_zero_and_one_plain_ints_still_validate(self) -> None:
+        path = self.content_dir / "templates" / "events.json"
+        data = load_json(path)
+        data["events"][0]["base_priority"] = 1
+        data["events"][0]["weight"] = 0
+        write_json(path, data)
+        errors = validate_content(self.content_dir)
+        self.assertNotIn("base_priority: must be an integer", "\n".join(errors))
+        self.assertNotIn("weight: must be an integer", "\n".join(errors))
+
     def test_wildcard_mutation_target_fails(self) -> None:
         path = self.content_dir / "templates" / "effects.json"
         data = load_json(path)
@@ -235,8 +273,34 @@ class RunChecksTest(unittest.TestCase):
                 self.assertIn("status", step)
                 self.assertIn("exit_code", step)
                 self.assertIn("duration_ms", step)
+                self.assertIn("stdout", step)
+                self.assertIn("stderr", step)
             self.assertEqual([{"name": "check_manifest_bump", "reason": "--base-ref was not provided"}], data["skipped_checks"])
             self.assertEqual([], data["errors"])
+        finally:
+            tmp.cleanup()
+
+    def test_run_checks_json_failure_contains_diagnostics(self) -> None:
+        tmp = self.make_repo_fixture()
+        try:
+            repo = Path(tmp.name) / "repo"
+            write_json(repo / "Assets" / "StreamingAssets" / "content" / "rules" / "extra.json", {"bad": True})
+            output = Path(tmp.name) / "checks.json"
+            result = subprocess.run(
+                [sys.executable, str(repo / "scripts" / "run_checks.py"), "--json-output", str(output)],
+                cwd=repo,
+                capture_output=True,
+                text=True,
+                shell=False,
+            )
+            self.assertNotEqual(0, result.returncode)
+            data = load_json(output)
+            self.assertEqual("FAIL", data["overall_status"])
+            failed = {step["name"]: step for step in data["steps"] if step["status"] == "FAIL"}
+            self.assertIn("verify_manifest_hashes", failed)
+            self.assertIn("not declared", failed["verify_manifest_hashes"]["stdout"])
+            self.assertTrue(data["errors"])
+            self.assertIn("verify_manifest_hashes: exited with code", "\n".join(data["errors"]))
         finally:
             tmp.cleanup()
 
@@ -252,8 +316,8 @@ class WorkingTreeManifestBumpTest(unittest.TestCase):
             content / "manifest.json",
             {
                 "content_pack_id": "test",
-                "content_pack_version": 1,
-                "content_schema_version": 1,
+                "content_pack_version": 2,
+                "content_schema_version": 2,
                 "min_game_schema_version": 1,
                 "files": {"data.json": "sha256:" + ("0" * 64)},
             },
@@ -322,10 +386,96 @@ class WorkingTreeManifestBumpTest(unittest.TestCase):
         self.assertNotEqual(0, result.returncode)
         self.assertIn("content_pack_version no increment", result.stdout)
 
-        manifest["content_pack_version"] = 2
+        manifest["content_pack_version"] = 3
         write_json(manifest_path, manifest)
         result = self.run_check("--base", "HEAD", "--working-tree")
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
+    def test_pack_version_decrease_fails(self) -> None:
+        manifest_path = self.repo / "Assets" / "StreamingAssets" / "content" / "manifest.json"
+        manifest = load_json(manifest_path)
+        manifest["content_pack_version"] = 1
+        write_json(manifest_path, manifest)
+        result = self.run_check("--base", "HEAD", "--working-tree")
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("content_pack_version no puede disminuir", result.stdout)
+
+    def test_schema_version_decrease_fails(self) -> None:
+        manifest_path = self.repo / "Assets" / "StreamingAssets" / "content" / "manifest.json"
+        manifest = load_json(manifest_path)
+        manifest["content_schema_version"] = 1
+        write_json(manifest_path, manifest)
+        result = self.run_check("--base", "HEAD", "--working-tree")
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("content_schema_version no puede disminuir", result.stdout)
+
+    def test_content_change_pack_jump_fails(self) -> None:
+        write_json(self.repo / "Assets" / "StreamingAssets" / "content" / "data.json", {"value": 2})
+        manifest_path = self.repo / "Assets" / "StreamingAssets" / "content" / "manifest.json"
+        manifest = load_json(manifest_path)
+        manifest["files"]["data.json"] = "sha256:" + ("1" * 64)
+        manifest["content_pack_version"] = 4
+        write_json(manifest_path, manifest)
+        result = self.run_check("--base", "HEAD", "--working-tree")
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("content_pack_version no increment", result.stdout)
+        self.assertIn("old=2, new=4", result.stdout)
+
+    def test_content_change_exact_pack_bump_passes(self) -> None:
+        write_json(self.repo / "Assets" / "StreamingAssets" / "content" / "data.json", {"value": 2})
+        manifest_path = self.repo / "Assets" / "StreamingAssets" / "content" / "manifest.json"
+        manifest = load_json(manifest_path)
+        manifest["files"]["data.json"] = "sha256:" + ("1" * 64)
+        manifest["content_pack_version"] = 3
+        write_json(manifest_path, manifest)
+        result = self.run_check("--base", "HEAD", "--working-tree")
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
+    def test_schema_exact_bump_requires_pack_exact_bump(self) -> None:
+        manifest_path = self.repo / "Assets" / "StreamingAssets" / "content" / "manifest.json"
+        manifest = load_json(manifest_path)
+        manifest["content_schema_version"] = 3
+        manifest["content_pack_version"] = 3
+        write_json(manifest_path, manifest)
+        result = self.run_check("--base", "HEAD", "--working-tree")
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
+    def test_schema_jump_fails(self) -> None:
+        manifest_path = self.repo / "Assets" / "StreamingAssets" / "content" / "manifest.json"
+        manifest = load_json(manifest_path)
+        manifest["content_schema_version"] = 4
+        manifest["content_pack_version"] = 3
+        write_json(manifest_path, manifest)
+        result = self.run_check("--base", "HEAD", "--working-tree")
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("content_schema_version debe incrementar exactamente en +1", result.stdout)
+
+    def test_boolean_version_fails(self) -> None:
+        manifest_path = self.repo / "Assets" / "StreamingAssets" / "content" / "manifest.json"
+        manifest = load_json(manifest_path)
+        manifest["content_pack_version"] = True
+        write_json(manifest_path, manifest)
+        result = self.run_check("--base", "HEAD", "--working-tree")
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("content_pack_version debe ser un entero positivo", result.stdout)
+
+    def test_manifest_only_without_version_regression_passes(self) -> None:
+        manifest_path = self.repo / "Assets" / "StreamingAssets" / "content" / "manifest.json"
+        manifest = load_json(manifest_path)
+        manifest["metadata_note"] = "manifest-only correction"
+        write_json(manifest_path, manifest)
+        result = self.run_check("--base", "HEAD", "--working-tree")
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
+    def test_manifest_only_pack_jump_fails(self) -> None:
+        manifest_path = self.repo / "Assets" / "StreamingAssets" / "content" / "manifest.json"
+        manifest = load_json(manifest_path)
+        manifest["metadata_note"] = "manifest-only correction"
+        manifest["content_pack_version"] = 4
+        write_json(manifest_path, manifest)
+        result = self.run_check("--base", "HEAD", "--working-tree")
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("cambio solo de manifest no puede saltar content_pack_version", result.stdout)
 
     def test_working_tree_ignores_non_content_changes(self) -> None:
         (self.repo / "README.md").write_text("outside content\n", encoding="utf-8")

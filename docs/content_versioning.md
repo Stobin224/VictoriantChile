@@ -34,9 +34,8 @@ Acciones requeridas:
 1. Definir alcance del cambio y si es retrocompatible.
 2. Actualizar números de versión en `manifest.json`.
 3. Ejecutar validaciones:
-   - sintaxis JSON (`jq`),
-   - validación semántica (`python3 scripts/validate_content.py`),
-   - enforcement de versionado (`python3 scripts/check_manifest_bump.py --base <sha_base> --head <sha_head>`).
+   - comando canónico local (`python scripts/run_checks.py`),
+   - pre-commit con working tree (`python scripts/run_checks.py --base-ref origin/main --working-tree`).
 4. Si hubo cambio de schema, documentar en la tabla de historial.
 
 ## Historial de migraciones

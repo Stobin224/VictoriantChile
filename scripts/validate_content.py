@@ -150,6 +150,10 @@ def add_enum_error(errors: list[str], value: Any, allowed: set[str], context: st
         errors.append(f"{context}: invalid value {value!r}; allowed={sorted(allowed)}")
 
 
+def is_plain_int(value: Any) -> bool:
+    return type(value) is int
+
+
 def validate_loc_keys(node: Any, string_keys: set[str], context: str, errors: list[str]) -> None:
     if isinstance(node, dict):
         for key, value in node.items():
@@ -256,7 +260,7 @@ def validate_manifest(manifest: Any, content_dir: Path, errors: list[str]) -> No
         if not isinstance(manifest_obj.get(field), str) or not manifest_obj.get(field):
             errors.append(f"manifest.json: {field} must be a non-empty string")
     for field in ("content_pack_version", "content_schema_version", "min_game_schema_version"):
-        if not isinstance(manifest_obj.get(field), int) or manifest_obj.get(field) < 1:
+        if not is_plain_int(manifest_obj.get(field)) or manifest_obj.get(field) < 1:
             errors.append(f"manifest.json: {field} must be a positive integer")
     languages = manifest_obj.get("languages")
     if not isinstance(languages, list) or not languages or not all(isinstance(x, str) and x for x in languages):
@@ -297,13 +301,13 @@ def validate_target_config(target_config: Any, ids: dict[str, set[str]], string_
         min_s = row.get("minS")
         max_s = row.get("maxS")
         default_s = row.get("defaultS")
-        if not isinstance(scale, int) or scale <= 0:
+        if not is_plain_int(scale) or scale <= 0:
             errors.append(f"target_config[{i}].scale: must be a positive integer")
             scale = 1
         for field_name, value in (("minS", min_s), ("maxS", max_s), ("defaultS", default_s)):
-            if not isinstance(value, int):
+            if not is_plain_int(value):
                 errors.append(f"target_config[{i}].{field_name}: must be an integer")
-        if isinstance(min_s, int) and isinstance(max_s, int) and isinstance(default_s, int):
+        if is_plain_int(min_s) and is_plain_int(max_s) and is_plain_int(default_s):
             if min_s > max_s:
                 errors.append(f"target_config[{i}]: minS must be <= maxS")
             elif not (min_s <= default_s <= max_s):
@@ -326,16 +330,16 @@ def validate_target_config(target_config: Any, ids: dict[str, set[str]], string_
             if isinstance(label, str) and label not in string_keys:
                 errors.append(f"target_config[{i}].ui.label: missing localization key {label!r}")
             decimals = ui.get("decimals")
-            if decimals is not None and (not isinstance(decimals, int) or decimals < 0):
+            if decimals is not None and (not is_plain_int(decimals) or decimals < 0):
                 errors.append(f"target_config[{i}].ui.decimals: must be a non-negative integer")
         if isinstance(pattern, str):
             rules.append(
                 TargetRule(
                     pattern=pattern,
-                    scale=scale if isinstance(scale, int) else 1,
-                    min_s=min_s if isinstance(min_s, int) else 0,
-                    max_s=max_s if isinstance(max_s, int) else 0,
-                    default_s=default_s if isinstance(default_s, int) else 0,
+                    scale=scale if is_plain_int(scale) else 1,
+                    min_s=min_s if is_plain_int(min_s) else 0,
+                    max_s=max_s if is_plain_int(max_s) else 0,
+                    default_s=default_s if is_plain_int(default_s) else 0,
                     allow_ops=frozenset(allow_set),
                     index=i,
                 )
@@ -381,14 +385,14 @@ def validate_core(pack: dict[str, Any], errors: list[str]) -> dict[str, set[str]
         if not isinstance(region.get("name"), str) or not region.get("name"):
             errors.append(f"region {rid}: name must be a non-empty string")
         weight = region.get("weight_ppm")
-        if not isinstance(weight, int) or weight < 0:
+        if not is_plain_int(weight) or weight < 0:
             errors.append(f"region {rid}: weight_ppm must be a non-negative integer")
         else:
             total_weight += weight
         add_enum_error(errors, region.get("macrozone"), ALLOWED_MACROZONE, f"region {rid}.macrozone")
         for field in STATIC_REGION_FIELDS:
             value = region.get(field)
-            if value is not None and (not isinstance(value, int) or not (0 <= value <= 10000)):
+            if value is not None and (not is_plain_int(value) or not (0 <= value <= 10000)):
                 errors.append(f"region {rid}.{field}: must be an integer in 0..10000")
     if regions and total_weight != 1_000_000:
         errors.append(f"core/regions.json: weight_ppm sum must be 1000000, got {total_weight}")
@@ -419,7 +423,7 @@ def validate_effect_mods(
         op = mod.get("op")
         add_enum_error(errors, op, ALLOWED_EFFECT_MOD_OP, f"{context}.mods[{i}].op")
         value_s = mod.get("valueS")
-        if not isinstance(value_s, int):
+        if not is_plain_int(value_s):
             errors.append(f"{context}.mods[{i}].valueS: must be an integer")
             value_s = None
         if not isinstance(mod.get("is_per_tick"), bool):
@@ -443,7 +447,7 @@ def validate_condition_node(node: Any, catalog: TargetCatalog, movement_ids: set
             op = cmp_obj.get("op")
             add_enum_error(errors, op, ALLOWED_PREREQ_OP, f"{context}.cmp.op")
             value = cmp_obj.get("valueS", cmp_obj.get("value"))
-            if not isinstance(value, int):
+            if not is_plain_int(value):
                 errors.append(f"{context}.cmp.value: must be an integer")
             validate_target_reference(
                 cmp_obj.get("target"),
@@ -459,7 +463,7 @@ def validate_condition_node(node: Any, catalog: TargetCatalog, movement_ids: set
                 errors.append(f"{context}.movement_cmp: movement_id does not exist: {cmp_obj.get('movement_id')}")
             add_enum_error(errors, cmp_obj.get("op"), ALLOWED_PREREQ_OP, f"{context}.movement_cmp.op")
             value = cmp_obj.get("valueS", cmp_obj.get("value"))
-            if not isinstance(value, int):
+            if not is_plain_int(value):
                 errors.append(f"{context}.movement_cmp.value: must be an integer")
         for key, value in node.items():
             if key not in {"cmp", "movement_cmp"}:
@@ -490,7 +494,7 @@ def validate_events(
             if not isinstance(event.get(field), bool):
                 errors.append(f"event {eid}.{field}: must be a boolean")
         for field in ("base_priority", "weight", "cooldown_weeks", "max_per_campaign"):
-            if not isinstance(event.get(field), int):
+            if not is_plain_int(event.get(field)):
                 errors.append(f"event {eid}.{field}: must be an integer")
         if event.get("movement_id") and event.get("movement_id") not in movement_ids:
             errors.append(f"event {eid}: movement_id does not exist: {event.get('movement_id')}")
@@ -518,13 +522,13 @@ def validate_events(
                 if eff.get("template_id") not in effect_ids:
                     errors.append(f"event {eid}/{oid}: effect does not exist: {eff.get('template_id')}")
                 duration = eff.get("duration_weeks")
-                if not isinstance(duration, int) or duration <= 0:
+                if not is_plain_int(duration) or duration <= 0:
                     errors.append(f"event {eid}/{oid}.effects[{eff_i}].duration_weeks: must be a positive integer")
             for followup_i, followup_any in enumerate(option.get("followups", []), start=1):
                 followup = require_object(followup_any, f"event {eid}/{oid}.followups[{followup_i}]", errors)
                 if followup.get("event_id") not in event_ids:
                     errors.append(f"event {eid}/{oid}.followups[{followup_i}]: event_id does not exist: {followup.get('event_id')}")
-                if not isinstance(followup.get("after_weeks"), int) or followup.get("after_weeks") <= 0:
+                if not is_plain_int(followup.get("after_weeks")) or followup.get("after_weeks") <= 0:
                     errors.append(f"event {eid}/{oid}.followups[{followup_i}].after_weeks: must be a positive integer")
         duplicated = sorted({oid for oid in option_ids if option_ids.count(oid) > 1})
         if duplicated:
@@ -555,20 +559,20 @@ def validate_reforms(
         for ig_id, stance in require_object(reform.get("igs_stance"), f"reform {rid}.igs_stance", errors).items():
             if ig_id not in ig_ids:
                 errors.append(f"reform {rid}: igs_stance references missing IG: {ig_id}")
-            if not isinstance(stance, int) or not (-100 <= stance <= 100):
+            if not is_plain_int(stance) or not (-100 <= stance <= 100):
                 errors.append(f"reform {rid}: igs_stance[{ig_id}] must be integer in -100..100")
         for tag in reform.get("movement_tags", []):
             if tag not in movement_tags:
                 errors.append(f"reform {rid}: movement_tag not found in core/movements: {tag}")
         for field in ("cooldown_weeks", "max_per_campaign", "base_difficultyS"):
-            if not isinstance(reform.get(field), int):
+            if not is_plain_int(reform.get(field)):
                 errors.append(f"reform {rid}.{field}: must be an integer")
         for eff_i, eff_any in enumerate(reform.get("on_pass_effects", []), start=1):
             eff = require_object(eff_any, f"reform {rid}.on_pass_effects[{eff_i}]", errors)
             add_enum_error(errors, eff.get("type"), ALLOWED_ON_PASS_EFFECT_TYPE, f"reform {rid}.on_pass_effects[{eff_i}].type")
             if eff.get("template_id") not in effect_ids:
                 errors.append(f"reform {rid}: on_pass_effect references missing effect: {eff.get('template_id')}")
-            if not isinstance(eff.get("duration_weeks"), int) or eff.get("duration_weeks") <= 0:
+            if not is_plain_int(eff.get("duration_weeks")) or eff.get("duration_weeks") <= 0:
                 errors.append(f"reform {rid}.on_pass_effects[{eff_i}].duration_weeks: must be a positive integer")
         for prereq_i, prereq_any in enumerate(reform.get("prereqs", []), start=1):
             prereq = require_object(prereq_any, f"reform {rid}.prereqs[{prereq_i}]", errors)
@@ -577,7 +581,7 @@ def validate_reforms(
             add_enum_error(errors, prereq.get("op"), ALLOWED_PREREQ_OP, f"reform {rid}.prereqs[{prereq_i}].op")
             value_s = prereq.get("valueS")
             if prereq_type == "METRIC":
-                if not isinstance(value_s, int):
+                if not is_plain_int(value_s):
                     errors.append(f"reform {rid}.prereqs[{prereq_i}].valueS: must be an integer")
                     value_s = None
                 validate_target_reference(
@@ -597,7 +601,7 @@ def validate_reforms(
                 stage_ids.append(sid)
             add_enum_error(errors, stage.get("kind"), ALLOWED_STAGE_KIND, f"reform {rid}.stages[{stage_i}].kind")
             add_enum_error(errors, stage.get("chamber"), ALLOWED_STAGE_CHAMBER, f"reform {rid}.stages[{stage_i}].chamber")
-            if not isinstance(stage.get("weightS"), int):
+            if not is_plain_int(stage.get("weightS")):
                 errors.append(f"reform {rid}.stages[{stage_i}].weightS: must be an integer")
         duplicated = sorted({sid for sid in stage_ids if stage_ids.count(sid) > 1})
         if duplicated:
@@ -627,7 +631,7 @@ def validate_aggregation_config(config: Any, catalog: TargetCatalog, errors: lis
                     context_kind="selector",
                 )
                 for field in ("half_life_weeks", "alpha_ppm"):
-                    if not isinstance(group.get(field), int) or group.get(field) <= 0:
+                    if not is_plain_int(group.get(field)) or group.get(field) <= 0:
                         errors.append(f"aggregation_config.passes[{pass_i}].groups[{group_i}].{field}: must be a positive integer")
             for target in agg_pass.get("skip_targets", []):
                 validate_target_reference(
@@ -650,7 +654,7 @@ def validate_aggregation_config(config: Any, catalog: TargetCatalog, errors: lis
                     context_kind="mutation",
                 )
                 for field in ("half_life_weeks", "alpha_ppm", "cap_per_weekS"):
-                    if not isinstance(metric.get(field), int) or metric.get(field) <= 0:
+                    if not is_plain_int(metric.get(field)) or metric.get(field) <= 0:
                         errors.append(f"aggregation_config.passes[{pass_i}].metrics[{metric_i}].{field}: must be a positive integer")
                 for comp_i, comp_any in enumerate(metric.get("components", []), start=1):
                     comp = require_object(comp_any, f"aggregation_config.passes[{pass_i}].metrics[{metric_i}].components[{comp_i}]", errors)
@@ -662,7 +666,7 @@ def validate_aggregation_config(config: Any, catalog: TargetCatalog, errors: lis
                         allow_wildcard=False,
                         context_kind="aggregation_component",
                     )
-                    if not isinstance(comp.get("weight_ppm"), int):
+                    if not is_plain_int(comp.get("weight_ppm")):
                         errors.append(f"aggregation_config.passes[{pass_i}].metrics[{metric_i}].components[{comp_i}].weight_ppm: must be an integer")
         elif pass_type == "DERIVED_INTERNALS":
             for rule_i, rule_any in enumerate(agg_pass.get("rules", []), start=1):
@@ -704,7 +708,7 @@ def iter_target_like_entries(node: Any, context: str) -> Iterable[tuple[str, Any
 def validate_legislative_config(config: Any, catalog: TargetCatalog, errors: list[str]) -> None:
     root = require_object(config, "rules/legislative_config.json", errors)
     for field in ("schema_version", "scale", "midS"):
-        if not isinstance(root.get(field), int):
+        if not is_plain_int(root.get(field)):
             errors.append(f"legislative_config.{field}: must be an integer")
     for context, value, kind in iter_target_like_entries(root, "legislative_config"):
         if isinstance(value, str) and value.startswith(("metrics.", "regions.", "igs.", "movements.", "internals.")):

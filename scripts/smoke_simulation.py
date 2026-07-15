@@ -19,7 +19,7 @@ DEFAULT_CONTENT_DIR = ROOT / "Assets" / "StreamingAssets" / "content"
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.validate_content import TargetCatalog, validate_content, validate_target_reference  # noqa: E402
+from scripts.validate_content import TargetCatalog, is_plain_int, validate_content, validate_target_reference  # noqa: E402
 
 
 def load_json(path: Path) -> Any:
@@ -128,15 +128,15 @@ def smoke(content_dir: Path = DEFAULT_CONTENT_DIR) -> tuple[int, str]:
                 allow_wildcard=False,
                 context_kind="mutation",
                 op=op if isinstance(op, str) else None,
-                value_s=value_s if isinstance(value_s, int) else None,
+                value_s=value_s if is_plain_int(value_s) else None,
             )
             if errors or rule is None:
                 return 1, "\n".join(errors)
-            if not isinstance(value_s, int) or not isinstance(op, str):
+            if not is_plain_int(value_s) or not isinstance(op, str):
                 return 1, f"effect {effect.get('id')} has invalid op/valueS"
             initial = state.get(target, rule.default_s)
             result = apply_mod(initial, op, value_s, rule.min_s, rule.max_s, rule.scale)
-            if not isinstance(result, int) or not (rule.min_s <= result <= rule.max_s):
+            if not is_plain_int(result) or not (rule.min_s <= result <= rule.max_s):
                 return 1, f"effect {effect.get('id')} produced invalid result for {target}: {result}"
 
     exercised_passes = 0

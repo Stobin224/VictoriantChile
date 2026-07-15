@@ -48,18 +48,25 @@ def run_process(args: list[str]) -> tuple[int | None, str, str]:
 
 
 def make_step(name: str) -> dict[str, Any]:
-    return {"name": name, "status": "PENDING", "exit_code": None, "duration_ms": 0}
+    return {"name": name, "status": "PENDING", "exit_code": None, "duration_ms": 0, "stdout": "", "stderr": ""}
 
 
 def finish_step(step: dict[str, Any], exit_code: int | None, start: float, *, stdout: str = "", stderr: str = "") -> dict[str, Any]:
     step["exit_code"] = exit_code
     step["duration_ms"] = duration_ms(start)
     step["status"] = "PASS" if exit_code == 0 else "FAIL"
-    if stdout.strip():
-        step["stdout"] = stdout.strip()
-    if stderr.strip():
-        step["stderr"] = stderr.strip()
+    step["stdout"] = stdout or ""
+    step["stderr"] = stderr or ""
     return step
+
+
+def append_process_error(errors: list[str], name: str, exit_code: int | None, stderr: str) -> int:
+    if exit_code is None:
+        errors.append(f"{name}: could not start process: {stderr}")
+        return 1
+    if exit_code != 0:
+        errors.append(f"{name}: exited with code {exit_code}")
+    return exit_code
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -83,6 +90,8 @@ def main(argv: list[str] | None = None) -> int:
     step = make_step("json_syntax")
     start = time.perf_counter()
     code, stdout, stderr = check_json_syntax()
+    if code != 0:
+        errors.append(f"json_syntax: exited with code {code}")
     steps.append(finish_step(step, code, start, stdout=stdout, stderr=stderr))
 
     commands: list[tuple[str, list[str]]] = [
@@ -96,9 +105,7 @@ def main(argv: list[str] | None = None) -> int:
         step = make_step(name)
         start = time.perf_counter()
         code, stdout, stderr = run_process(command)
-        if code is None:
-            errors.append(f"{name}: could not start process: {stderr}")
-            code = 1
+        code = append_process_error(errors, name, code, stderr)
         steps.append(finish_step(step, code, start, stdout=stdout, stderr=stderr))
 
     if args.base_ref:
@@ -111,9 +118,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             command.extend(["--head", head_ref])
         code, stdout, stderr = run_process(command)
-        if code is None:
-            errors.append(f"check_manifest_bump: could not start process: {stderr}")
-            code = 1
+        code = append_process_error(errors, "check_manifest_bump", code, stderr)
         steps.append(finish_step(step, code, start, stdout=stdout, stderr=stderr))
     else:
         skipped_checks.append({"name": "check_manifest_bump", "reason": "--base-ref was not provided"})
@@ -127,7 +132,14 @@ def main(argv: list[str] | None = None) -> int:
         "started_at": started_at,
         "duration_ms": duration_ms(overall_start),
         "steps": [
-            {key: value for key, value in step.items() if key in {"name", "status", "exit_code", "duration_ms"}}
+            {
+                "name": step["name"],
+                "status": step["status"],
+                "exit_code": step["exit_code"],
+                "duration_ms": step["duration_ms"],
+                "stdout": step["stdout"],
+                "stderr": step["stderr"],
+            }
             for step in steps
         ],
         "skipped_checks": skipped_checks,

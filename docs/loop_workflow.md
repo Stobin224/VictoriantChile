@@ -33,7 +33,7 @@ Do not auto-merge. Do not run destructive auto-rebase or reset flows.
 
 `autonomous loop` means a loop can select, repair, validate, and hand off tasks under policy without human direction for each step.
 
-This PR only targets `agent-ready` with structured validation. It does not implement autonomous loops or multi-agent work.
+This baseline only targets `agent-ready` with structured validation. It does not implement autonomous loops or multi-agent work.
 
 ## Required Evidence
 

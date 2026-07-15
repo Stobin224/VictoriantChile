@@ -11,7 +11,7 @@ This repository is prepared for small, reviewable agent tasks. Follow these rule
 - Do not run destructive commands without explicit authorization.
 - Do not incidentally modify `Packages/`, `ProjectSettings/`, generated Unity files, Plastic files, scenes, or Unity assets.
 - Preserve `.meta` files whenever Unity assets are intentionally moved, created, or deleted.
-- Do not add Unity AI Assistant, agent frameworks, or external packages in this PR.
+- Do not add Unity AI Assistant, agent frameworks, or external packages unless the active task explicitly authorizes it.
 - Do not commit, push, open a PR, or merge unless the task explicitly authorizes it.
 - Never auto-merge.
 
