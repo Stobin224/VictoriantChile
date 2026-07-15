@@ -11,8 +11,8 @@ Uso:
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -20,13 +20,10 @@ ROOT = Path(__file__).resolve().parents[1]
 CONTENT_DIR = ROOT / "Assets" / "StreamingAssets" / "content"
 MANIFEST_PATH = CONTENT_DIR / "manifest.json"
 
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-def sha256_file(path: Path) -> str:
-    h = hashlib.sha256()
-    with path.open("rb") as f:
-        for chunk in iter(lambda: f.read(1024 * 1024), b""):
-            h.update(chunk)
-    return h.hexdigest()
+from content_hash import canonical_json_sha256_file  # noqa: E402
 
 
 def main() -> int:
@@ -44,7 +41,7 @@ def main() -> int:
         target = CONTENT_DIR / rel_path
         if not target.exists():
             raise SystemExit(f"ERROR: archivo no existe para hash: {rel_path}")
-        files[rel_path] = f"sha256:{sha256_file(target)}"
+        files[rel_path] = f"sha256:{canonical_json_sha256_file(target)}"
 
     if args.bump_pack:
         old_pack = int(manifest.get("content_pack_version", 0))

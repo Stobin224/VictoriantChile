@@ -6,6 +6,8 @@ on:
       - 'Assets/StreamingAssets/content/**'
       - 'scripts/validate_content.py'
       - 'scripts/smoke_simulation.py'
+      - 'scripts/content_hash.py'
+      - 'scripts/verify_manifest_hashes.py'
       - 'scripts/check_manifest_bump.py'
       - '.github/workflows/content-validation.yml'
   push:
@@ -13,6 +15,8 @@ on:
       - 'Assets/StreamingAssets/content/**'
       - 'scripts/validate_content.py'
       - 'scripts/smoke_simulation.py'
+      - 'scripts/content_hash.py'
+      - 'scripts/verify_manifest_hashes.py'
       - 'scripts/check_manifest_bump.py'
       - '.github/workflows/content-validation.yml'
 
@@ -31,19 +35,21 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install jq
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y jq
-
       - name: Enforce manifest bump policy
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             BASE_SHA="${{ github.event.pull_request.base.sha }}"
             HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          elif [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ]; then
+            BASE_SHA="${{ github.sha }}^"
+            HEAD_SHA="${{ github.sha }}"
           else
             BASE_SHA="${{ github.event.before }}"
             HEAD_SHA="${{ github.sha }}"
+          fi
+
+          if ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+            BASE_SHA="$HEAD_SHA^"
           fi
 
           echo "Checking manifest policy between $BASE_SHA...$HEAD_SHA"
@@ -51,9 +57,17 @@ jobs:
 
       - name: Validate JSON syntax
         run: |
-          for f in $(find Assets/StreamingAssets/content -type f -name '*.json'); do
-            jq empty "$f"
-          done
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          for path in sorted(Path("Assets/StreamingAssets/content").rglob("*.json")):
+              with path.open("r", encoding="utf-8") as f:
+                  json.load(f)
+          PY
+
+      - name: Verify manifest hashes
+        run: python3 scripts/verify_manifest_hashes.py
 
       - name: Validate semantic content
         run: python3 scripts/validate_content.py

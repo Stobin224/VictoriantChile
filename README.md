@@ -18,40 +18,72 @@ Simulador político en Unity ambientado en un Chile contemporáneo ficticio, ori
 ## Flujo de validación de contenido
 Desde la raíz del repositorio:
 
-1. Validación de sintaxis JSON:
+Comando canónico para agentes y CI general:
 
 ```bash
-for f in $(rg --files Assets/StreamingAssets/content -g '*.json'); do jq empty "$f" || exit 1; done
+python scripts/run_checks.py
 ```
 
-2. Validación semántica (IDs, referencias cruzadas, loc_*, enums y rangos `S`):
+Wrappers delgados equivalentes:
 
 ```bash
-python3 scripts/validate_content.py
+tools/run_checks.sh
 ```
 
-3. Recalcular hashes de `manifest.json` (y opcionalmente bump de pack):
-
-```bash
-python3 scripts/recompute_manifest_hashes.py
-python3 scripts/recompute_manifest_hashes.py --bump-pack
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/run_checks.ps1
 ```
 
-4. Enforcement de versionado de manifest (comparando base/head):
+Checks individuales disponibles:
+
+1. Validación sintáctica JSON: incluida en `python scripts/run_checks.py`.
+
+2. Verificación no destructiva de hashes de `manifest.json`:
 
 ```bash
-python3 scripts/check_manifest_bump.py --base <sha_base> --head <sha_head>
+python scripts/verify_manifest_hashes.py
 ```
 
-5. Prueba de humo de simulación mínima (2 ticks):
+3. Recalcular hashes de `manifest.json` cuando se modificó contenido:
 
 ```bash
-python3 scripts/smoke_simulation.py
+python scripts/recompute_manifest_hashes.py
+python scripts/recompute_manifest_hashes.py --bump-pack
+```
+
+`verify_manifest_hashes.py` solo comprueba hashes y falla si no coinciden. `recompute_manifest_hashes.py` modifica `manifest.json`; no debe usarse como validación no destructiva.
+Los hashes del Content Pack se calculan sobre bytes JSON con finales de línea normalizados a LF, para que el resultado sea reproducible en Windows y Linux.
+
+4. Validación semántica:
+
+```bash
+python scripts/validate_content.py
+```
+
+5. Smoke de contrato content/runtime:
+
+```bash
+python scripts/smoke_simulation.py
+```
+
+6. Enforcement de versionado de manifest comparando base/head:
+
+```bash
+python scripts/check_manifest_bump.py --base <sha_base> --head <sha_head>
+python scripts/run_checks.py --base-ref <sha_base> --head-ref <sha_head>
+python scripts/run_checks.py --base-ref origin/main --working-tree
 ```
 
 ## CI y gate de contenido
 - Existe workflow obligatorio de validación: `.github/workflows/content-validation.yml` (incluye enforcement de bump de manifest).
+- Existe workflow general: `.github/workflows/repository-quality.yml`, que ejecuta `python scripts/run_checks.py` en pull requests y push a `main`.
 - Para cambios en `Assets/StreamingAssets/content/**`, el PR debe pasar este workflow antes de merge.
+- `AGENTS.md` define el contrato operativo para agentes.
+- `docs/agent_tasks/TEMPLATE.md` contiene la plantilla de tareas acotadas y falsables.
+
+Acción manual pendiente para branch protection:
+- Marcar `Repository Quality / repository-quality` como required global.
+- No marcar `Content Validation` como required global si sigue usando filtros `paths`; puede mantenerse como check especializado adicional para cambios de contenido.
 
 ## Política de versionado y migraciones
 La política de versionado de contenido está documentada en:

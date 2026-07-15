@@ -9,6 +9,7 @@ Reglas aplicadas:
 
 Uso:
   python3 scripts/check_manifest_bump.py --base <sha> --head <sha>
+  python3 scripts/check_manifest_bump.py --base <sha> --working-tree
 """
 
 from __future__ import annotations
@@ -29,9 +30,24 @@ def run_git(args: list[str]) -> str:
     return result.stdout.strip()
 
 
+def ensure_commit_ref(ref: str, label: str) -> None:
+    try:
+        run_git(["rev-parse", "--verify", f"{ref}^{{commit}}"])
+    except subprocess.CalledProcessError:
+        raise SystemExit(f"ERROR: {label} ref not found or not a commit: {ref}")
+
+
 def changed_files(base: str, head: str) -> list[str]:
     out = run_git(["diff", "--name-only", f"{base}...{head}"])
     return [line for line in out.splitlines() if line]
+
+
+def changed_files_working_tree(base: str) -> list[str]:
+    tracked = run_git(["diff", "--name-only", base])
+    untracked = run_git(["ls-files", "--others", "--exclude-standard"])
+    files = {line for line in tracked.splitlines() if line}
+    files.update(line for line in untracked.splitlines() if line)
+    return sorted(files)
 
 
 def load_manifest_at(ref: str) -> dict[str, Any]:
@@ -39,30 +55,25 @@ def load_manifest_at(ref: str) -> dict[str, Any]:
     return json.loads(content)
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--base", required=True)
-    parser.add_argument("--head", required=True)
-    args = parser.parse_args()
+def load_manifest_working_tree() -> dict[str, Any]:
+    with Path(MANIFEST_PATH).open("r", encoding="utf-8") as f:
+        return json.load(f)
 
-    files = changed_files(args.base, args.head)
+
+def evaluate_manifest_policy(
+    files: list[str],
+    old_manifest: dict[str, Any],
+    new_manifest: dict[str, Any],
+) -> tuple[bool, list[str], str]:
     content_changed = [f for f in files if f.startswith(f"{CONTENT_ROOT}/")]
     non_manifest_content_changed = [f for f in content_changed if f != MANIFEST_PATH]
     manifest_changed = MANIFEST_PATH in files
 
     if not content_changed:
-        print("OK: no hubo cambios en content pack; no aplica enforcement de manifest.")
-        return 0
+        return True, [], "OK: no hubo cambios en content pack; no aplica enforcement de manifest."
 
     if non_manifest_content_changed and not manifest_changed:
-        print("ERROR: hubo cambios en contenido sin actualizar manifest.json")
-        for f in non_manifest_content_changed:
-            print(f"- {f}")
-        return 1
-
-    # Si solo cambió manifest, sigue siendo válido, pero verificamos coherencia de versions si aplica.
-    old_manifest = load_manifest_at(args.base)
-    new_manifest = load_manifest_at(args.head)
+        return False, non_manifest_content_changed, "ERROR: hubo cambios en contenido sin actualizar manifest.json"
 
     old_pack = int(old_manifest.get("content_pack_version", -1))
     new_pack = int(new_manifest.get("content_pack_version", -1))
@@ -70,24 +81,56 @@ def main() -> int:
     new_schema = int(new_manifest.get("content_schema_version", -1))
 
     if non_manifest_content_changed and new_pack <= old_pack:
-        print(
+        return (
+            False,
+            [],
             "ERROR: cambió contenido (distinto de manifest) pero content_pack_version no incrementó "
-            f"(old={old_pack}, new={new_pack})."
+            f"(old={old_pack}, new={new_pack}).",
         )
-        return 1
 
     if new_schema > old_schema and new_pack <= old_pack:
-        print(
+        return (
+            False,
+            [],
             "ERROR: content_schema_version incrementó pero content_pack_version no incrementó "
-            f"(schema {old_schema}->{new_schema}, pack {old_pack}->{new_pack})."
+            f"(schema {old_schema}->{new_schema}, pack {old_pack}->{new_pack}).",
         )
-        return 1
 
-    print(
-        "OK: manifest/versionado consistente "
-        f"(pack {old_pack}->{new_pack}, schema {old_schema}->{new_schema})."
-    )
-    return 0
+    return True, [], f"OK: manifest/versionado consistente (pack {old_pack}->{new_pack}, schema {old_schema}->{new_schema})."
+
+
+def print_policy_result(ok: bool, details: list[str], message: str) -> int:
+    print(message)
+    for detail in details:
+        print(f"- {detail}")
+    return 0 if ok else 1
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--base", required=True)
+    parser.add_argument("--head")
+    parser.add_argument("--working-tree", action="store_true")
+    args = parser.parse_args()
+
+    if bool(args.head) == bool(args.working_tree):
+        parser.error("provide exactly one of --head or --working-tree")
+
+    ensure_commit_ref(args.base, "base")
+    if args.head:
+        ensure_commit_ref(args.head, "head")
+
+    if args.working_tree:
+        files = changed_files_working_tree(args.base)
+        old_manifest = load_manifest_at(args.base)
+        new_manifest = load_manifest_working_tree()
+    else:
+        files = changed_files(args.base, args.head)
+        old_manifest = load_manifest_at(args.base)
+        new_manifest = load_manifest_at(args.head)
+
+    ok, details, message = evaluate_manifest_policy(files, old_manifest, new_manifest)
+    return print_policy_result(ok, details, message)
 
 
 if __name__ == "__main__":

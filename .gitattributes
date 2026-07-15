@@ -1,0 +1,4 @@
+Assets/StreamingAssets/content/**/*.json text eol=lf
+*.py text eol=lf
+*.sh text eol=lf
+.github/workflows/*.yml text eol=lf
