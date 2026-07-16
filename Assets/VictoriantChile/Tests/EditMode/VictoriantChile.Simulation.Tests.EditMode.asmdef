@@ -2,7 +2,8 @@
   "name": "VictoriantChile.Simulation.Tests.EditMode",
   "rootNamespace": "VictoriantChile.Simulation.Tests.EditMode",
   "references": [
-    "GUID:ffc81d6563cc4357a9b939b1c95705e4"
+    "GUID:ffc81d6563cc4357a9b939b1c95705e4",
+    "GUID:9d15c2e80ec64a58bf34760370fd9972"
   ],
   "includePlatforms": [
     "Editor"

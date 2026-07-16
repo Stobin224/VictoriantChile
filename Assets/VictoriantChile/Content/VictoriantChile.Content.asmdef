@@ -1,0 +1,17 @@
+{
+  "name": "VictoriantChile.Content",
+  "rootNamespace": "VictoriantChile.Content",
+  "references": [
+    "GUID:ffc81d6563cc4357a9b939b1c95705e4",
+    "Newtonsoft.Json"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}
