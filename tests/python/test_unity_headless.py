@@ -9,13 +9,23 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+import scripts.run_unity_editmode as unity_runner
+import scripts.find_unity as find_unity
 from scripts.find_unity import read_project_version, resolve_unity_editor, standard_unity_paths
-from scripts.run_unity_editmode import build_unity_command, default_output_paths, parse_results_xml, run_editmode
+from scripts.run_unity_editmode import (
+    build_unity_command,
+    default_output_paths,
+    parse_results_xml,
+    run_editmode,
+    run_unity_process,
+    terminate_process_tree,
+)
 
 
 def write_project_version(root: Path, version: str = "6000.3.10f1") -> Path:
@@ -144,9 +154,25 @@ class FindUnityTest(unittest.TestCase):
         version = "6000.3.10f1"
         self.assertIn(r"C:\Program Files\Unity\Hub\Editor\6000.3.10f1\Editor\Unity.exe", str(standard_unity_paths(version, "win32")[0]))
         self.assertEqual(Path("/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/MacOS/Unity"), standard_unity_paths(version, "darwin")[0])
-        linux_paths = standard_unity_paths(version, "linux")
+        linux_home = self.root / "home with spaces"
+        linux_paths = standard_unity_paths(version, "linux", linux_home)
         self.assertIn(Path("/opt/unity/editor/6000.3.10f1/Editor/Unity"), linux_paths)
         self.assertIn(Path("/opt/Unity/Hub/Editor/6000.3.10f1/Editor/Unity"), linux_paths)
+        self.assertIn(linux_home / "Unity" / "Hub" / "Editor" / version / "Editor" / "Unity", linux_paths)
+
+    def test_linux_home_standard_path_can_resolve_with_injected_home(self) -> None:
+        editor = make_executable(self.root / "home" / "Unity" / "Hub" / "Editor" / "6000.3.10f1" / "Editor" / "Unity")
+        with mock.patch.object(find_unity, "is_executable_file", side_effect=lambda path, platform=None: Path(path) == editor):
+            result = resolve_unity_editor(
+                project_version_path=self.version_path,
+                env={},
+                platform="linux",
+                home=self.root / "home",
+                version_reader=self.version_reader(),
+            )
+        self.assertTrue(result.ok, result.errors)
+        self.assertEqual(str(editor), result.editor_path)
+        self.assertEqual("standard", result.method)
 
     def test_find_unity_cli_json_error_works_from_different_cwd(self) -> None:
         result = subprocess.run(
@@ -231,7 +257,7 @@ class RunUnityEditModeTest(unittest.TestCase):
         self.assertEqual(3, parsed["total"])
         self.write_xml(3, 2, 1)
         parsed, errors = parse_results_xml(self.result_path)
-        self.assertEqual([], errors)
+        self.assertIn("failed tests", "\n".join(errors))
         self.assertEqual(1, parsed["failed"])
 
     def test_malformed_xml_fails(self) -> None:
@@ -241,19 +267,94 @@ class RunUnityEditModeTest(unittest.TestCase):
         self.assertIsNone(parsed)
         self.assertIn("invalid", "\n".join(errors))
 
+    def test_wrong_root_fails(self) -> None:
+        self.result_path.parent.mkdir(parents=True, exist_ok=True)
+        self.result_path.write_text('<test-suite total="1" passed="1" failed="0" skipped="0" />', encoding="utf-8")
+        parsed, errors = parse_results_xml(self.result_path)
+        self.assertIsNone(parsed)
+        self.assertIn("root must be test-run", "\n".join(errors))
+
+    def test_required_counter_missing_fails(self) -> None:
+        for xml in (
+            '<test-run passed="1" failed="0" skipped="0" />',
+            '<test-run total="1" failed="0" skipped="0" />',
+            '<test-run total="1" passed="1" skipped="0" />',
+            '<test-run total="1" passed="1" failed="0" />',
+        ):
+            with self.subTest(xml=xml):
+                self.result_path.parent.mkdir(parents=True, exist_ok=True)
+                self.result_path.write_text(xml, encoding="utf-8")
+                parsed, errors = parse_results_xml(self.result_path)
+                self.assertIsNotNone(parsed)
+                self.assertIn("missing required attribute", "\n".join(errors))
+
+    def test_non_integer_counter_fails(self) -> None:
+        self.result_path.parent.mkdir(parents=True, exist_ok=True)
+        self.result_path.write_text('<test-run total="one" passed="1" failed="0" skipped="0" />', encoding="utf-8")
+        parsed, errors = parse_results_xml(self.result_path)
+        self.assertIsNotNone(parsed)
+        self.assertIn("not an integer", "\n".join(errors))
+
+    def test_negative_counter_fails(self) -> None:
+        self.result_path.parent.mkdir(parents=True, exist_ok=True)
+        self.result_path.write_text('<test-run total="1" passed="-1" failed="0" skipped="0" />', encoding="utf-8")
+        parsed, errors = parse_results_xml(self.result_path)
+        self.assertIsNotNone(parsed)
+        self.assertIn("negative", "\n".join(errors))
+
     def test_contradictory_totals_fail(self) -> None:
         self.result_path.parent.mkdir(parents=True, exist_ok=True)
         self.result_path.write_text('<test-run total="1" passed="1" failed="1" skipped="0" />', encoding="utf-8")
         parsed, errors = parse_results_xml(self.result_path)
         self.assertIsNotNone(parsed)
-        self.assertIn("contradictory", "\n".join(errors))
+        self.assertIn("incomplete or contradictory", "\n".join(errors))
+
+    def test_incomplete_totals_fail(self) -> None:
+        self.result_path.parent.mkdir(parents=True, exist_ok=True)
+        self.result_path.write_text('<test-run total="3" passed="1" failed="0" skipped="0" />', encoding="utf-8")
+        parsed, errors = parse_results_xml(self.result_path)
+        self.assertIsNotNone(parsed)
+        self.assertIn("incomplete or contradictory", "\n".join(errors))
+
+    def test_inconclusive_counter_fails(self) -> None:
+        self.result_path.parent.mkdir(parents=True, exist_ok=True)
+        self.result_path.write_text('<test-run total="1" passed="0" failed="0" skipped="0" inconclusive="1" />', encoding="utf-8")
+        parsed, errors = parse_results_xml(self.result_path)
+        self.assertEqual(1, parsed["inconclusive"])
+        self.assertIn("inconclusive tests", "\n".join(errors))
+
+    def test_inconclusive_result_fails(self) -> None:
+        self.result_path.parent.mkdir(parents=True, exist_ok=True)
+        self.result_path.write_text('<test-run total="1" passed="1" failed="0" skipped="0" result="Inconclusive" />', encoding="utf-8")
+        parsed, errors = parse_results_xml(self.result_path)
+        self.assertIsNotNone(parsed)
+        self.assertIn("result=Inconclusive", "\n".join(errors))
+
+    def test_error_result_fails(self) -> None:
+        self.result_path.parent.mkdir(parents=True, exist_ok=True)
+        self.result_path.write_text('<test-run total="1" passed="1" failed="0" skipped="0" result="Error" />', encoding="utf-8")
+        parsed, errors = parse_results_xml(self.result_path)
+        self.assertIsNotNone(parsed)
+        self.assertIn("result=Error", "\n".join(errors))
 
     def test_cancelled_or_error_result_fails_even_without_failed_count(self) -> None:
+        for value in ("Cancelled", "Canceled"):
+            with self.subTest(value=value):
+                self.result_path.parent.mkdir(parents=True, exist_ok=True)
+                self.result_path.write_text(f'<test-run total="1" passed="1" failed="0" skipped="0" result="{value}" />', encoding="utf-8")
+                parsed, errors = parse_results_xml(self.result_path)
+                self.assertEqual(0, parsed["failed"])
+                self.assertIn(value, "\n".join(errors))
+
+    def test_valid_xml_with_all_counters_passes(self) -> None:
         self.result_path.parent.mkdir(parents=True, exist_ok=True)
-        self.result_path.write_text('<test-run total="1" passed="0" failed="0" skipped="0" result="Cancelled" />', encoding="utf-8")
+        self.result_path.write_text(
+            '<test-run total="3" passed="2" failed="0" skipped="1" inconclusive="0" asserts="5" duration="0.1" />',
+            encoding="utf-8",
+        )
         parsed, errors = parse_results_xml(self.result_path)
-        self.assertEqual(1, parsed["failed"])
-        self.assertIn("Cancelled", "\n".join(errors))
+        self.assertEqual([], errors)
+        self.assertEqual({"total": 3, "passed": 2, "failed": 0, "skipped": 1, "inconclusive": 0, "asserts": 5, "duration": "0.1"}, parsed)
 
     def test_missing_xml_fails(self) -> None:
         result = run_editmode(
@@ -422,6 +523,98 @@ class RunUnityEditModeTest(unittest.TestCase):
         self.assertEqual("FAIL", result["overall_status"])
         self.assertFalse(called)
 
+    def test_run_unity_process_normal_completion(self) -> None:
+        class FakePopen:
+            pid = 123
+            returncode = 0
+
+            def communicate(self, timeout=None):
+                self.timeout = timeout
+                return "out", "err"
+
+        fake = FakePopen()
+        with mock.patch.object(unity_runner.subprocess, "Popen", return_value=fake):
+            result = run_unity_process(["Unity"], self.root, 9)
+        self.assertEqual(0, result.returncode)
+        self.assertEqual("out", result.stdout)
+        self.assertEqual(9, fake.timeout)
+
+    def test_posix_timeout_exits_during_grace_period(self) -> None:
+        class FakeProcess:
+            pid = 321
+
+            def wait(self, timeout=None):
+                self.wait_timeout = timeout
+
+        sent: list[tuple[int, int]] = []
+        fake = FakeProcess()
+        with mock.patch.object(unity_runner.sys, "platform", "linux"), mock.patch.object(unity_runner.os, "killpg", side_effect=lambda pid, sig: sent.append((pid, sig)), create=True):
+            messages = terminate_process_tree(fake, grace_seconds=2, final_wait_seconds=2)
+        self.assertEqual([], messages)
+        self.assertEqual([(321, unity_runner.signal.SIGTERM)], sent)
+        self.assertEqual(2, fake.wait_timeout)
+
+    def test_posix_timeout_escalates_to_sigkill(self) -> None:
+        class FakeProcess:
+            pid = 654
+
+            def wait(self, timeout=None):
+                raise subprocess.TimeoutExpired(cmd=["Unity"], timeout=timeout)
+
+        sent: list[tuple[int, int]] = []
+        with (
+            mock.patch.object(unity_runner.sys, "platform", "linux"),
+            mock.patch.object(unity_runner.signal, "SIGKILL", 9, create=True),
+            mock.patch.object(unity_runner.os, "killpg", side_effect=lambda pid, sig: sent.append((pid, sig)), create=True),
+        ):
+            messages = terminate_process_tree(FakeProcess(), grace_seconds=1, final_wait_seconds=1)
+        self.assertIn((654, unity_runner.signal.SIGTERM), sent)
+        self.assertIn((654, 9), sent)
+        self.assertIn("SIGKILL", "\n".join(messages))
+
+    def test_windows_taskkill_failure_uses_targeted_fallback(self) -> None:
+        class FakeProcess:
+            pid = 987
+            terminated = False
+
+            def poll(self):
+                return None
+
+            def terminate(self):
+                self.terminated = True
+
+        fake = FakeProcess()
+        failed_taskkill = subprocess.CompletedProcess(["taskkill"], 1, "", "denied")
+        with mock.patch.object(unity_runner.sys, "platform", "win32"), mock.patch.object(unity_runner.subprocess, "run", return_value=failed_taskkill) as run:
+            messages = terminate_process_tree(fake, grace_seconds=1, final_wait_seconds=1)
+        self.assertEqual(["taskkill", "/PID", "987", "/T", "/F"], run.call_args.args[0])
+        self.assertTrue(fake.terminated)
+        self.assertIn("taskkill failed", "\n".join(messages))
+
+    def test_timeout_final_collection_is_bounded(self) -> None:
+        class FakePopen:
+            pid = 111
+            returncode = None
+
+            def __init__(self):
+                self.timeouts: list[int] = []
+                self.calls = 0
+
+            def communicate(self, timeout=None):
+                self.timeouts.append(timeout)
+                self.calls += 1
+                if self.calls == 1:
+                    raise subprocess.TimeoutExpired(cmd=["Unity"], timeout=timeout)
+                return "late out", "late err"
+
+        fake = FakePopen()
+        with mock.patch.object(unity_runner.subprocess, "Popen", return_value=fake), mock.patch.object(unity_runner, "terminate_process_tree", return_value=["terminated"]):
+            with self.assertRaises(subprocess.TimeoutExpired) as raised:
+                run_unity_process(["Unity"], self.root, 3)
+        self.assertEqual([3, 5], fake.timeouts)
+        self.assertEqual("late out", raised.exception.stdout)
+        self.assertIn("terminated", raised.exception.stderr)
+
 
 class RunChecksHeadlessOptionsTest(unittest.TestCase):
     def make_repo_fixture(self) -> tempfile.TemporaryDirectory:
@@ -479,6 +672,23 @@ class RunChecksHeadlessOptionsTest(unittest.TestCase):
             self.assertIn("unity_editmode", failed)
             self.assertIn("Unity Editor discovery failed", failed["unity_editmode"]["stdout"])
             self.assertTrue(data["errors"])
+        finally:
+            tmp.cleanup()
+
+    def test_unity_editor_without_include_fails_immediately(self) -> None:
+        tmp = self.make_repo_fixture()
+        try:
+            repo = Path(tmp.name) / "repo"
+            result = subprocess.run(
+                [sys.executable, str(repo / "scripts" / "run_checks.py"), "--unity-editor", str(Path(tmp.name) / "Unity.exe")],
+                cwd=repo,
+                capture_output=True,
+                text=True,
+                shell=False,
+            )
+            self.assertNotEqual(0, result.returncode)
+            self.assertIn("--unity-editor requires --include-unity-editmode", result.stderr)
+            self.assertNotIn("Overall: PASS", result.stdout)
         finally:
             tmp.cleanup()
 

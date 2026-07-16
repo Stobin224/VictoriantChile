@@ -67,15 +67,19 @@ def default_output_paths(run_id: str | None = None) -> tuple[Path, Path, Path, P
     )
 
 
-def parse_int_attr(node: ET.Element, names: tuple[str, ...]) -> int | None:
-    for name in names:
-        value = node.attrib.get(name)
-        if value is not None:
-            try:
-                return int(value)
-            except ValueError:
-                return None
-    return None
+def parse_nonnegative_int_attr(node: ET.Element, name: str, *, required: bool) -> tuple[int | None, str | None]:
+    value = node.attrib.get(name)
+    if value is None:
+        if required:
+            return None, f"test result XML is missing required attribute: {name}"
+        return 0, None
+    try:
+        parsed = int(value, 10)
+    except ValueError:
+        return None, f"test result XML attribute {name} is not an integer: {value}"
+    if parsed < 0:
+        return None, f"test result XML attribute {name} is negative: {parsed}"
+    return parsed, None
 
 
 def parse_float_attr(node: ET.Element, names: tuple[str, ...]) -> str | None:
@@ -97,52 +101,57 @@ def parse_results_xml(path: Path, *, min_mtime_epoch: float | None = None) -> tu
         return None, [f"test result XML is invalid: {exc}"]
 
     errors: list[str] = []
-    total = parse_int_attr(root, ("total", "testcasecount"))
-    passed = parse_int_attr(root, ("passed",))
-    failed = parse_int_attr(root, ("failed", "failures"))
-    skipped = parse_int_attr(root, ("skipped", "ignored"))
-    inconclusive = parse_int_attr(root, ("inconclusive",)) or 0
-    asserts = parse_int_attr(root, ("asserts",)) or 0
+    if root.tag != "test-run":
+        return None, [f"test result XML root must be test-run, got: {root.tag}"]
+
+    counters: dict[str, int] = {}
+    for name, required in (
+        ("total", True),
+        ("passed", True),
+        ("failed", True),
+        ("skipped", True),
+        ("inconclusive", False),
+        ("asserts", False),
+    ):
+        value, error = parse_nonnegative_int_attr(root, name, required=required)
+        if error:
+            errors.append(error)
+            counters[name] = 0
+        else:
+            counters[name] = value if value is not None else 0
+
+    total = counters["total"]
+    passed = counters["passed"]
+    failed = counters["failed"]
+    skipped = counters["skipped"]
+    inconclusive = counters["inconclusive"]
+    asserts = counters["asserts"]
     duration = parse_float_attr(root, ("duration", "time"))
-    result_state = root.attrib.get("result", "")
-    label = root.attrib.get("label", "")
 
-    if total is None:
-        passed_cases = len(root.findall(".//test-case[@result='Passed']"))
-        failed_cases = len(root.findall(".//test-case[@result='Failed']"))
-        error_cases = len(root.findall(".//test-case[@result='Error']"))
-        cancelled_cases = len(root.findall(".//test-case[@result='Cancelled']"))
-        inconclusive_cases = len(root.findall(".//test-case[@result='Inconclusive']"))
-        skipped_cases = len(root.findall(".//test-case[@result='Skipped']")) + len(root.findall(".//test-case[@result='Ignored']"))
-        total = passed_cases + failed_cases + skipped_cases
-        passed = passed if passed is not None else passed_cases
-        failed = failed if failed is not None else failed_cases + error_cases + cancelled_cases
-        skipped = skipped if skipped is not None else skipped_cases
-        inconclusive = inconclusive_cases
+    failing_states = {"Failed", "Error", "Cancelled", "Canceled", "Inconclusive"}
+    for node in root.iter():
+        for attr_name in ("result", "label"):
+            value = node.attrib.get(attr_name)
+            if value in failing_states:
+                errors.append(f"Unity test result has {attr_name}={value}")
 
-    total = total if total is not None else 0
-    passed = passed if passed is not None else 0
-    failed = failed if failed is not None else 0
-    skipped = skipped if skipped is not None else 0
-    if result_state in {"Failed", "Error", "Cancelled"} and failed == 0:
-        errors.append(f"Unity test run result is {result_state} with failed=0")
-        failed = 1
-    if label in {"Cancelled", "Error"} and failed == 0:
-        errors.append(f"Unity test run label is {label} with failed=0")
-        failed = 1
-    if any(value < 0 for value in (total, passed, failed, skipped, inconclusive)):
-        errors.append("test result XML contains negative counters")
-    if total > 0 and passed + failed + skipped + inconclusive > total:
+    if total <= 0:
+        errors.append(f"test result XML total must be greater than zero: {total}")
+    if passed + failed + skipped + inconclusive != total:
         errors.append(
-            "test result XML counters are contradictory: "
+            "test result XML counters are incomplete or contradictory: "
             f"total={total}, passed={passed}, failed={failed}, skipped={skipped}, inconclusive={inconclusive}"
         )
+    if failed > 0:
+        errors.append(f"Unity EditMode run had failed tests: {failed}")
+    if inconclusive > 0:
+        errors.append(f"Unity EditMode run had inconclusive tests: {inconclusive}")
 
     return {
-        "total": total if total is not None else 0,
+        "total": total,
         "passed": passed,
         "failed": failed,
-        "skipped": skipped + inconclusive,
+        "skipped": skipped,
         "inconclusive": inconclusive,
         "asserts": asserts,
         "duration": duration or "",
@@ -258,7 +267,7 @@ def run_editmode(
     parsed, parse_errors = parse_results_xml(result_path, min_mtime_epoch=launch_start_epoch)
     if parse_errors:
         result["errors"].extend(parse_errors)
-    elif parsed:
+    if parsed:
         result["results"] = parsed
         result["total"] = parsed["total"]
         result["passed"] = parsed["passed"]
@@ -266,7 +275,7 @@ def run_editmode(
         result["skipped"] = parsed["skipped"]
         if parsed["total"] <= 0:
             result["errors"].append("Unity EditMode run executed zero tests")
-        if parsed["failed"] > 0:
+        if parsed["failed"] > 0 and not any("failed tests" in error for error in result["errors"]):
             result["errors"].append(f"Unity EditMode run had failed tests: {parsed['failed']}")
 
     result["log_excerpt"] = log_excerpt(log_path)
@@ -276,14 +285,49 @@ def run_editmode(
     return result
 
 
-def terminate_process_tree(pid: int) -> None:
+def terminate_process_tree(
+    process: subprocess.Popen[str],
+    *,
+    grace_seconds: float = 5,
+    final_wait_seconds: float = 5,
+) -> list[str]:
+    messages: list[str] = []
     if sys.platform.startswith("win"):
-        subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True, text=True, shell=False)
-        return
+        try:
+            taskkill = subprocess.run(
+                ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                capture_output=True,
+                text=True,
+                shell=False,
+                timeout=final_wait_seconds,
+            )
+        except subprocess.TimeoutExpired:
+            messages.append(f"taskkill timed out for launched Unity process tree pid={process.pid}")
+            if process.poll() is None:
+                process.terminate()
+            return messages
+        if taskkill.returncode != 0:
+            messages.append(
+                "taskkill failed for launched Unity process tree "
+                f"pid={process.pid}, exit={taskkill.returncode}: {taskkill.stderr or taskkill.stdout}"
+            )
+            if process.poll() is None:
+                process.terminate()
+        return messages
+
     try:
-        os.killpg(pid, signal.SIGTERM)
+        os.killpg(process.pid, signal.SIGTERM)
     except OSError:
-        pass
+        return messages
+    try:
+        process.wait(timeout=grace_seconds)
+    except subprocess.TimeoutExpired:
+        messages.append(f"launched Unity process group pid={process.pid} did not exit after SIGTERM; sending SIGKILL")
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except OSError:
+            pass
+    return messages
 
 
 def run_unity_process(command: list[str], cwd: Path, timeout_seconds: int) -> subprocess.CompletedProcess[str]:
@@ -305,8 +349,16 @@ def run_unity_process(command: list[str], cwd: Path, timeout_seconds: int) -> su
         stdout, stderr = process.communicate(timeout=timeout_seconds)
         return subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
     except subprocess.TimeoutExpired as exc:
-        terminate_process_tree(process.pid)
-        stdout, stderr = process.communicate()
+        messages = terminate_process_tree(process)
+        try:
+            stdout, stderr = process.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            if process.poll() is None:
+                process.kill()
+            stdout, stderr = process.communicate(timeout=5)
+            messages.append("launched Unity process required final targeted process kill after timeout")
+        if messages:
+            stderr = ((stderr or "") + "\n" + "\n".join(messages)).strip()
         exc.stdout = stdout
         exc.stderr = stderr
         raise exc

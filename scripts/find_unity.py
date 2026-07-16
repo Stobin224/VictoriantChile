@@ -49,15 +49,17 @@ def read_project_version(project_version_path: Path = PROJECT_VERSION_PATH) -> s
     return match.group("version")
 
 
-def standard_unity_paths(version: str, platform: str | None = None) -> list[Path]:
+def standard_unity_paths(version: str, platform: str | None = None, home: Path | None = None) -> list[Path]:
     platform = platform or sys.platform
     if platform.startswith("win"):
         return [Path(rf"C:\Program Files\Unity\Hub\Editor\{version}\Editor\Unity.exe")]
     if platform == "darwin":
         return [Path(f"/Applications/Unity/Hub/Editor/{version}/Unity.app/Contents/MacOS/Unity")]
+    home = home or Path.home()
     return [
         Path(f"/opt/unity/editor/{version}/Editor/Unity"),
         Path(f"/opt/Unity/Hub/Editor/{version}/Editor/Unity"),
+        home / "Unity" / "Hub" / "Editor" / version / "Editor" / "Unity",
     ]
 
 
@@ -100,13 +102,14 @@ def candidate_paths(
     env: Mapping[str, str],
     platform: str | None = None,
     standard_paths: Sequence[Path] | None = None,
+    home: Path | None = None,
 ) -> list[tuple[str, Path]]:
     if unity_editor:
         return [("cli", Path(unity_editor))]
     env_path = env.get("UNITY_EDITOR_PATH")
     if env_path:
         return [("env", Path(env_path))]
-    paths = list(standard_paths) if standard_paths is not None else standard_unity_paths(expected_version, platform)
+    paths = list(standard_paths) if standard_paths is not None else standard_unity_paths(expected_version, platform, home)
     return [("standard", path) for path in paths]
 
 
@@ -117,6 +120,7 @@ def resolve_unity_editor(
     env: Mapping[str, str] | None = None,
     platform: str | None = None,
     standard_paths: Sequence[Path] | None = None,
+    home: Path | None = None,
     version_reader: Callable[[Path], tuple[str | None, str | None]] = read_editor_version,
 ) -> UnityResolution:
     env = env if env is not None else os.environ
@@ -133,6 +137,7 @@ def resolve_unity_editor(
         env=env,
         platform=platform,
         standard_paths=standard_paths,
+        home=home,
     ):
         checked_paths.append(str(path))
         if not is_executable_file(path, platform):

@@ -83,6 +83,8 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--working-tree requires --base-ref")
     if args.working_tree and args.head_ref:
         parser.error("--working-tree cannot be combined with --head-ref")
+    if args.unity_editor and not args.include_unity_editmode:
+        parser.error("--unity-editor requires --include-unity-editmode")
 
     started_at = utc_now()
     overall_start = time.perf_counter()
