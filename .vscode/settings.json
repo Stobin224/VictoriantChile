@@ -67,5 +67,5 @@
         "*.sln": "*.csproj",
         "*.slnx": "*.csproj"
     },
-    "dotnet.defaultSolution": "VIctoriant Chile.slnx"
+    "dotnet.defaultSolution": "Victoriant Chile.slnx"
 }

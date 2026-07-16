@@ -1,4 +1,7 @@
 Assets/StreamingAssets/content/**/*.json text eol=lf
 *.py text eol=lf
 *.sh text eol=lf
+Assets/VictoriantChile/**/*.cs text eol=lf
+Assets/VictoriantChile/**/*.asmdef text eol=lf
+Assets/VictoriantChile/**/*.meta text eol=lf
 .github/workflows/*.yml text eol=lf

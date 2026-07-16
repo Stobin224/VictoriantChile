@@ -74,6 +74,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--base-ref")
     parser.add_argument("--head-ref")
     parser.add_argument("--working-tree", action="store_true")
+    parser.add_argument("--include-dotnet", action="store_true")
+    parser.add_argument("--include-unity-editmode", action="store_true")
+    parser.add_argument("--unity-editor")
     parser.add_argument("--json-output", type=Path)
     args = parser.parse_args(argv)
     if args.working_tree and not args.base_ref:
@@ -122,6 +125,28 @@ def main(argv: list[str] | None = None) -> int:
         steps.append(finish_step(step, code, start, stdout=stdout, stderr=stderr))
     else:
         skipped_checks.append({"name": "check_manifest_bump", "reason": "--base-ref was not provided"})
+
+    if args.include_dotnet:
+        step = make_step("dotnet_test")
+        start = time.perf_counter()
+        stdout = "NOT IMPLEMENTED: .NET fast path was not added because dotnet SDK was unavailable during PR 2 implementation."
+        code = 1
+        errors.append("dotnet_test: .NET fast path is not implemented in this branch")
+        steps.append(finish_step(step, code, start, stdout=stdout, stderr=""))
+    else:
+        skipped_checks.append({"name": "dotnet_test", "reason": "--include-dotnet was not provided"})
+
+    if args.include_unity_editmode:
+        step = make_step("unity_editmode")
+        start = time.perf_counter()
+        command = [sys.executable, str(ROOT / "scripts" / "run_unity_editmode.py")]
+        if args.unity_editor:
+            command.extend(["--unity-editor", args.unity_editor])
+        code, stdout, stderr = run_process(command)
+        code = append_process_error(errors, "unity_editmode", code, stderr)
+        steps.append(finish_step(step, code, start, stdout=stdout, stderr=stderr))
+    else:
+        skipped_checks.append({"name": "unity_editmode", "reason": "--include-unity-editmode was not provided"})
 
     mandatory_failed = any(step["status"] != "PASS" for step in steps if step["name"] != "check_manifest_bump")
     optional_failed = any(step["name"] == "check_manifest_bump" and step["status"] != "PASS" for step in steps)

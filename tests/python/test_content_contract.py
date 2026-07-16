@@ -275,7 +275,10 @@ class RunChecksTest(unittest.TestCase):
                 self.assertIn("duration_ms", step)
                 self.assertIn("stdout", step)
                 self.assertIn("stderr", step)
-            self.assertEqual([{"name": "check_manifest_bump", "reason": "--base-ref was not provided"}], data["skipped_checks"])
+            skipped = {item["name"]: item["reason"] for item in data["skipped_checks"]}
+            self.assertEqual("--base-ref was not provided", skipped["check_manifest_bump"])
+            self.assertEqual("--include-dotnet was not provided", skipped["dotnet_test"])
+            self.assertEqual("--include-unity-editmode was not provided", skipped["unity_editmode"])
             self.assertEqual([], data["errors"])
         finally:
             tmp.cleanup()

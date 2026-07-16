@@ -80,6 +80,7 @@ python scripts/run_checks.py --base-ref origin/main --working-tree
 - Para cambios en `Assets/StreamingAssets/content/**`, el PR debe pasar este workflow antes de merge.
 - `AGENTS.md` define el contrato operativo para agentes.
 - `docs/agent_tasks/TEMPLATE.md` contiene la plantilla de tareas acotadas y falsables.
+- `docs/headless_testing.md` documenta el arnés headless para EditMode y la decisión sobre fast path .NET.
 
 Acción manual pendiente para branch protection:
 - Marcar `Repository Quality / repository-quality` como required global.
@@ -94,3 +95,33 @@ Resumen corto:
 - Cambios retrocompatibles en datos: incrementar `content_pack_version`.
 - Cambios incompatibles de estructura/schema: incrementar `content_schema_version` y definir migración.
 - El runtime debe respetar `min_game_schema_version` para aceptar/rechazar packs.
+
+## Arnés headless
+
+El runner general no requiere Unity ni .NET por defecto:
+
+```bash
+python scripts/run_checks.py
+```
+
+Descubrir Unity exacto:
+
+```bash
+python scripts/find_unity.py --json
+```
+
+Ejecutar EditMode headless:
+
+```powershell
+python scripts/run_unity_editmode.py --unity-editor "C:\Program Files\Unity\Hub\Editor\6000.3.10f1\Editor\Unity.exe"
+```
+
+Integrarlo al runner:
+
+```powershell
+python scripts/run_checks.py --include-unity-editmode --unity-editor "C:\Program Files\Unity\Hub\Editor\6000.3.10f1\Editor\Unity.exe"
+```
+
+`UNITY_EDITOR_PATH` puede reemplazar `--unity-editor`. Los resultados XML/log/JSON se escriben fuera del proyecto, bajo `%TEMP%\VictoriantChile\HeadlessTests\<run-id>\`, salvo que se indique otra ruta.
+
+El fast path .NET no está implementado en esta base porque la máquina validada no tenía .NET SDK instalado; `dotnet --info` solo reportó runtimes. El arnés actual no ejecuta PlayMode, ticks reales, scheduler, efectos ni persistencia.

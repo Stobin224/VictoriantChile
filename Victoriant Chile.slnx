@@ -1,0 +1,4 @@
+﻿<Solution>
+  <Project Path="VictoriantChile.Simulation.Core.csproj" />
+  <Project Path="VictoriantChile.Simulation.Tests.EditMode.csproj" />
+</Solution>

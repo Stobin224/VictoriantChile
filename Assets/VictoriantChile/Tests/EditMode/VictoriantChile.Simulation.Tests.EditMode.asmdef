@@ -1,0 +1,21 @@
+{
+  "name": "VictoriantChile.Simulation.Tests.EditMode",
+  "rootNamespace": "VictoriantChile.Simulation.Tests.EditMode",
+  "references": [
+    "GUID:ffc81d6563cc4357a9b939b1c95705e4"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "noEngineReferences": false
+}
