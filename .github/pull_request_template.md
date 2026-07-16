@@ -1,18 +1,47 @@
-## Summary
-- Describe the content/runtime changes in this PR.
+## Task ID
 
-## Content Versioning Checklist (required for content changes)
+-
+
+## Summary
+
+-
+
+## Change Type
+
+- [ ] docs
+- [ ] checks
+- [ ] content
+- [ ] runtime
+- [ ] UI
+
+## Agent Run Summary
+
+- Iterations performed:
+- Files modified:
+- Commands and results:
+- Checks skipped and reason:
+
+## Content Versioning Checklist
+
 - [ ] I changed files under `Assets/StreamingAssets/content/**`.
-- [ ] I updated `Assets/StreamingAssets/content/manifest.json` hashes if content files changed.
+- [ ] I verified manifest hashes with `python scripts/verify_manifest_hashes.py`.
+- [ ] I recalculated hashes with `python scripts/recompute_manifest_hashes.py` only if content changed.
 - [ ] I reviewed `docs/content_versioning.md` and updated version fields in `manifest.json` when applicable.
 - [ ] If this PR changes schema semantics, I updated migration notes in `docs/content_versioning.md`.
 
-## Validation Checklist (required)
-- [ ] `for f in $(rg --files Assets/StreamingAssets/content -g '*.json'); do jq empty "$f" || exit 1; done`
-- [ ] `python3 scripts/recompute_manifest_hashes.py` (si cambiaste contenido)
-- [ ] `python3 scripts/validate_content.py`
-- [ ] `python3 scripts/check_manifest_bump.py --base <sha_base> --head <sha_head>`
-- [ ] `python3 scripts/smoke_simulation.py`
+## Validation Checklist
 
-## Notes
-- Add any known limitations or follow-ups.
+- [ ] `python scripts/run_checks.py`
+- [ ] `python scripts/run_checks.py --base-ref <sha_base> --head-ref <sha_head>` when manifest bump enforcement applies
+
+## Risks
+
+-
+
+## Follow-ups
+
+-
+
+## Merge Confirmation
+
+- [ ] I confirm this PR must not be auto-merged.

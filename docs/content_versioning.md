@@ -34,9 +34,8 @@ Acciones requeridas:
 1. Definir alcance del cambio y si es retrocompatible.
 2. Actualizar números de versión en `manifest.json`.
 3. Ejecutar validaciones:
-   - sintaxis JSON (`jq`),
-   - validación semántica (`python3 scripts/validate_content.py`),
-   - enforcement de versionado (`python3 scripts/check_manifest_bump.py --base <sha_base> --head <sha_head>`).
+   - comando canónico local (`python scripts/run_checks.py`),
+   - pre-commit con working tree (`python scripts/run_checks.py --base-ref origin/main --working-tree`).
 4. Si hubo cambio de schema, documentar en la tabla de historial.
 
 ## Historial de migraciones
@@ -46,9 +45,10 @@ Acciones requeridas:
 
 
 ## Enforcements en flujo de PR
-- El workflow `.github/workflows/content-validation.yml` corre en PRs y pushes con cambios de contenido.
+- El workflow `.github/workflows/repository-quality.yml` corre en todos los PRs y en push a `main`; debe ser el check required global porque también ejecuta enforcement base/head de manifest.
+- El workflow `.github/workflows/content-validation.yml` corre en PRs y pushes con cambios de contenido; debe mantenerse como check especializado adicional.
+- No marcar como required global un workflow completo que usa filtros `paths`, porque puede no producir check en PRs sin cambios de contenido.
 - El template de PR (`.github/pull_request_template.md`) incluye checklist de versionado y validación.
-- Recomendación de repositorio: marcar `Content Validation / validate-content` como *required status check* en la rama protegida principal.
 
 ## Checklist de PR de contenido
 - [ ] `manifest.json` actualizado según reglas anteriores.
