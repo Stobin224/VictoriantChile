@@ -15,7 +15,7 @@ sys.path.insert(0, str(ROOT))
 
 from scripts.smoke_simulation import smoke
 from scripts.content_hash import canonical_json_sha256_file, normalize_json_line_endings
-from scripts.validate_content import validate_content
+from scripts.validate_content import TargetCatalog, TargetRule, validate_content
 from scripts.verify_manifest_hashes import verify
 import scripts.recompute_manifest_hashes as recompute_manifest_hashes
 import scripts.verify_manifest_hashes as verify_manifest_hashes
@@ -120,6 +120,91 @@ class ContentFixtureTest(unittest.TestCase):
         data["effects"][0]["mods"][0]["target"] = "metrics.not_declared"
         write_json(path, data)
         self.assertValidationFailsWith("metrics target is not explicitly declared")
+
+    def test_lowercase_target_segments_validate(self) -> None:
+        path = self.content_dir / "templates" / "effects.json"
+        data = load_json(path)
+        data["effects"][0]["mods"][0]["target"] = "regions.metropolitana.support"
+        write_json(path, data)
+        errors = validate_content(self.content_dir)
+        self.assertNotIn("ASCII lowercase snake_case", "\n".join(errors))
+
+    def test_uppercase_target_config_pattern_fails(self) -> None:
+        path = self.content_dir / "rules" / "target_config.json"
+        data = load_json(path)
+        data[0]["pattern"] = "metrics.Legitimacy"
+        write_json(path, data)
+        self.assertValidationFailsWith("ASCII lowercase snake_case")
+
+    def test_uppercase_concrete_target_reference_fails(self) -> None:
+        path = self.content_dir / "templates" / "effects.json"
+        data = load_json(path)
+        data["effects"][0]["mods"][0]["target"] = "metrics.SOCIAL_TENSION"
+        write_json(path, data)
+        self.assertValidationFailsWith("ASCII lowercase snake_case")
+
+    def test_uppercase_internal_and_region_targets_fail(self) -> None:
+        path = self.content_dir / "rules" / "aggregation_config.json"
+        data = load_json(path)
+        data["passes"][0]["groups"][0]["pattern"] = "internals.Economy.growth"
+        data["passes"][1]["metrics"][0]["components"][0]["target"] = "regions.Metropolitana.support"
+        write_json(path, data)
+        self.assertValidationFailsWith("ASCII lowercase snake_case")
+
+    def test_unicode_target_segment_fails(self) -> None:
+        path = self.content_dir / "templates" / "effects.json"
+        data = load_json(path)
+        data["effects"][0]["mods"][0]["target"] = "metrics.legitimidad-á"
+        write_json(path, data)
+        self.assertValidationFailsWith("ASCII lowercase snake_case")
+
+    def test_static_region_fields_are_valid_read_only_selectors(self) -> None:
+        path = self.content_dir / "templates" / "events.json"
+        data = load_json(path)
+        data["events"][0]["vars"]["static_admin"] = {"target": "regions.*.admin_capS"}
+        data["events"][0]["vars"]["static_industry"] = {"target": "regions.*.industry_capS"}
+        data["events"][0]["vars"]["static_extractive"] = {"target": "regions.*.extractive_capS"}
+        data["events"][0]["vars"]["static_social"] = {"target": "regions.*.social_capS"}
+        data["events"][0]["vars"]["static_population"] = {"target": "regions.*.populationS"}
+        write_json(path, data)
+        self.assertEqual([], validate_content(self.content_dir))
+
+    def test_static_region_concrete_selector_is_valid(self) -> None:
+        path = self.content_dir / "rules" / "aggregation_config.json"
+        data = load_json(path)
+        data["passes"][1]["metrics"][0]["components"][0]["target"] = "regions.metropolitana.admin_capS"
+        write_json(path, data)
+        errors = validate_content(self.content_dir)
+        self.assertNotIn("ASCII lowercase snake_case", "\n".join(errors))
+        self.assertNotIn("read-only", "\n".join(errors))
+
+    def test_static_region_field_mutation_is_rejected(self) -> None:
+        path = self.content_dir / "templates" / "effects.json"
+        data = load_json(path)
+        data["effects"][0]["mods"][0]["target"] = "regions.metropolitana.admin_capS"
+        write_json(path, data)
+        self.assertValidationFailsWith("static regional resource is read-only")
+
+    def test_static_region_unknown_camel_case_field_is_rejected(self) -> None:
+        path = self.content_dir / "templates" / "events.json"
+        data = load_json(path)
+        data["events"][0]["vars"]["bad_static"] = {"target": "regions.*.otherFieldS"}
+        write_json(path, data)
+        self.assertValidationFailsWith("ASCII lowercase snake_case")
+
+    def test_static_region_lowercase_lookalike_is_rejected(self) -> None:
+        path = self.content_dir / "templates" / "events.json"
+        data = load_json(path)
+        data["events"][0]["vars"]["bad_static"] = {"target": "regions.*.admin_caps"}
+        write_json(path, data)
+        self.assertValidationFailsWith("static regional field must use exact canonical casing")
+
+    def test_static_region_wildcard_still_requires_selector_context(self) -> None:
+        path = self.content_dir / "templates" / "effects.json"
+        data = load_json(path)
+        data["effects"][0]["mods"][0]["target"] = "regions.*.admin_capS"
+        write_json(path, data)
+        self.assertValidationFailsWith("wildcard is only allowed")
 
     def test_manifest_bool_version_fails(self) -> None:
         path = self.content_dir / "manifest.json"
@@ -306,6 +391,54 @@ class RunChecksTest(unittest.TestCase):
             self.assertIn("verify_manifest_hashes: exited with code", "\n".join(data["errors"]))
         finally:
             tmp.cleanup()
+
+
+class TargetCatalogParityTest(unittest.TestCase):
+    def make_rule(self, pattern: str, index: int) -> TargetRule:
+        return TargetRule(pattern, 100, -10_000, 10_000, 0, frozenset({"ADD", "MUL", "SET"}), index)
+
+    def make_catalog(self, patterns: list[str]) -> TargetCatalog:
+        return TargetCatalog(
+            rules=[self.make_rule(pattern, i) for i, pattern in enumerate(patterns)],
+            metric_ids={"legitimacy", "economy", "security"},
+            region_ids={"all", "alpha"},
+            ig_ids={"ig_alpha"},
+            movement_ids={"mov_alpha"},
+        )
+
+    def test_exact_pattern_beats_wildcard(self) -> None:
+        catalog = self.make_catalog(["metrics.*", "metrics.legitimacy"])
+        self.assertEqual("metrics.legitimacy", catalog.resolve("metrics.legitimacy").pattern)
+
+    def test_more_literal_segments_beat_generic(self) -> None:
+        catalog = self.make_catalog(["internals.*.*", "internals.economy.*"])
+        self.assertEqual("internals.economy.*", catalog.resolve("internals.economy.inflation").pattern)
+
+    def test_longer_pattern_text_breaks_literal_count_tie(self) -> None:
+        catalog = self.make_catalog(["regions.all.*", "regions.*.support"])
+        first = catalog.rules[0]
+        second = catalog.rules[1]
+        self.assertEqual(2, sum(1 for part in first.pattern.split(".") if part != "*"))
+        self.assertEqual(2, sum(1 for part in second.pattern.split(".") if part != "*"))
+        self.assertGreater(len(second.pattern), len(first.pattern))
+        self.assertEqual("regions.*.support", catalog.resolve("regions.all.support").pattern)
+
+    def test_load_order_wins_complete_tie(self) -> None:
+        catalog = self.make_catalog(["regions.*.value", "regions.alpha.*"])
+        first = catalog.rules[0]
+        second = catalog.rules[1]
+        self.assertEqual(len(first.pattern), len(second.pattern))
+        self.assertEqual(
+            sum(1 for part in first.pattern.split(".") if part != "*"),
+            sum(1 for part in second.pattern.split(".") if part != "*"),
+        )
+        self.assertEqual("regions.*.value", catalog.resolve("regions.alpha.value").pattern)
+
+    def test_repeated_resolution_is_stable(self) -> None:
+        catalog = self.make_catalog(["metrics.*", "metrics.legitimacy"])
+        first = catalog.resolve("metrics.legitimacy")
+        second = catalog.resolve("metrics.legitimacy")
+        self.assertIs(first, second)
 
 
 class WorkingTreeManifestBumpTest(unittest.TestCase):

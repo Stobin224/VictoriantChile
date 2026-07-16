@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CONTENT_DIR = ROOT / "Assets" / "StreamingAssets" / "content"
 
 ID_RE = re.compile(r"^[a-z][a-z0-9_]*$")
-TARGET_SEGMENT_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
+TARGET_SEGMENT_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 SHA_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 ALLOWED_REFORM_KIND = {"NORMAL", "CONSTITUTIONAL", "EXCEPTIONAL", "SPECIAL_CONSTITUTIONAL"}
 ALLOWED_STAGE_KIND = {"WORK", "VOTE"}
@@ -35,6 +35,7 @@ ALLOWED_AGG_PASS = {"INTERNAL_REVERSION", "METRIC_AGGREGATION", "DERIVED_INTERNA
 ALLOWED_EXPR_KIND = {"AVG", "COPY"}
 ALLOWED_NORMALIZE_GROUPS = {"igs.clout_sum_100"}
 STATIC_REGION_FIELDS = {"admin_capS", "industry_capS", "extractive_capS", "social_capS", "populationS"}
+STATIC_REGION_FIELD_LOOKALIKES = {"admin_caps", "industry_caps", "extractive_caps", "social_caps", "populations"}
 READ_ONLY_TARGET_CONTEXTS = {"selector", "condition", "aggregation_component", "legislative_ref"}
 
 
@@ -64,10 +65,16 @@ class TargetCatalog:
     def resolve(self, target: str, *, allow_wildcard: bool = False) -> TargetRule | None:
         if "*" in target and not allow_wildcard:
             return None
-        matches = [rule for rule in self.rules if pattern_matches(rule.pattern, target)]
-        if not matches:
-            return None
-        return sorted(matches, key=lambda r: pattern_specificity(r.pattern), reverse=True)[0]
+        best_rule: TargetRule | None = None
+        best_score: tuple[int, int, int] | None = None
+        for rule in self.rules:
+            if not pattern_matches(rule.pattern, target):
+                continue
+            score = pattern_specificity(rule.pattern)
+            if best_score is None or score > best_score:
+                best_rule = rule
+                best_score = score
+        return best_rule
 
     def is_static_region_target(self, target: str) -> bool:
         parts = target.split(".")
@@ -171,8 +178,9 @@ def validate_loc_keys(node: Any, string_keys: set[str], context: str, errors: li
 
 def pattern_specificity(pattern: str) -> tuple[int, int, int]:
     parts = pattern.split(".")
+    exact = 1 if "*" not in parts else 0
     literal_count = sum(1 for part in parts if part != "*")
-    return (literal_count, len(parts), -pattern.count("*"))
+    return (exact, literal_count, len(pattern))
 
 
 def pattern_matches(pattern: str, target: str) -> bool:
@@ -181,6 +189,18 @@ def pattern_matches(pattern: str, target: str) -> bool:
     if len(pattern_parts) != len(target_parts):
         return False
     return all(pp == "*" or pp == tp for pp, tp in zip(pattern_parts, target_parts))
+
+
+def is_static_region_reference(target: str) -> bool:
+    parts = target.split(".")
+    if len(parts) != 3 or parts[0] != "regions" or parts[2] not in STATIC_REGION_FIELDS:
+        return False
+    return parts[1] == "*" or TARGET_SEGMENT_RE.fullmatch(parts[1]) is not None
+
+
+def is_static_region_lookalike(target: str) -> bool:
+    parts = target.split(".")
+    return len(parts) == 3 and parts[0] == "regions" and parts[2] in STATIC_REGION_FIELD_LOOKALIKES
 
 
 def validate_target_shape(target: Any, context: str, errors: list[str], *, allow_wildcard: bool) -> bool:
@@ -198,7 +218,7 @@ def validate_target_shape(target: Any, context: str, errors: list[str], *, allow
         if part == "*":
             continue
         if not TARGET_SEGMENT_RE.fullmatch(part):
-            errors.append(f"{context}: target segment must be ASCII identifier-like text: {target}")
+            errors.append(f"{context}: target segment must be ASCII lowercase snake_case: {target}")
             return False
     ns = parts[0]
     expected = {"metrics": 2, "regions": 3, "igs": 3, "movements": 3, "internals": 3}
@@ -222,6 +242,22 @@ def validate_target_reference(
     op: str | None = None,
     value_s: int | None = None,
 ) -> TargetRule | None:
+    if isinstance(target, str) and is_static_region_lookalike(target):
+        errors.append(f"{context}: static regional field must use exact canonical casing: {target}")
+        return None
+
+    if isinstance(target, str) and is_static_region_reference(target):
+        if "*" in target and not allow_wildcard:
+            errors.append(f"{context}: wildcard is only allowed in selector/config contexts: {target}")
+            return None
+        parts = target.split(".")
+        if parts[1] != "*" and parts[1] not in catalog.region_ids:
+            errors.append(f"{context}: region id does not exist: {parts[1]}")
+            return None
+        if context_kind not in READ_ONLY_TARGET_CONTEXTS:
+            errors.append(f"{context}: static regional resource is read-only and cannot be mutated: {target}")
+        return None
+
     if not validate_target_shape(target, context, errors, allow_wildcard=allow_wildcard):
         return None
     assert isinstance(target, str)
