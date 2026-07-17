@@ -42,6 +42,22 @@ The validated CLI for this baseline supports:
 - `codex exec resume [SESSION_ID] [PROMPT]`;
 - `codex review`, although structured review uses `codex exec` because `codex review` does not expose JSON/output-schema flags.
 
+## Codex JSONL Framing
+
+`codex exec --json` is parsed as a byte stream, not as pre-split text lines. The supervisor uses an incremental strict UTF-8 JSONL decoder so JSON records may arrive split across pipe chunks, inside strings, or inside multibyte UTF-8 characters. Multiple records may also arrive in one chunk, and the final record may omit a trailing newline.
+
+Framing policy:
+
+- LF and CRLF delimit records.
+- A single trailing record without newline is accepted if it is complete JSON.
+- Completely empty lines are ignored.
+- Non-empty non-JSON lines fail closed.
+- A UTF-8 BOM is rejected.
+- Each JSONL root must be an object.
+- stdout and stderr are captured separately; stderr is never parsed as JSONL.
+
+The parser enforces bounded stdout size, line size, and event count. On parse failure, public state records only a stable diagnostic with line/offset, stdout size and SHA-256, and a short excerpt. Raw stdout/stderr are retained only as ignored local evidence under `.agent-loop/runs/<run-id>/`.
+
 ## Commands
 
 Validate a task spec without mutation:

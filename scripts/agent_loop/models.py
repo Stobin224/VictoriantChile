@@ -90,6 +90,17 @@ class ProcessResult:
 
 
 @dataclass(frozen=True)
+class RawProcessResult:
+    argv: tuple[str, ...]
+    exit_code: int | None
+    stdout: bytes
+    stderr: bytes
+    timed_out: bool = False
+    stdout_limited: bool = False
+    stderr_limited: bool = False
+
+
+@dataclass(frozen=True)
 class CheckResult:
     id: str
     argv: tuple[str, ...]

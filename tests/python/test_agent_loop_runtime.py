@@ -17,7 +17,7 @@ import scripts.run_agent_loop as run_agent_loop
 from scripts.agent_loop.codex_client import CodexClient, CodexTurnResult, discover_codex, parse_jsonl
 from scripts.agent_loop.evidence import EvidenceStore, state_to_json
 from scripts.agent_loop.git_guard import audit_scope, git
-from scripts.agent_loop.models import Finding, LoopState, ProcessResult, Usage
+from scripts.agent_loop.models import Finding, LoopState, ProcessResult, RawProcessResult, Usage
 from scripts.agent_loop.process_runner import ProcessRunner
 from scripts.agent_loop.publisher import Publisher
 from scripts.agent_loop.runner import LoopRunner
@@ -36,6 +36,27 @@ class FakeProcessRunner(ProcessRunner):
         if self.results:
             return self.results.pop(0)
         return ProcessResult(tuple(argv), 0, "", "")
+
+    def run_bytes(
+        self,
+        argv: list[str],
+        cwd: Path,
+        timeout_seconds: int,
+        *,
+        max_stdout_bytes: int,
+        max_stderr_bytes: int,
+    ) -> RawProcessResult:
+        self.calls.append(argv)
+        if self.results:
+            result = self.results.pop(0)
+            return RawProcessResult(
+                result.argv,
+                result.exit_code,
+                result.stdout.encode("utf-8"),
+                result.stderr.encode("utf-8"),
+                result.timed_out,
+            )
+        return RawProcessResult(tuple(argv), 0, b"", b"")
 
 
 class AgentLoopRuntimeTest(unittest.TestCase):
@@ -79,7 +100,14 @@ class AgentLoopRuntimeTest(unittest.TestCase):
         self.assertIn("malformed", "\n".join(parsed["errors"]))
 
     def test_codex_commands_use_json_sandbox_resume_and_output_schema(self) -> None:
-        runner = FakeProcessRunner([ProcessResult(("x",), 0, json.dumps({"type": "final_message", "message": "ok"}) + "\n", "")])
+        stream = "\n".join(
+            [
+                json.dumps({"type": "thread.started", "thread_id": "11111111-1111-1111-1111-111111111111"}),
+                json.dumps({"type": "turn.completed"}),
+                json.dumps({"type": "final_message", "message": "ok"}),
+            ]
+        ) + "\n"
+        runner = FakeProcessRunner([ProcessResult(("x",), 0, stream, "")])
         client = CodexClient("codex", Path.cwd(), runner)
         client.exec("prompt", sandbox="read-only", output_schema=Path("schema.json"), timeout_seconds=1)
         self.assertIn("--json", runner.calls[0])
@@ -87,7 +115,7 @@ class AgentLoopRuntimeTest(unittest.TestCase):
         self.assertIn("read-only", runner.calls[0])
         self.assertIn("--output-schema", runner.calls[0])
 
-        runner.results.append(ProcessResult(("x",), 0, "", ""))
+        runner.results.append(ProcessResult(("x",), 0, stream, ""))
         client.resume("11111111-1111-1111-1111-111111111111", "fix", output_schema=None, timeout_seconds=1)
         self.assertEqual(["codex", "exec", "resume", "--json", "11111111-1111-1111-1111-111111111111", "fix"], runner.calls[1])
 
@@ -101,6 +129,31 @@ class AgentLoopRuntimeTest(unittest.TestCase):
         self.assertTrue(result.timed_out)
         self.assertIsNone(result.exit_code)
         self.assertLess(elapsed, 8)
+
+    def test_process_runner_run_bytes_separates_streams_and_times_out(self) -> None:
+        runner = ProcessRunner()
+        result = runner.run_bytes(
+            [sys.executable, "-c", "import sys; sys.stdout.buffer.write(b'out'); sys.stderr.buffer.write(b'err')"],
+            Path.cwd(),
+            5,
+            max_stdout_bytes=100,
+            max_stderr_bytes=100,
+        )
+        self.assertEqual(0, result.exit_code)
+        self.assertEqual(b"out", result.stdout)
+        self.assertEqual(b"err", result.stderr)
+
+        start = time.perf_counter()
+        result = runner.run_bytes(
+            [sys.executable, "-c", "import time; time.sleep(10)"],
+            Path.cwd(),
+            1,
+            max_stdout_bytes=100,
+            max_stderr_bytes=100,
+        )
+        self.assertTrue(result.timed_out)
+        self.assertIsNone(result.exit_code)
+        self.assertLess(time.perf_counter() - start, 8)
 
     def test_scope_allowed_protected_untracked_staged_deleted_and_rename(self) -> None:
         with temp_git_repo() as repo:
@@ -217,7 +270,7 @@ class AgentLoopRuntimeTest(unittest.TestCase):
             spec = repo_spec(repo)
 
             class FakeCodex:
-                def __init__(self, _exe, repo_path, _runner):
+                def __init__(self, _exe, repo_path, _runner, _evidence_dir=None):
                     self.repo = repo_path
 
                 def login_status(self):
@@ -243,7 +296,7 @@ class AgentLoopRuntimeTest(unittest.TestCase):
             calls = {"n": 0}
 
             class FakeCodex:
-                def __init__(self, _exe, repo_path, _runner):
+                def __init__(self, _exe, repo_path, _runner, _evidence_dir=None):
                     self.repo = repo_path
 
                 def login_status(self):
@@ -271,7 +324,7 @@ class AgentLoopRuntimeTest(unittest.TestCase):
             spec = repo_spec(repo)
 
             class FakeCodex:
-                def __init__(self, _exe, repo_path, _runner):
+                def __init__(self, _exe, repo_path, _runner, _evidence_dir=None):
                     self.repo = repo_path
 
                 def login_status(self):
