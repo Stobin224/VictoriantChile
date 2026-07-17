@@ -30,9 +30,11 @@ class FakeProcessRunner(ProcessRunner):
     def __init__(self, results: list[ProcessResult] | None = None) -> None:
         self.results = list(results or [])
         self.calls: list[list[str]] = []
+        self.cwds: list[Path] = []
 
     def run(self, argv: list[str], cwd: Path, timeout_seconds: int) -> ProcessResult:
         self.calls.append(argv)
+        self.cwds.append(cwd)
         if self.results:
             return self.results.pop(0)
         return ProcessResult(tuple(argv), 0, "", "")
@@ -47,6 +49,7 @@ class FakeProcessRunner(ProcessRunner):
         max_stderr_bytes: int,
     ) -> RawProcessResult:
         self.calls.append(argv)
+        self.cwds.append(cwd)
         if self.results:
             result = self.results.pop(0)
             return RawProcessResult(
@@ -116,8 +119,11 @@ class AgentLoopRuntimeTest(unittest.TestCase):
         self.assertIn("--output-schema", runner.calls[0])
 
         runner.results.append(ProcessResult(("x",), 0, stream, ""))
-        client.resume("11111111-1111-1111-1111-111111111111", "fix", output_schema=None, timeout_seconds=1)
-        self.assertEqual(["codex", "exec", "resume", "--json", "11111111-1111-1111-1111-111111111111", "fix"], runner.calls[1])
+        client.resume("11111111-1111-1111-1111-111111111111", "fix", sandbox="workspace-write", output_schema=None, timeout_seconds=1)
+        self.assertEqual(
+            ["codex", "exec", "--json", "--sandbox", "workspace-write", "--cd", str(Path.cwd()), "resume", "11111111-1111-1111-1111-111111111111", "fix"],
+            runner.calls[1],
+        )
 
     def test_process_runner_rejects_non_positive_timeout_and_times_out_finitely(self) -> None:
         runner = ProcessRunner()
@@ -306,6 +312,9 @@ class AgentLoopRuntimeTest(unittest.TestCase):
                     calls["n"] += 1
                     (self.repo / "allowed.txt").write_text(f"done {calls['n']}", encoding="utf-8")
                     return CodexTurnResult(True, 0, "", "", "11111111-1111-1111-1111-111111111111", Usage(), "ok", ())
+
+                def resume(self, *_args, **_kwargs):
+                    return self.exec()
 
             checks = [ProcessResult(("check",), 1, "", "fail"), ProcessResult(("check",), 0, "ok", "")]
             low = [Finding("REV-001", "low", "minor", "e")]

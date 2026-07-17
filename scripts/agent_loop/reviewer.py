@@ -51,6 +51,7 @@ def review_diff(client: CodexClient, spec: TaskSpec, base_sha: str, schema_path:
     prompt = (
         "Review the current repository diff against base SHA "
         f"{base_sha}. Return only JSON matching the supplied schema. "
+        "This is a read-only review turn: do not modify files, run write commands, stage, commit, push, or create PRs. "
         "Prioritize bugs, policy violations, unsafe git behavior, missing tests, and scope issues. "
         f"Allowed paths: {', '.join(spec.allowed_paths)}. Protected paths: {', '.join(spec.protected_paths)}."
     )

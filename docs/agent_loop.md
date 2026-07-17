@@ -103,6 +103,14 @@ Allowed placeholders in check argv:
 
 Paths are relative to the repository and use `/`. A path ending in `/` means subtree. A path without trailing `/` means exact file. Protected paths win over allowed paths.
 
+## Writer And Reviewer Execution
+
+The writer is the only write-capable model turn. Initial writer turns run with `workspace-write` and the repository root as the explicit working root. Correction turns resume the same writer thread and keep the same write-capable workspace. The writer prompt must ask for implementation now, not a plan, while making clear that Git publication remains controlled by the supervisor.
+
+The reviewer is a separate read-only turn with structured output. Reviewer prompts explicitly forbid modifying files, staging, committing, pushing, or opening PRs.
+
+The supervisor treats Git as the source of truth. A writer's final response may claim changed paths, but the supervisor compares those claims against the actual working tree. If a writer exits successfully without working-tree progress, the next correction prompt receives the failed checks, the real changed path list, and an explicit no-progress diagnostic. Repeated no-progress with the same failure is stopped by the existing budgets.
+
 ## States
 
 Terminal states:
