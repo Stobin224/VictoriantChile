@@ -1,17 +1,34 @@
 from __future__ import annotations
 
+import json
 import time
 import uuid
 from pathlib import Path
+from typing import Any
 
 from .codex_client import CodexClient, discover_codex
 from .evidence import EvidenceStore
-from .git_guard import audit_scope, create_branch, current_branch, ensure_clean, rev_parse
+from .git_guard import audit_scope, create_branch, current_branch, ensure_clean, fingerprint_worktree, rev_parse
+from .io_utils import atomic_write_json
 from .models import CheckResult, Finding, LoopState, TaskSpec
 from .process_runner import ProcessRunner
 from .publisher import PublicationError, Publisher
 from .reviewer import ReviewError, review_diff, write_review_schema
 from .task_spec import expand_argv
+
+
+WRITER_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["status", "summary", "changed_paths_claimed", "needs_input", "blocker"],
+    "properties": {
+        "status": {"enum": ["implemented", "needs_input", "blocked"]},
+        "summary": {"type": "string"},
+        "changed_paths_claimed": {"type": "array", "items": {"type": "string"}},
+        "needs_input": {"type": "boolean"},
+        "blocker": {"type": ["string", "null"]},
+    },
+}
 
 
 class LoopRunner:
@@ -89,6 +106,8 @@ class LoopRunner:
     ) -> LoopState:
         reviewer_schema = evidence.run_dir / "review.schema.json"
         write_review_schema(reviewer_schema)
+        writer_schema = evidence.run_dir / "writer.schema.json"
+        atomic_write_json(writer_schema, WRITER_SCHEMA)
         last_signature: str | None = None
         repeat_count = 0
 
@@ -108,16 +127,20 @@ class LoopRunner:
             state.iteration += 1
             state.status = "implementing"
             evidence.write_state(state, start_time=start)
+            before_fingerprint = fingerprint_worktree(self.repo, base_sha=base_sha)
             prompt = self.writer_prompt(state)
-            if resume_first and state.writer_session_id:
-                turn = client.resume(state.writer_session_id, prompt, output_schema=None, timeout_seconds=600)
+            turn_index = state.codex_turns + 1
+            resumed = bool(state.writer_session_id)
+            if resumed:
+                turn = client.resume(state.writer_session_id, prompt, sandbox="workspace-write", output_schema=writer_schema, timeout_seconds=600)
                 resume_first = False
             else:
-                turn = client.exec(prompt, sandbox="workspace-write", output_schema=None, timeout_seconds=600)
+                turn = client.exec(prompt, sandbox="workspace-write", output_schema=writer_schema, timeout_seconds=600)
             state.codex_turns += 1
             state.usage.add(turn.usage.to_json())
             if turn.session_id:
                 state.writer_session_id = turn.session_id
+            writer_result = parse_writer_result(turn.final_message)
             if not turn.ok:
                 state.status = classify_codex_error(turn.errors)
                 state.errors.extend(turn.errors)
@@ -125,6 +148,38 @@ class LoopRunner:
             audit = audit_scope(self.repo, self.spec, base_sha=base_sha, expected_branch=self.spec.branch)
             state.changed_files = list(audit.changed_files)
             state.fingerprint = audit.fingerprint
+            progress = before_fingerprint != audit.fingerprint
+            claimed_paths = writer_result["changed_paths_claimed"]
+            tool_failures = list(turn.tool_failures)
+            evidence.write_turn_evidence(
+                turn_index,
+                "writer",
+                {
+                    "sandbox": "workspace-write",
+                    "cwd": "<repo>",
+                    "resumed": resumed,
+                    "exit_code": turn.exit_code,
+                    "event_counts": turn.event_counts or {},
+                    "item_type_counts": turn.item_type_counts or {},
+                    "changed_paths_real": list(audit.changed_files),
+                    "changed_paths_claimed": claimed_paths,
+                    "tool_failures": tool_failures,
+                    "progress": progress,
+                    "fingerprint_before": before_fingerprint,
+                    "fingerprint_after": audit.fingerprint,
+                    "claim_discrepancy": bool(claimed_paths and not audit.changed_files),
+                    "needs_input": writer_result["needs_input"],
+                    "blocker": writer_result["blocker"],
+                    "failed_checks_delivered": [check_summary(check) for check in state.checks if check.status != "PASS"],
+                },
+            )
+            if tool_failures and not progress:
+                for failure in tool_failures[:5]:
+                    state.errors.append(f"writer_tool_failure: {format_tool_failure(failure)}")
+            if writer_result["needs_input"]:
+                state.status = "needs_input"
+                state.errors.append(writer_result["blocker"] or "writer requested human input")
+                break
             if not audit.ok:
                 state.status = "scope_violation"
                 state.errors.extend(audit.violations)
@@ -142,6 +197,8 @@ class LoopRunner:
             failed = [check for check in state.checks if check.status != "PASS"]
             signature = self.failure_signature(state, failed)
             if failed:
+                if not progress:
+                    state.errors.append(f"writer_no_changes: iteration {state.iteration} produced no working-tree changes")
                 if signature == last_signature:
                     repeat_count += 1
                 else:
@@ -174,6 +231,10 @@ class LoopRunner:
                 blockers = [finding for finding in findings if finding.severity in self.spec.review.blocking_severities]
                 if blockers:
                     continue
+            if not state.changed_files:
+                state.status = "needs_input"
+                state.errors.append("writer produced no changes; human confirmation is required before treating task as already satisfied")
+                break
             state.status = "passed"
             break
 
@@ -213,11 +274,29 @@ class LoopRunner:
     def writer_prompt(self, state: LoopState) -> str:
         findings = "\n".join(f"- {f.severity}: {f.title}: {f.suggested_fix or f.evidence}" for f in state.findings) or "none"
         checks = "\n".join(" ".join(check.argv) for check in self.spec.checks)
+        failed = [check for check in state.checks if check.status != "PASS"]
+        failed_text = "\n".join(format_check_failure(check) for check in failed) or "none"
+        diagnostics = "\n".join(f"- {error}" for error in state.errors[-10:]) or "none"
+        real_changes = ", ".join(state.changed_files) if state.changed_files else "none"
+        remaining_iterations = max(0, self.spec.budgets.max_iterations - state.iteration)
+        remaining_turns = max(0, self.spec.budgets.max_codex_turns - state.codex_turns)
+        no_changes_note = ""
+        if state.codex_turns > 0 and not state.changed_files:
+            no_changes_note = "\nNo working-tree changes were detected after the previous writer turn. Correct that now by editing the allowed files."
         return (
+            "You are the sole implementation writer for this bounded task. Inspect the repository and implement the requested change now. "
+            "You are authorized and expected to create, modify, rename, or delete only the exact allowed paths. "
+            "Do not merely propose a plan, summarize, or describe hypothetical edits.\n"
+            "The supervisor controls Git publication. You must edit the working tree, but you must not commit, push, create a PR, merge, mark ready, or modify the task/supervisor.\n"
             f"Task ID: {self.spec.task_id}\nGoal: {self.spec.goal}\nDone when: {'; '.join(self.spec.done_when)}\n"
             f"Base SHA: {state.base_sha}\nBranch: {self.spec.branch}\nAllowed paths: {', '.join(self.spec.allowed_paths)}\n"
-            f"Protected paths: {', '.join(self.spec.protected_paths)}\nChecks:\n{checks}\nPending findings:\n{findings}\n"
-            "Do not commit, push, open PR, merge, mark ready, start another task, or modify the task spec/supervisor to escape scope."
+            f"Protected paths: {', '.join(self.spec.protected_paths)}\nChecks:\n{checks}\n"
+            f"Failed checks from the previous turn:\n{failed_text}\n"
+            f"Supervisor diagnostics from previous turns:\n{diagnostics}\n"
+            f"Pending review findings:\n{findings}\n"
+            f"Real changed files currently observed by Git: {real_changes}{no_changes_note}\n"
+            f"Remaining budget: iterations={remaining_iterations}, codex_turns={remaining_turns}, review_turns={max(0, self.spec.budgets.max_review_turns - state.review_turns)}.\n"
+            "Return final JSON matching the supplied schema after making edits. changed_paths_claimed must list paths you believe you changed; Git remains the authority."
         )
 
     def failure_signature(self, state: LoopState, failed: list[CheckResult]) -> str:
@@ -234,3 +313,66 @@ def classify_codex_error(errors: tuple[str, ...]) -> str:
     if "auth" in text or "rate limit" in text:
         return "tool_failure"
     return "tool_failure"
+
+
+def parse_writer_result(final_message: str) -> dict[str, Any]:
+    fallback = {"status": "", "summary": "", "changed_paths_claimed": [], "needs_input": False, "blocker": None}
+    try:
+        data = json.loads(final_message) if final_message else {}
+    except json.JSONDecodeError:
+        return fallback
+    if not isinstance(data, dict):
+        return fallback
+    claimed = data.get("changed_paths_claimed")
+    if not isinstance(claimed, list):
+        claimed_paths: list[str] = []
+    else:
+        claimed_paths = [item.replace("\\", "/") for item in claimed if isinstance(item, str)]
+    blocker = data.get("blocker")
+    return {
+        "status": data.get("status") if isinstance(data.get("status"), str) else "",
+        "summary": data.get("summary") if isinstance(data.get("summary"), str) else "",
+        "changed_paths_claimed": claimed_paths,
+        "needs_input": bool(data.get("needs_input")),
+        "blocker": blocker if isinstance(blocker, str) else None,
+    }
+
+
+def format_check_failure(check: CheckResult) -> str:
+    return (
+        f"- {check.id}: status={check.status} exit_code={check.exit_code}\n"
+        f"  stdout_tail={tail(check.stdout)}\n"
+        f"  stderr_tail={tail(check.stderr)}"
+    )
+
+
+def check_summary(check: CheckResult) -> dict[str, Any]:
+    return {
+        "id": check.id,
+        "status": check.status,
+        "exit_code": check.exit_code,
+        "stdout_tail": tail(check.stdout),
+        "stderr_tail": tail(check.stderr),
+    }
+
+
+def format_tool_failure(failure: dict[str, Any]) -> str:
+    parts = [
+        f"item_type={failure.get('item_type')}",
+        f"event_index={failure.get('event_index')}",
+    ]
+    if "exit_code" in failure:
+        parts.append(f"exit_code={failure['exit_code']}")
+    if failure.get("tool"):
+        parts.append(f"tool={failure['tool']}")
+    if failure.get("command"):
+        parts.append(f"command={failure['command']}")
+    if failure.get("error"):
+        parts.append(f"error={failure['error']}")
+    return " ".join(parts)
+
+
+def tail(text: str, limit: int = 2000) -> str:
+    if len(text) <= limit:
+        return text
+    return text[-limit:]

@@ -70,3 +70,7 @@ class EvidenceStore:
         data = state_to_json(state, elapsed_seconds=int(self.clock() - start_time), resume_command=resume)
         atomic_write_json(self.run_dir / "state.json", data)
         return data
+
+    def write_turn_evidence(self, turn_index: int, role: str, data: dict[str, Any]) -> None:
+        payload = {"schema_version": SCHEMA_VERSION, "turn_index": turn_index, "role": role, **data}
+        atomic_write_json(self.run_dir / f"{role}-turn-{turn_index:03d}.json", payload)

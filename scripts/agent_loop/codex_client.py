@@ -37,6 +37,9 @@ class CodexTurnResult:
     usage: Usage
     final_message: str
     errors: tuple[str, ...]
+    event_counts: dict[str, int] | None = None
+    item_type_counts: dict[str, int] | None = None
+    tool_failures: tuple[dict[str, Any], ...] = ()
 
 
 MAX_CODEX_STDOUT_BYTES = 2_000_000
@@ -126,8 +129,8 @@ class CodexClient:
         argv.append(prompt)
         return self._run_codex(argv, timeout_seconds)
 
-    def resume(self, session_id: str, prompt: str, *, output_schema: Path | None, timeout_seconds: int) -> CodexTurnResult:
-        argv = [self.executable, "exec", "resume", "--json"]
+    def resume(self, session_id: str, prompt: str, *, sandbox: str, output_schema: Path | None, timeout_seconds: int) -> CodexTurnResult:
+        argv = [self.executable, "exec", "--json", "--sandbox", sandbox, "--cd", str(self.repo), "resume"]
         if output_schema:
             argv.extend(["--output-schema", str(output_schema)])
         argv.extend([session_id, prompt])
@@ -162,6 +165,9 @@ class CodexClient:
             parsed["usage"],
             parsed["final_message"],
             tuple(errors),
+            parsed["event_counts"],
+            parsed["item_type_counts"],
+            tuple(parsed["tool_failures"]),
         )
 
     def _write_raw_evidence(self, result: RawProcessResult, turn_index: int) -> None:
@@ -226,8 +232,19 @@ def parse_jsonl_bytes(stdout: bytes) -> dict[str, Any]:
     errors: list[str] = list(framing_errors)
     saw_thread_started = False
     saw_turn_terminal = False
-    for event in events:
+    event_counts: dict[str, int] = {}
+    item_type_counts: dict[str, int] = {}
+    tool_failures: list[dict[str, Any]] = []
+    for event_index, event in enumerate(events, start=1):
         event_type = str(event.get("type") or event.get("event") or "")
+        if event_type:
+            event_counts[event_type] = event_counts.get(event_type, 0) + 1
+        item = event.get("item")
+        if isinstance(item, dict) and isinstance(item.get("type"), str):
+            item_type = item["type"]
+            item_type_counts[item_type] = item_type_counts.get(item_type, 0) + 1
+            if item.get("status") == "failed" and item_type in {"file_change", "command_execution", "mcp_tool_call"}:
+                tool_failures.append(summarize_tool_failure(event_index, item))
         raw = json.dumps(event)
         match = SESSION_RE.search(raw)
         if match and session_id is None:
@@ -253,7 +270,15 @@ def parse_jsonl_bytes(stdout: bytes) -> dict[str, Any]:
         errors.append("codex JSONL missing turn.completed or turn.failed")
     if events and not final_message:
         errors.append("codex JSONL missing final response")
-    return {"session_id": session_id, "usage": usage, "final_message": final_message, "errors": errors}
+    return {
+        "session_id": session_id,
+        "usage": usage,
+        "final_message": final_message,
+        "errors": errors,
+        "event_counts": event_counts,
+        "item_type_counts": item_type_counts,
+        "tool_failures": tool_failures,
+    }
 
 
 def sha256_prefixed(data: bytes) -> str:
@@ -262,13 +287,66 @@ def sha256_prefixed(data: bytes) -> str:
     return "sha256:" + hashlib.sha256(data).hexdigest()
 
 
+def summarize_tool_failure(event_index: int, item: dict[str, Any]) -> dict[str, Any]:
+    summary: dict[str, Any] = {
+        "event_index": event_index,
+        "item_type": item.get("type"),
+        "status": item.get("status"),
+    }
+    if isinstance(item.get("id"), str):
+        summary["item_id"] = item["id"]
+    if isinstance(item.get("exit_code"), int):
+        summary["exit_code"] = item["exit_code"]
+    if isinstance(item.get("tool"), str):
+        summary["tool"] = item["tool"]
+    if isinstance(item.get("server"), str):
+        summary["server"] = item["server"]
+    if isinstance(item.get("command"), str):
+        summary["command"] = redact_sensitive_text(item["command"])
+    error = item.get("error")
+    if isinstance(error, dict) and isinstance(error.get("message"), str):
+        summary["error"] = redact_sensitive_text(error["message"])
+    elif isinstance(error, str):
+        summary["error"] = redact_sensitive_text(error)
+    output = item.get("aggregated_output")
+    if isinstance(output, str) and output:
+        summary["output_excerpt"] = redact_sensitive_text(output[-500:])
+    changes = item.get("changes")
+    if isinstance(changes, list):
+        paths: list[str] = []
+        for change in changes:
+            if isinstance(change, dict):
+                path = change.get("path") or change.get("file")
+                if isinstance(path, str):
+                    paths.append(redact_sensitive_text(path))
+        if paths:
+            summary["paths"] = paths[:10]
+    return summary
+
+
+def redact_sensitive_text(text: str, limit: int = 1000) -> str:
+    redacted = re.sub(r"[A-Za-z]:\\\\Users\\\\[^\\\\\\s\"']+", "<path>", text)
+    redacted = re.sub(r"C:/Users/[^\\s\"']+", "<path>", redacted, flags=re.IGNORECASE)
+    redacted = re.sub(r"/Users/[^\\s\"']+|/home/[^\\s\"']+|/tmp/[^\\s\"']+", "<path>", redacted)
+    redacted = SESSION_RE.sub("<session-id>", redacted)
+    if len(redacted) > limit:
+        return redacted[: limit - 15] + "...<truncated>"
+    return redacted
+
+
 def sanitize_argv(argv: tuple[str, ...]) -> list[str]:
     sanitized: list[str] = []
     skip_next = False
-    for part in argv:
+    for index, part in enumerate(argv):
         if skip_next:
             sanitized.append("<redacted>")
             skip_next = False
+            continue
+        if SESSION_RE.fullmatch(part):
+            sanitized.append("<session-id>")
+            continue
+        if index == len(argv) - 1 and "exec" in argv and not part.startswith("-"):
+            sanitized.append("<prompt>")
             continue
         sanitized.append(part)
         if part in {"--cd", "--output-schema"}:
