@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "task_id": "bounded-task-id",
+  "title": "feat: implement bounded task",
+  "goal": "State one falsifiable, bounded outcome.",
+  "base_ref": "origin/main",
+  "branch": "feat/bounded-task-id",
+  "allowed_paths": [
+    "scripts/example_tool.py",
+    "tests/python/"
+  ],
+  "protected_paths": [
+    "Assets/StreamingAssets/content/",
+    "Packages/",
+    "ProjectSettings/",
+    "Assets/Scenes/",
+    "Assets/Juego pancho/"
+  ],
+  "done_when": [
+    "The requested behavior is implemented.",
+    "Mandatory checks pass.",
+    "Structured review has no blocking findings."
+  ],
+  "checks": [
+    {
+      "id": "repository",
+      "argv": [
+        "{python}",
+        "scripts/run_checks.py",
+        "--base-ref",
+        "{base_ref}",
+        "--working-tree"
+      ],
+      "timeout_seconds": 300
+    }
+  ],
+  "budgets": {
+    "max_iterations": 3,
+    "max_codex_turns": 6,
+    "max_review_turns": 2,
+    "max_wall_minutes": 90,
+    "max_repeated_failure": 2
+  },
+  "review": {
+    "enabled": true,
+    "blocking_severities": [
+      "critical",
+      "high",
+      "medium"
+    ],
+    "allow_internal_subagents": false
+  },
+  "publication": {
+    "commit": false,
+    "push": false,
+    "draft_pr": false,
+    "mark_ready": false,
+    "merge": false
+  }
+}

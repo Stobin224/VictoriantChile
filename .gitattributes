@@ -1,10 +1,14 @@
 .gitattributes text eol=lf
+.gitignore text eol=lf
+AGENTS.md text eol=lf
+README.md text eol=lf
 Assets/StreamingAssets/content/**/*.json text eol=lf
 *.py text eol=lf
 *.sh text eol=lf
 Assets/VictoriantChile/**/*.cs text eol=lf
 Assets/VictoriantChile/**/*.asmdef text eol=lf
 Assets/VictoriantChile/**/*.meta text eol=lf
-docs/*.md text eol=lf
+docs/**/*.md text eol=lf
+docs/agent_tasks/**/*.json text eol=lf
 tests/scenarios/*.json text eol=lf
 .github/workflows/*.yml text eol=lf
