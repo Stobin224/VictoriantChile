@@ -13,7 +13,7 @@ namespace VictoriantChile.Simulation.Core.Targets
             _segments = segments;
         }
 
-        internal bool IsValid => _canonical != null;
+        public bool IsValid => _canonical != null;
 
         public string Namespace => _segments == null ? string.Empty : _segments[0];
 

@@ -1,0 +1,49 @@
+{
+  "scenario_schema_version": 1,
+  "seed": 424242,
+  "commands": [
+    {
+      "id": "read_legitimacy",
+      "type": "READ",
+      "target": "metrics.legitimacy"
+    },
+    {
+      "id": "read_admin_cap",
+      "type": "READ",
+      "target": "regions.metropolitana.admin_capS"
+    },
+    {
+      "id": "raise_legitimacy",
+      "type": "MUTATE",
+      "target": "metrics.legitimacy",
+      "op": "ADD",
+      "value_s": 6000
+    },
+    {
+      "id": "boost_economy",
+      "type": "MUTATE",
+      "target": "metrics.economy",
+      "op": "MUL",
+      "value_s": 11000
+    },
+    {
+      "id": "set_security_direction",
+      "type": "MUTATE",
+      "target": "movements.mov_seguridad_mano_dura.direction",
+      "op": "SET",
+      "value_s": -1
+    },
+    {
+      "id": "boost_labor_clout",
+      "type": "MUTATE",
+      "target": "igs.ig_sindicatos_trabajo.clout",
+      "op": "ADD",
+      "value_s": 1000
+    },
+    {
+      "id": "read_labor_clout",
+      "type": "READ",
+      "target": "igs.ig_sindicatos_trabajo.clout"
+    }
+  ]
+}

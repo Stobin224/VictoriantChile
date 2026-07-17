@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using VictoriantChile.Content.Models;
+using VictoriantChile.Simulation.Core.Resolution;
 using VictoriantChile.Simulation.Core.State;
 using VictoriantChile.Simulation.Core.Targets;
 
@@ -35,14 +36,29 @@ namespace VictoriantChile.Content.State
 
             try
             {
-                return StateInitializationResult.Succeeded(new GameState(
+                GameState state = new GameState(
                     rngSeed,
                     metadata,
                     metrics,
                     internals,
                     regions,
                     interestGroups,
-                    movements));
+                    movements);
+                IReadOnlyList<StateDiagnostic> invariantDiagnostics = new GameStateInvariantValidator().Validate(state, pack.TargetConfigCatalog);
+                if (invariantDiagnostics.Count > 0)
+                {
+                    for (int i = 0; i < invariantDiagnostics.Count; i++)
+                    {
+                        diagnostics.Add(new StateInitializationDiagnostic(
+                            StateInitializationDiagnosticCode.IncompatibleStateInvariant,
+                            invariantDiagnostics[i].Target,
+                            invariantDiagnostics[i].Code + ": " + invariantDiagnostics[i].Message));
+                    }
+
+                    return StateInitializationResult.Failed(diagnostics);
+                }
+
+                return StateInitializationResult.Succeeded(state);
             }
             catch (ArgumentException)
             {

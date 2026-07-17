@@ -1,0 +1,13 @@
+{
+  "scenario_schema_version": 1,
+  "seed": 1,
+  "commands": [
+    {
+      "id": "mutate_admin_cap",
+      "type": "MUTATE",
+      "target": "regions.metropolitana.admin_capS",
+      "op": "SET",
+      "value_s": 9000
+    }
+  ]
+}

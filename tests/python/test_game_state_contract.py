@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[2]
 ASSETS = ROOT / "Assets"
 CORE = ASSETS / "VictoriantChile" / "Simulation" / "Core"
 CONTENT = ASSETS / "VictoriantChile" / "Content"
+RUNNER = ASSETS / "VictoriantChile" / "Simulation" / "Runner"
 EDITMODE = ASSETS / "VictoriantChile" / "Tests" / "EditMode"
 
 
@@ -82,12 +83,14 @@ class GameStateContractTest(unittest.TestCase):
         self.assertIn(f"GUID:{core_guid}", content_asmdef["references"])
         self.assertIn(f"GUID:{content_guid}", editmode_asmdef["references"])
 
-    def test_no_new_asmdef_was_added(self) -> None:
+    def test_only_expected_asmdefs_exist(self) -> None:
         asmdefs = {path.relative_to(ASSETS).as_posix() for path in ASSETS.rglob("*.asmdef")}
         self.assertEqual(
             {
                 "VictoriantChile/Content/VictoriantChile.Content.asmdef",
                 "VictoriantChile/Simulation/Core/VictoriantChile.Simulation.Core.asmdef",
+                "VictoriantChile/Simulation/Runner/Editor/VictoriantChile.Simulation.Runner.Editor.asmdef",
+                "VictoriantChile/Simulation/Runner/VictoriantChile.Simulation.Runner.asmdef",
                 "VictoriantChile/Tests/EditMode/VictoriantChile.Simulation.Tests.EditMode.asmdef",
             },
             asmdefs,
@@ -114,12 +117,17 @@ class GameStateContractTest(unittest.TestCase):
         self.assertEqual(
             {
                 "VictoriantChile.Content.csproj",
+                "VictoriantChile.Simulation.Runner.csproj",
+                "VictoriantChile.Simulation.Runner.Editor.csproj",
                 "VictoriantChile.Simulation.Core.csproj",
                 "VictoriantChile.Simulation.Tests.EditMode.csproj",
             },
             set(projects),
         )
         self.assertEqual(len(projects), len(set(projects)))
+        for project in projects:
+            self.assertFalse(Path(project).is_absolute(), project)
+            self.assertNotRegex(project, r"Library|Temp|Packages")
 
     def test_core_has_no_forbidden_runtime_dependencies_or_nondeterminism(self) -> None:
         forbidden = re.compile(
@@ -128,6 +136,29 @@ class GameStateContractTest(unittest.TestCase):
         )
         for path in CORE.rglob("*.cs"):
             self.assertIsNone(forbidden.search(path.read_text(encoding="utf-8")), path)
+
+    def test_runner_dependency_boundaries_are_explicit(self) -> None:
+        core_guid = meta_guid(CORE / "VictoriantChile.Simulation.Core.asmdef.meta")
+        content_guid = meta_guid(CONTENT / "VictoriantChile.Content.asmdef.meta")
+        runner_guid = meta_guid(RUNNER / "VictoriantChile.Simulation.Runner.asmdef.meta")
+        runner_asmdef = load_json(RUNNER / "VictoriantChile.Simulation.Runner.asmdef")
+        runner_editor_asmdef = load_json(RUNNER / "Editor" / "VictoriantChile.Simulation.Runner.Editor.asmdef")
+
+        self.assertTrue(runner_asmdef["noEngineReferences"])
+        self.assertFalse(runner_asmdef["autoReferenced"])
+        self.assertIn(f"GUID:{core_guid}", runner_asmdef["references"])
+        self.assertIn(f"GUID:{content_guid}", runner_asmdef["references"])
+        self.assertIn("Newtonsoft.Json", runner_asmdef["references"])
+        self.assertEqual([f"GUID:{runner_guid}"], runner_editor_asmdef["references"])
+        self.assertEqual(["Editor"], runner_editor_asmdef["includePlatforms"])
+
+    def test_unity_editor_api_is_limited_to_runner_editor(self) -> None:
+        for root in (CORE, CONTENT, RUNNER):
+            for path in root.rglob("*.cs"):
+                text = path.read_text(encoding="utf-8")
+                if "\\Editor\\" in str(path) or "/Editor/" in path.as_posix():
+                    continue
+                self.assertNotRegex(text, r"UnityEngine|UnityEditor|MonoBehaviour|ScriptableObject|Application\.streamingAssetsPath|UnityWebRequest|JsonUtility", path)
 
     def test_public_state_api_has_no_mutable_setters_or_arrays(self) -> None:
         public_setter = re.compile(r"\bpublic\s+[^;\n{]+{\s*get;\s*set;\s*}", re.MULTILINE)
@@ -148,7 +179,7 @@ class GameStateContractTest(unittest.TestCase):
         self.assertEqual("", git_text("diff", "--", "Assets/StreamingAssets/content"))
         self.assertEqual("", git_text("diff", "--", "Packages", "ProjectSettings", "Assets/Scenes"))
         self.assertEqual("", git_text("diff", "--", "Assets/Juego pancho/*.txt"))
-        self.assertEqual("", git_text("diff", "--", ".vscode/settings.json", "Victoriant Chile.slnx"))
+        self.assertEqual("", git_text("diff", "--", ".vscode/settings.json"))
 
 
 if __name__ == "__main__":

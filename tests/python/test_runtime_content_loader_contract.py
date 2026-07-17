@@ -128,10 +128,12 @@ class RuntimeContentLoaderContractTest(unittest.TestCase):
         expected = {
             "VictoriantChile.Content.csproj",
             "VictoriantChile.Simulation.Core.csproj",
+            "VictoriantChile.Simulation.Runner.csproj",
+            "VictoriantChile.Simulation.Runner.Editor.csproj",
             "VictoriantChile.Simulation.Tests.EditMode.csproj",
         }
 
-        self.assertEqual(3, len(projects))
+        self.assertEqual(5, len(projects))
         self.assertEqual(expected, set(projects))
         self.assertEqual(len(projects), len(set(projects)))
         for project in projects:

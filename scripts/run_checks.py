@@ -11,6 +11,7 @@ import argparse
 import json
 import subprocess
 import sys
+import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -76,6 +77,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--working-tree", action="store_true")
     parser.add_argument("--include-dotnet", action="store_true")
     parser.add_argument("--include-unity-editmode", action="store_true")
+    parser.add_argument("--include-unity-scenario", action="store_true")
+    parser.add_argument("--scenario", type=Path)
     parser.add_argument("--unity-editor")
     parser.add_argument("--json-output", type=Path)
     args = parser.parse_args(argv)
@@ -83,8 +86,10 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--working-tree requires --base-ref")
     if args.working_tree and args.head_ref:
         parser.error("--working-tree cannot be combined with --head-ref")
-    if args.unity_editor and not args.include_unity_editmode:
-        parser.error("--unity-editor requires --include-unity-editmode")
+    if args.scenario and not args.include_unity_scenario:
+        parser.error("--scenario requires --include-unity-scenario")
+    if args.unity_editor and not (args.include_unity_editmode or args.include_unity_scenario):
+        parser.error("--unity-editor requires --include-unity-editmode or --include-unity-scenario")
 
     started_at = utc_now()
     overall_start = time.perf_counter()
@@ -149,6 +154,20 @@ def main(argv: list[str] | None = None) -> int:
         steps.append(finish_step(step, code, start, stdout=stdout, stderr=stderr))
     else:
         skipped_checks.append({"name": "unity_editmode", "reason": "--include-unity-editmode was not provided"})
+
+    if args.include_unity_scenario:
+        step = make_step("unity_scenario")
+        start = time.perf_counter()
+        scenario = args.scenario or (ROOT / "tests" / "scenarios" / "smoke_v1.json")
+        output = Path(tempfile.gettempdir()) / "VictoriantChile" / "ScenarioRunner" / "run-checks-scenario.json"
+        command = [sys.executable, str(ROOT / "scripts" / "run_scenario.py"), "--scenario", str(scenario), "--json-output", str(output)]
+        if args.unity_editor:
+            command.extend(["--unity-editor", args.unity_editor])
+        code, stdout, stderr = run_process(command)
+        code = append_process_error(errors, "unity_scenario", code, stderr)
+        steps.append(finish_step(step, code, start, stdout=stdout, stderr=stderr))
+    else:
+        skipped_checks.append({"name": "unity_scenario", "reason": "--include-unity-scenario was not provided"})
 
     mandatory_failed = any(step["status"] != "PASS" for step in steps if step["name"] != "check_manifest_bump")
     optional_failed = any(step["name"] == "check_manifest_bump" and step["status"] != "PASS" for step in steps)

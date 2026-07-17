@@ -365,25 +365,30 @@ def run_unity_process(command: list[str], cwd: Path, timeout_seconds: int) -> su
 
 
 def print_human(result: dict[str, Any]) -> None:
-    print(f"Unity EditMode: {result['overall_status']}")
-    print(f"- Output dir: {result['output_dir']}")
-    print(f"- XML: {result['xml_path']}")
-    print(f"- Log: {result['log_path']}")
+    print(safe_console_text(f"Unity EditMode: {result['overall_status']}"))
+    print(safe_console_text(f"- Output dir: {result['output_dir']}"))
+    print(safe_console_text(f"- XML: {result['xml_path']}"))
+    print(safe_console_text(f"- Log: {result['log_path']}"))
     if result.get("json_path"):
-        print(f"- JSON: {result['json_path']}")
+        print(safe_console_text(f"- JSON: {result['json_path']}"))
     print(
-        "- Results: "
+        safe_console_text("- Results: "
         f"total={result['results']['total']} "
         f"passed={result['results']['passed']} "
         f"failed={result['results']['failed']} "
         f"skipped={result['results']['skipped']} "
-        f"duration={result['results']['duration']}"
+        f"duration={result['results']['duration']}")
     )
     for error in result["errors"]:
-        print(f"- ERROR: {error}")
+        print(safe_console_text(f"- ERROR: {error}"))
     if result["overall_status"] != "PASS" and result["log_excerpt"]:
         print("Log excerpt:")
-        print(result["log_excerpt"])
+        print(safe_console_text(result["log_excerpt"]))
+
+
+def safe_console_text(text: str) -> str:
+    encoding = getattr(sys.stdout, "encoding", None) or "utf-8"
+    return text.encode(encoding, errors="replace").decode(encoding, errors="replace")
 
 
 def main(argv: list[str] | None = None) -> int:
