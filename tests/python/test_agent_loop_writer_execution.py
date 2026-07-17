@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import unittest
+from contextlib import ExitStack, contextmanager
 from pathlib import Path
 from unittest import mock
 
+from scripts.agent_loop.codex_client import CodexDiscovery
 from scripts.agent_loop.codex_client import CodexClient, CodexTurnResult, parse_jsonl, sanitize_argv
 from scripts.agent_loop.git_guard import git
 from scripts.agent_loop.models import Finding, ProcessResult, Usage
@@ -125,7 +128,7 @@ class WriterExecutionTest(unittest.TestCase):
                     return writer_turn()
 
             failing_checks = [ProcessResult(("check",), 1, "", "ModuleNotFoundError: No module named test"), ProcessResult(("check",), 1, "", "ModuleNotFoundError: No module named test")]
-            with patched_codex(NoOpCodex):
+            with patched_writer_runtime(repo, NoOpCodex):
                 state = LoopRunner(repo, spec, "hash", process_runner=FakeProcessRunner(failing_checks), run_id="run").run()
 
             self.assertEqual("budget_exhausted", state.status)
@@ -157,7 +160,7 @@ class WriterExecutionTest(unittest.TestCase):
                     return writer_turn(tool_failures=[{"event_index": 5, "item_type": "command_execution", "status": "failed", "exit_code": -1}])
 
             checks = [ProcessResult(("check",), 1, "", "missing file"), ProcessResult(("check",), 1, "", "missing file")]
-            with patched_codex(ToolFailingCodex):
+            with patched_writer_runtime(repo, ToolFailingCodex):
                 state = LoopRunner(repo, spec, "hash", process_runner=FakeProcessRunner(checks), run_id="toolfail").run()
             evidence = json.loads((repo / ".agent-loop" / "runs" / "toolfail" / "writer-turn-001.json").read_text(encoding="utf-8"))
             self.assertEqual("budget_exhausted", state.status)
@@ -181,7 +184,7 @@ class WriterExecutionTest(unittest.TestCase):
                     (self.repo / "allowed.txt").write_text("done", encoding="utf-8")
                     return writer_turn(changed_paths_claimed=[], tool_failures=[{"event_index": 2, "item_type": "command_execution", "status": "failed", "exit_code": -1}])
 
-            with patched_codex(ToolFailingButImplementingCodex), mock.patch("scripts.agent_loop.runner.review_diff", return_value=([], "")):
+            with patched_writer_runtime(repo, ToolFailingButImplementingCodex), mock.patch("scripts.agent_loop.runner.review_diff", return_value=([], "")):
                 state = LoopRunner(repo, spec, "hash", process_runner=FakeProcessRunner([ProcessResult(("check",), 0, "ok", "")]), run_id="recover").run()
             evidence = json.loads((repo / ".agent-loop" / "runs" / "recover" / "writer-turn-001.json").read_text(encoding="utf-8"))
             self.assertEqual("passed", state.status)
@@ -207,7 +210,7 @@ class WriterExecutionTest(unittest.TestCase):
                     return writer_turn(changed_paths_claimed=["allowed.txt"])
 
             checks = [ProcessResult(("check",), 1, "", "fail"), ProcessResult(("check",), 1, "", "fail")]
-            with patched_codex(ClaimOnlyCodex):
+            with patched_writer_runtime(repo, ClaimOnlyCodex):
                 state = LoopRunner(repo, spec, "hash", process_runner=FakeProcessRunner(checks), run_id="claim").run()
             evidence = json.loads((repo / ".agent-loop" / "runs" / "claim" / "writer-turn-001.json").read_text(encoding="utf-8"))
             self.assertTrue(evidence["claim_discrepancy"])
@@ -229,7 +232,7 @@ class WriterExecutionTest(unittest.TestCase):
                 def exec(self, *_args, **_kwargs):
                     return writer_turn(status="needs_input", needs_input=True, blocker="missing decision")
 
-            with patched_codex(NeedsInputCodex):
+            with patched_writer_runtime(repo, NeedsInputCodex):
                 state = LoopRunner(repo, spec, "hash", process_runner=FakeProcessRunner([ProcessResult(("check",), 0, "ok", "")]), run_id="input").run()
             self.assertEqual("needs_input", state.status)
             self.assertEqual([], state.checks)
@@ -249,7 +252,7 @@ class WriterExecutionTest(unittest.TestCase):
                 def exec(self, *_args, **_kwargs):
                     return writer_turn()
 
-            with patched_codex(NoOpCodex), mock.patch("scripts.agent_loop.runner.review_diff", return_value=([], "")):
+            with patched_writer_runtime(repo, NoOpCodex), mock.patch("scripts.agent_loop.runner.review_diff", return_value=([], "")):
                 state = LoopRunner(repo, spec, "hash", process_runner=FakeProcessRunner([ProcessResult(("check",), 0, "ok", "")]), run_id="satisfied").run()
             self.assertEqual("needs_input", state.status)
             self.assertIn("writer produced no changes", "\n".join(state.errors))
@@ -274,7 +277,7 @@ class WriterExecutionTest(unittest.TestCase):
                 review_called["value"] = True
                 return [], ""
 
-            with patched_codex(ImplementingCodex), mock.patch("scripts.agent_loop.runner.review_diff", side_effect=fake_review):
+            with patched_writer_runtime(repo, ImplementingCodex), mock.patch("scripts.agent_loop.runner.review_diff", side_effect=fake_review):
                 state = LoopRunner(repo, spec, "hash", process_runner=FakeProcessRunner([ProcessResult(("check",), 0, "ok", "")]), run_id="pass").run()
             self.assertEqual("passed", state.status)
             self.assertTrue(review_called["value"])
@@ -294,9 +297,32 @@ class WriterExecutionTest(unittest.TestCase):
                 def exec(self, *_args, **_kwargs):
                     return CodexTurnResult(False, 1, "", "", SESSION_ID, Usage(), "", ("usage limit",))
 
-            with patched_codex(ErrorCodex):
+            with patched_writer_runtime(repo, ErrorCodex):
                 state = LoopRunner(repo, spec, "hash", process_runner=FakeProcessRunner(), run_id="usage").run()
             self.assertEqual("usage_limit_reached", state.status)
+
+    def test_loop_runner_uses_runner_namespace_discovery_patch_not_real_cli(self) -> None:
+        with temp_git_repo() as repo:
+            spec = repo_spec()
+
+            class NoOpCodex:
+                def __init__(self, _exe, _repo_path, _runner, _evidence_dir=None):
+                    pass
+
+                def login_status(self):
+                    return ProcessResult(("codex",), 0, "Logged in using ChatGPT", "")
+
+                def exec(self, *_args, **_kwargs):
+                    return writer_turn()
+
+            with patched_writer_runtime(repo, NoOpCodex), mock.patch(
+                "scripts.agent_loop.codex_client.discover_codex",
+                side_effect=AssertionError("real Codex discovery must not run in unit tests"),
+            ), mock.patch("scripts.agent_loop.runner.review_diff", return_value=([], "")):
+                state = LoopRunner(repo, spec, "hash", process_runner=FakeProcessRunner([ProcessResult(("check",), 0, "ok", "")]), run_id="isolation").run()
+
+            self.assertEqual("needs_input", state.status)
+            self.assertIn("writer produced no changes", "\n".join(state.errors))
 
     def test_parse_writer_result_uses_git_truth_over_claims(self) -> None:
         parsed = parse_writer_result(json.dumps({"status": "implemented", "summary": "x", "changed_paths_claimed": ["a\\b.txt"], "needs_input": False, "blocker": None}))
@@ -355,8 +381,20 @@ def jsonl_stream() -> str:
     ) + "\n"
 
 
-def patched_codex(fake_class):
-    return mock.patch("scripts.agent_loop.runner.CodexClient", fake_class)
+@contextmanager
+def patched_writer_runtime(repo: Path, fake_class):
+    base_sha = git(repo, "rev-parse", "origin/main").stdout.strip()
+    with ExitStack() as stack:
+        stack.enter_context(mock.patch.dict(os.environ, {"CODEX_EXECUTABLE": ""}, clear=False))
+        stack.enter_context(
+            mock.patch(
+                "scripts.agent_loop.runner.discover_codex",
+                return_value=CodexDiscovery(True, "codex", "test", "codex-cli test", ()),
+            )
+        )
+        stack.enter_context(mock.patch("scripts.agent_loop.runner.CodexClient", fake_class))
+        stack.enter_context(mock.patch.object(LoopRunner, "validate_preflight", return_value=(base_sha, "codex")))
+        yield
 
 
 def temp_git_repo():
