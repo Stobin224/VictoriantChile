@@ -1,0 +1,11 @@
+{
+  "scenario_schema_version": 1,
+  "seed": 1,
+  "commands": [
+    {
+      "id": "missing_metric",
+      "type": "READ",
+      "target": "metrics.nope"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "scenario_schema_version": 1,
+  "seed": true,
+  "commands": [
+    {
+      "id": "read_legitimacy",
+      "type": "READ",
+      "target": "metrics.legitimacy"
+    }
+  ]
+}

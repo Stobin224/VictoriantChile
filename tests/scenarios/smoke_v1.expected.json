@@ -1,0 +1,630 @@
+{
+  "result_schema_version": 1,
+  "status": "passed",
+  "scenario_schema_version": 1,
+  "seed": 424242,
+  "command_count": 7,
+  "commands": [
+    {
+      "index": 0,
+      "id": "read_legitimacy",
+      "type": "read",
+      "status": "passed",
+      "target": "metrics.legitimacy",
+      "source": "dynamic_state",
+      "value_s": 5000,
+      "operation": null,
+      "before_s": null,
+      "requested_s": null,
+      "after_s": null,
+      "clamped": false,
+      "normalize_group": null,
+      "diagnostics": []
+    },
+    {
+      "index": 1,
+      "id": "read_admin_cap",
+      "type": "read",
+      "status": "passed",
+      "target": "regions.metropolitana.admin_capS",
+      "source": "static_content",
+      "value_s": 5000,
+      "operation": null,
+      "before_s": null,
+      "requested_s": null,
+      "after_s": null,
+      "clamped": false,
+      "normalize_group": null,
+      "diagnostics": []
+    },
+    {
+      "index": 2,
+      "id": "raise_legitimacy",
+      "type": "mutate",
+      "status": "passed",
+      "target": "metrics.legitimacy",
+      "source": "dynamic_state",
+      "value_s": null,
+      "operation": "add",
+      "before_s": 5000,
+      "requested_s": 6000,
+      "after_s": 10000,
+      "clamped": true,
+      "normalize_group": null,
+      "diagnostics": []
+    },
+    {
+      "index": 3,
+      "id": "boost_economy",
+      "type": "mutate",
+      "status": "passed",
+      "target": "metrics.economy",
+      "source": "dynamic_state",
+      "value_s": null,
+      "operation": "mul",
+      "before_s": 5000,
+      "requested_s": 11000,
+      "after_s": 5500,
+      "clamped": false,
+      "normalize_group": null,
+      "diagnostics": []
+    },
+    {
+      "index": 4,
+      "id": "set_security_direction",
+      "type": "mutate",
+      "status": "passed",
+      "target": "movements.mov_seguridad_mano_dura.direction",
+      "source": "dynamic_state",
+      "value_s": null,
+      "operation": "set",
+      "before_s": 1,
+      "requested_s": -1,
+      "after_s": -1,
+      "clamped": false,
+      "normalize_group": null,
+      "diagnostics": []
+    },
+    {
+      "index": 5,
+      "id": "boost_labor_clout",
+      "type": "mutate",
+      "status": "passed",
+      "target": "igs.ig_sindicatos_trabajo.clout",
+      "source": "dynamic_state",
+      "value_s": null,
+      "operation": "add",
+      "before_s": 1111,
+      "requested_s": 1000,
+      "after_s": 1920,
+      "clamped": false,
+      "normalize_group": "igs.clout_sum_100",
+      "diagnostics": []
+    },
+    {
+      "index": 6,
+      "id": "read_labor_clout",
+      "type": "read",
+      "status": "passed",
+      "target": "igs.ig_sindicatos_trabajo.clout",
+      "source": "dynamic_state",
+      "value_s": 1920,
+      "operation": null,
+      "before_s": null,
+      "requested_s": null,
+      "after_s": null,
+      "clamped": false,
+      "normalize_group": null,
+      "diagnostics": []
+    }
+  ],
+  "state_hash": "sha256:73f89b78951bb56d3a761f0e22d09f6e29361cf9d67fe3e38b442962a018668e",
+  "state": {
+    "state_schema_version": 1,
+    "tick": 0,
+    "rng_seed": 424242,
+    "content": {
+      "content_pack_version": 2,
+      "content_schema_version": 1,
+      "min_game_schema_version": 1,
+      "default_language": "es",
+      "files": [
+        {
+          "path": "core/igs.json",
+          "hash": "sha256:985c11e0a43da93b1607b1ec03b647d407bcce89a43893cdd41a603c97a4ca5f"
+        },
+        {
+          "path": "core/movements.json",
+          "hash": "sha256:0927da8991f9b4787467806058ad2eeadc0079c9b6dbadbf403b6aa1c6cfbaa4"
+        },
+        {
+          "path": "core/regions.json",
+          "hash": "sha256:0e769d6ec788442839afb3d49aa7cf84cb7879fdc89f56ddd09fd4d8fc695352"
+        },
+        {
+          "path": "rules/aggregation_config.json",
+          "hash": "sha256:0f7c01573e3981d469112828032b1615a26fcd841035303991e50e033225bb32"
+        },
+        {
+          "path": "rules/legislative_config.json",
+          "hash": "sha256:10015e0188a20ba227ea1bfad7ebfa4d6ab949d7ba14d4c742e3515461e696dd"
+        },
+        {
+          "path": "rules/target_config.json",
+          "hash": "sha256:c6e994714f2769cd02d8dc96070e70bc38847b9cfed564205fbdbaee7b581684"
+        },
+        {
+          "path": "strings/es.json",
+          "hash": "sha256:f168adefbf9549af78af88b67a875564936b63d164bdc9c437e418fa16e6d0cb"
+        },
+        {
+          "path": "templates/effects.json",
+          "hash": "sha256:82ad36548681860d520a3dadf0d522dc5f8e13d29f94e42f7c723518f9c40c67"
+        },
+        {
+          "path": "templates/events.json",
+          "hash": "sha256:fdc030041e655efcfc52fd2b1622275606206d1750c995f7717474c9dbb7adfd"
+        },
+        {
+          "path": "templates/reforms.json",
+          "hash": "sha256:c4abebc193d41648908aca337eff889ce542dcb65ad7951ae8d6ab6669bcf402"
+        }
+      ]
+    },
+    "metrics": [
+      {
+        "id": "economy",
+        "value_s": 5500
+      },
+      {
+        "id": "governability",
+        "value_s": 5000
+      },
+      {
+        "id": "information_quality",
+        "value_s": 5000
+      },
+      {
+        "id": "internal_cohesion",
+        "value_s": 5000
+      },
+      {
+        "id": "legislative_capacity",
+        "value_s": 5000
+      },
+      {
+        "id": "legitimacy",
+        "value_s": 10000
+      },
+      {
+        "id": "party_organization",
+        "value_s": 5000
+      },
+      {
+        "id": "public_agenda",
+        "value_s": 5000
+      },
+      {
+        "id": "security",
+        "value_s": 5000
+      },
+      {
+        "id": "social_tension",
+        "value_s": 5000
+      }
+    ],
+    "internals": [
+      {
+        "domain": "agenda",
+        "components": [
+          {
+            "id": "media_heat",
+            "value_s": 5000
+          },
+          {
+            "id": "movement_salience",
+            "value_s": 5000
+          },
+          {
+            "id": "policy_conflict",
+            "value_s": 5000
+          }
+        ]
+      },
+      {
+        "domain": "cohesion",
+        "components": [
+          {
+            "id": "ambition_rivalries",
+            "value_s": 5000
+          },
+          {
+            "id": "discipline_culture",
+            "value_s": 5000
+          },
+          {
+            "id": "factionalism",
+            "value_s": 5000
+          },
+          {
+            "id": "leadership_unity",
+            "value_s": 5000
+          }
+        ]
+      },
+      {
+        "domain": "economy",
+        "components": [
+          {
+            "id": "fiscal_stability",
+            "value_s": 5000
+          },
+          {
+            "id": "growth",
+            "value_s": 5000
+          },
+          {
+            "id": "inflation",
+            "value_s": 5000
+          },
+          {
+            "id": "unemployment",
+            "value_s": 5000
+          }
+        ]
+      },
+      {
+        "domain": "gov",
+        "components": [
+          {
+            "id": "budget_flexibility",
+            "value_s": 5000
+          },
+          {
+            "id": "bureaucracy_capacity",
+            "value_s": 5000
+          },
+          {
+            "id": "execution_focus",
+            "value_s": 5000
+          },
+          {
+            "id": "legal_friction",
+            "value_s": 5000
+          }
+        ]
+      },
+      {
+        "domain": "info",
+        "components": [
+          {
+            "id": "institutional_access",
+            "value_s": 5000
+          },
+          {
+            "id": "intel_capacity",
+            "value_s": 5000
+          },
+          {
+            "id": "media_noise",
+            "value_s": 5000
+          }
+        ]
+      },
+      {
+        "domain": "leg",
+        "components": [
+          {
+            "id": "coalition_strength",
+            "value_s": 5000
+          },
+          {
+            "id": "opposition_obstruction",
+            "value_s": 5000
+          },
+          {
+            "id": "party_discipline",
+            "value_s": 5000
+          },
+          {
+            "id": "senate_inertia",
+            "value_s": 5000
+          }
+        ]
+      },
+      {
+        "domain": "legitimacy",
+        "components": [
+          {
+            "id": "integrity",
+            "value_s": 5000
+          },
+          {
+            "id": "performance",
+            "value_s": 5000
+          },
+          {
+            "id": "scandal_pressure",
+            "value_s": 5000
+          },
+          {
+            "id": "social_tension_load",
+            "value_s": 5000
+          }
+        ]
+      },
+      {
+        "domain": "party",
+        "components": [
+          {
+            "id": "cadre_quality",
+            "value_s": 5000
+          },
+          {
+            "id": "field_ops",
+            "value_s": 5000
+          },
+          {
+            "id": "funding",
+            "value_s": 5000
+          },
+          {
+            "id": "internal_scandal",
+            "value_s": 5000
+          }
+        ]
+      },
+      {
+        "domain": "security",
+        "components": [
+          {
+            "id": "crime_rate",
+            "value_s": 5000
+          },
+          {
+            "id": "organized_crime",
+            "value_s": 5000
+          },
+          {
+            "id": "police_capacity",
+            "value_s": 5000
+          },
+          {
+            "id": "violent_crime",
+            "value_s": 5000
+          }
+        ]
+      },
+      {
+        "domain": "tension",
+        "components": [
+          {
+            "id": "cost_of_living",
+            "value_s": 5000
+          },
+          {
+            "id": "institutional_trust",
+            "value_s": 5000
+          },
+          {
+            "id": "polarization",
+            "value_s": 5000
+          },
+          {
+            "id": "protest_activity",
+            "value_s": 5000
+          }
+        ]
+      }
+    ],
+    "regions": [
+      {
+        "id": "antofagasta",
+        "support_s": 5000,
+        "tension_s": 5000,
+        "organization_s": 5000,
+        "rival_presence_s": 5000
+      },
+      {
+        "id": "araucania",
+        "support_s": 5000,
+        "tension_s": 5000,
+        "organization_s": 5000,
+        "rival_presence_s": 5000
+      },
+      {
+        "id": "arica_parinacota",
+        "support_s": 5000,
+        "tension_s": 5000,
+        "organization_s": 5000,
+        "rival_presence_s": 5000
+      },
+      {
+        "id": "atacama",
+        "support_s": 5000,
+        "tension_s": 5000,
+        "organization_s": 5000,
+        "rival_presence_s": 5000
+      },
+      {
+        "id": "aysen",
+        "support_s": 5000,
+        "tension_s": 5000,
+        "organization_s": 5000,
+        "rival_presence_s": 5000
+      },
+      {
+        "id": "biobio",
+        "support_s": 5000,
+        "tension_s": 5000,
+        "organization_s": 5000,
+        "rival_presence_s": 5000
+      },
+      {
+        "id": "coquimbo",
+        "support_s": 5000,
+        "tension_s": 5000,
+        "organization_s": 5000,
+        "rival_presence_s": 5000
+      },
+      {
+        "id": "los_lagos",
+        "support_s": 5000,
+        "tension_s": 5000,
+        "organization_s": 5000,
+        "rival_presence_s": 5000
+      },
+      {
+        "id": "los_rios",
+        "support_s": 5000,
+        "tension_s": 5000,
+        "organization_s": 5000,
+        "rival_presence_s": 5000
+      },
+      {
+        "id": "magallanes",
+        "support_s": 5000,
+        "tension_s": 5000,
+        "organization_s": 5000,
+        "rival_presence_s": 5000
+      },
+      {
+        "id": "maule",
+        "support_s": 5000,
+        "tension_s": 5000,
+        "organization_s": 5000,
+        "rival_presence_s": 5000
+      },
+      {
+        "id": "metropolitana",
+        "support_s": 5000,
+        "tension_s": 5000,
+        "organization_s": 5000,
+        "rival_presence_s": 5000
+      },
+      {
+        "id": "nuble",
+        "support_s": 5000,
+        "tension_s": 5000,
+        "organization_s": 5000,
+        "rival_presence_s": 5000
+      },
+      {
+        "id": "ohiggins",
+        "support_s": 5000,
+        "tension_s": 5000,
+        "organization_s": 5000,
+        "rival_presence_s": 5000
+      },
+      {
+        "id": "tarapaca",
+        "support_s": 5000,
+        "tension_s": 5000,
+        "organization_s": 5000,
+        "rival_presence_s": 5000
+      },
+      {
+        "id": "valparaiso",
+        "support_s": 5000,
+        "tension_s": 5000,
+        "organization_s": 5000,
+        "rival_presence_s": 5000
+      }
+    ],
+    "interest_groups": [
+      {
+        "id": "ig_ambiental_regionalista",
+        "clout_s": 1010,
+        "approval_s": 0
+      },
+      {
+        "id": "ig_conservadores_civicos",
+        "clout_s": 1010,
+        "approval_s": 0
+      },
+      {
+        "id": "ig_empresariado_finanzas",
+        "clout_s": 1010,
+        "approval_s": 0
+      },
+      {
+        "id": "ig_orden_seguridad",
+        "clout_s": 1010,
+        "approval_s": 0
+      },
+      {
+        "id": "ig_profesionales_clase_media",
+        "clout_s": 1010,
+        "approval_s": 0
+      },
+      {
+        "id": "ig_progresistas_urbanos",
+        "clout_s": 1010,
+        "approval_s": 0
+      },
+      {
+        "id": "ig_sector_publico_burocracia",
+        "clout_s": 1010,
+        "approval_s": 0
+      },
+      {
+        "id": "ig_sindicatos_trabajo",
+        "clout_s": 1920,
+        "approval_s": 0
+      },
+      {
+        "id": "ig_territorio_productivo",
+        "clout_s": 1010,
+        "approval_s": 0
+      }
+    ],
+    "movements": [
+      {
+        "id": "mov_constitucional_proceso",
+        "intensity_s": 0,
+        "direction": 1
+      },
+      {
+        "id": "mov_descentralizacion_regionalista",
+        "intensity_s": 0,
+        "direction": 1
+      },
+      {
+        "id": "mov_educacion_paros",
+        "intensity_s": 0,
+        "direction": 1
+      },
+      {
+        "id": "mov_institucional_reforma",
+        "intensity_s": 0,
+        "direction": 1
+      },
+      {
+        "id": "mov_pensiones_presion_reforma",
+        "intensity_s": 0,
+        "direction": 1
+      },
+      {
+        "id": "mov_pueblos_originarios_autonomia",
+        "intensity_s": 0,
+        "direction": 1
+      },
+      {
+        "id": "mov_salud_crisis_atencion",
+        "intensity_s": 0,
+        "direction": 1
+      },
+      {
+        "id": "mov_seguridad_mano_dura",
+        "intensity_s": 0,
+        "direction": -1
+      },
+      {
+        "id": "mov_trabajo_huelgas",
+        "intensity_s": 0,
+        "direction": 1
+      }
+    ]
+  },
+  "diagnostics": []
+}

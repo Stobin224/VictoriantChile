@@ -1,5 +1,7 @@
 ﻿<Solution>
   <Project Path="VictoriantChile.Simulation.Core.csproj" />
+  <Project Path="VictoriantChile.Simulation.Runner.csproj" />
   <Project Path="VictoriantChile.Simulation.Tests.EditMode.csproj" />
   <Project Path="VictoriantChile.Content.csproj" />
+  <Project Path="VictoriantChile.Simulation.Runner.Editor.csproj" />
 </Solution>

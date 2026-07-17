@@ -1,0 +1,13 @@
+{
+  "scenario_schema_version": 1,
+  "seed": 1,
+  "commands": [
+    {
+      "id": "bad_direction",
+      "type": "MUTATE",
+      "target": "movements.mov_seguridad_mano_dura.direction",
+      "op": "SET",
+      "value_s": 0
+    }
+  ]
+}
