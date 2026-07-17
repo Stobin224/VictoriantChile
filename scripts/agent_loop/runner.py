@@ -55,7 +55,7 @@ class LoopRunner:
         state = LoopState(self.run_id, self.spec.task_id, self.task_hash, self.spec.base_ref, base_sha, self.spec.branch, "branch_ready")
         evidence = EvidenceStore(self.repo, self.run_id, self.clock)
         evidence.write_state(state, start_time=start)
-        client = CodexClient(executable, self.repo, self.process_runner)
+        client = CodexClient(executable, self.repo, self.process_runner, evidence.run_dir)
         return self._continue(state, client, evidence, start, base_sha, publish=publish, resume_first=False)
 
     def resume(self, state: LoopState, *, publish: bool = False) -> LoopState:
@@ -68,11 +68,12 @@ class LoopRunner:
         discovery = discover_codex(self.codex_executable)
         if not discovery.ok or not discovery.executable:
             raise RuntimeError("Codex CLI discovery failed: " + "; ".join(discovery.errors))
-        client = CodexClient(discovery.executable, self.repo, self.process_runner)
-        login = client.login_status()
+        login_client = CodexClient(discovery.executable, self.repo, self.process_runner)
+        login = login_client.login_status()
         if login.exit_code != 0 or "ChatGPT" not in (login.stdout + login.stderr):
             raise RuntimeError("Codex login status did not confirm ChatGPT authentication")
         evidence = EvidenceStore(self.repo, self.run_id, self.clock)
+        client = CodexClient(discovery.executable, self.repo, self.process_runner, evidence.run_dir)
         return self._continue(state, client, evidence, start, base_sha, publish=publish, resume_first=bool(state.writer_session_id))
 
     def _continue(
