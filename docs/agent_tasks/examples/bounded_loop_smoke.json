@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "task_id": "bounded-loop-smoke",
+  "title": "chore: bounded loop smoke",
+  "goal": "Exercise the bounded loop against documentation-only changes in a later manual run.",
+  "base_ref": "origin/main",
+  "branch": "chore/bounded-loop-smoke",
+  "allowed_paths": [
+    "docs/agent_loop_smoke.md"
+  ],
+  "protected_paths": [
+    "Assets/StreamingAssets/content/",
+    "Assets/VictoriantChile/",
+    "Packages/",
+    "ProjectSettings/",
+    "Assets/Scenes/",
+    "Assets/Juego pancho/"
+  ],
+  "done_when": [
+    "A short smoke document exists.",
+    "Repository checks pass.",
+    "Review has no blocking findings."
+  ],
+  "checks": [
+    {
+      "id": "repository",
+      "argv": [
+        "{python}",
+        "scripts/run_checks.py",
+        "--base-ref",
+        "{base_ref}",
+        "--working-tree"
+      ],
+      "timeout_seconds": 300
+    }
+  ],
+  "budgets": {
+    "max_iterations": 1,
+    "max_codex_turns": 2,
+    "max_review_turns": 1,
+    "max_wall_minutes": 20,
+    "max_repeated_failure": 1
+  },
+  "review": {
+    "enabled": true,
+    "blocking_severities": [
+      "critical",
+      "high",
+      "medium"
+    ],
+    "allow_internal_subagents": false
+  },
+  "publication": {
+    "commit": false,
+    "push": false,
+    "draft_pr": false,
+    "mark_ready": false,
+    "merge": false
+  }
+}

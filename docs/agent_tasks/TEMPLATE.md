@@ -55,3 +55,7 @@ Required. Specify the evidence the agent must provide at the end.
 ## Status
 
 Required. One of: `pending`, `running`, `blocked`, `passed`, `failed`.
+
+## JSON Contract
+
+For bounded loop execution, use `docs/agent_tasks/TEMPLATE.json`. JSON task specs are strict: no duplicate properties, no unknown properties, no shell-string checks, no API keys or monetary budget fields, no `merge=true`, and no `mark_ready=true`.

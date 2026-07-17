@@ -35,6 +35,10 @@ Do not auto-merge. Do not run destructive auto-rebase or reset flows.
 
 This baseline only targets `agent-ready` with structured validation. It does not implement autonomous loops or multi-agent work.
 
+## Local Bounded Supervisor
+
+`docs/agent_loop.md` defines the first local bounded loop. It runs one task on one branch with one writer, deterministic checks, a separate read-only review and strict budgets. It does not auto-merge, does not mark PRs ready, does not run in CI, and does not know remaining ChatGPT Plus quota.
+
 ## Required Evidence
 
 Every agent delivery must include changed files, commands, results, skipped checks with reasons, risks, and remaining work.

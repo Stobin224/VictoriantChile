@@ -81,6 +81,7 @@ python scripts/run_checks.py --base-ref origin/main --working-tree
 - `AGENTS.md` define el contrato operativo para agentes.
 - `docs/agent_tasks/TEMPLATE.md` contiene la plantilla de tareas acotadas y falsables.
 - `docs/headless_testing.md` documenta el arnés headless para EditMode y la decisión sobre fast path .NET.
+- `docs/agent_loop.md` documenta el supervisor local acotado para tareas agentic posteriores. El loop no se ejecuta en CI y requiere invocación humana explícita.
 
 Acción manual pendiente para branch protection:
 - Marcar `Repository Quality / repository-quality` como required global.

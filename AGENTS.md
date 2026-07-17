@@ -33,6 +33,13 @@ python scripts/run_checks.py
 
 Use `python scripts/recompute_manifest_hashes.py` only when intentionally updating content hashes. It modifies `manifest.json`; it is not a validation check.
 
+## Bounded Agent Loop
+
+- `python scripts/run_agent_loop.py` is the local supervisor for future bounded tasks.
+- It runs one task on one branch and never merges or marks a PR ready.
+- It uses local Codex CLI authentication; do not add API keys, direct API calls, or monetary cost accounting.
+- Do not run the loop recursively or use internal subagents unless a later task explicitly authorizes it.
+
 ## Simulation Contract
 
 - Future persisted engine state must not use `float` or `double`; use integer fixed-point values.
