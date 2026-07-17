@@ -147,12 +147,12 @@ class AgentLoopRuntimeTest(unittest.TestCase):
         try:
             run_root.mkdir(parents=True, exist_ok=True)
             task = valid_spec()
-            task["branch"] = subprocess.run(["git", "branch", "--show-current"], cwd=Path.cwd(), capture_output=True, text=True, shell=False, check=True).stdout.strip()
+            task["branch"] = "feat/resume-test"
             task["allowed_paths"] = ["docs/agent_loop.md"]
             task_path = run_root / "task.json"
             task_path.write_text(json.dumps(task), encoding="utf-8")
             _spec, task_hash = run_agent_loop.load_task_spec(task_path)
-            base_sha = subprocess.run(["git", "rev-parse", "origin/main"], cwd=Path.cwd(), capture_output=True, text=True, shell=False, check=True).stdout.strip()
+            base_sha = "abc123"
             state = {
                 "schema_version": 1,
                 "run_id": run_id,
@@ -177,7 +177,11 @@ class AgentLoopRuntimeTest(unittest.TestCase):
             }
             (run_root / "state.json").write_text(json.dumps(state), encoding="utf-8")
             args = type("Args", (), {"run_id": run_id, "json_output": None, "codex_executable": None, "publish": False})()
-            with redirect_stdout(io.StringIO()):
+            with mock.patch.object(run_agent_loop, "current_branch", return_value="feat/resume-test"), mock.patch.object(
+                run_agent_loop,
+                "rev_parse",
+                return_value=base_sha,
+            ), redirect_stdout(io.StringIO()):
                 self.assertEqual(6, run_agent_loop.command_resume(args))
 
             state["status"] = "branch_ready"
@@ -191,7 +195,11 @@ class AgentLoopRuntimeTest(unittest.TestCase):
                     loaded_state.status = "passed"
                     return loaded_state
 
-            with mock.patch.object(run_agent_loop, "LoopRunner", FakeLoop):
+            with mock.patch.object(run_agent_loop, "LoopRunner", FakeLoop), mock.patch.object(
+                run_agent_loop,
+                "current_branch",
+                return_value="feat/resume-test",
+            ), mock.patch.object(run_agent_loop, "rev_parse", return_value=base_sha):
                 with redirect_stdout(io.StringIO()):
                     self.assertEqual(0, run_agent_loop.command_resume(args))
         finally:
