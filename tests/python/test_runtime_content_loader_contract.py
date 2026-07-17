@@ -54,16 +54,12 @@ class RuntimeContentLoaderContractTest(unittest.TestCase):
         self.assertEqual("3.2.2", lock["dependencies"]["com.unity.nuget.newtonsoft-json"]["version"])
         self.assertEqual(0, lock["dependencies"]["com.unity.nuget.newtonsoft-json"]["depth"])
 
-        current_without_newtonsoft = {
-            key: value
-            for key, value in manifest["dependencies"].items()
-            if key != "com.unity.nuget.newtonsoft-json"
-        }
-        self.assertEqual(base_manifest["dependencies"], current_without_newtonsoft)
+        self.assertEqual(base_manifest["dependencies"], manifest["dependencies"])
 
         for package, base_entry in base_lock["dependencies"].items():
             self.assertIn(package, lock["dependencies"])
             self.assertEqual(base_entry.get("version"), lock["dependencies"][package].get("version"), package)
+        self.assertEqual(set(base_lock["dependencies"]), set(lock["dependencies"]))
 
     def test_content_asmdef_contract(self) -> None:
         asmdef = load_json(CONTENT_ASMDEF)
