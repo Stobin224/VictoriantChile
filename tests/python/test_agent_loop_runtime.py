@@ -31,10 +31,12 @@ class FakeProcessRunner(ProcessRunner):
         self.results = list(results or [])
         self.calls: list[list[str]] = []
         self.cwds: list[Path] = []
+        self.envs: list[dict[str, str] | None] = []
 
-    def run(self, argv: list[str], cwd: Path, timeout_seconds: int) -> ProcessResult:
+    def run(self, argv: list[str], cwd: Path, timeout_seconds: int, *, env: dict[str, str] | None = None) -> ProcessResult:
         self.calls.append(argv)
         self.cwds.append(cwd)
+        self.envs.append(dict(env) if env is not None else None)
         if self.results:
             return self.results.pop(0)
         return ProcessResult(tuple(argv), 0, "", "")
@@ -47,9 +49,11 @@ class FakeProcessRunner(ProcessRunner):
         *,
         max_stdout_bytes: int,
         max_stderr_bytes: int,
+        env: dict[str, str] | None = None,
     ) -> RawProcessResult:
         self.calls.append(argv)
         self.cwds.append(cwd)
+        self.envs.append(dict(env) if env is not None else None)
         if self.results:
             result = self.results.pop(0)
             return RawProcessResult(
@@ -200,6 +204,20 @@ class AgentLoopRuntimeTest(unittest.TestCase):
             self.assertFalse(raw.startswith(b"\xef\xbb\xbf"))
             self.assertTrue(raw.endswith(b"\n"))
 
+    def test_loop_state_from_json_without_agents_runtime_uses_safe_default(self) -> None:
+        state = run_agent_loop.loop_state_from_json(
+            {
+                "run_id": "run1",
+                "task_id": "task",
+                "task_hash": "hash",
+                "base_ref": "origin/main",
+                "base_sha": "abc",
+                "branch": "feat/x",
+                "status": "branch_ready",
+            }
+        )
+        self.assertEqual({}, state.agents_runtime)
+
     def test_resume_rejects_terminal_and_can_continue_valid_checkpoint_with_fake_runner(self) -> None:
         run_id = f"unit-resume-{uuid.uuid4().hex}"
         run_root = Path.cwd() / ".agent-loop" / "runs" / run_id
@@ -271,12 +289,55 @@ class AgentLoopRuntimeTest(unittest.TestCase):
                 if run_root.exists():
                     run_root.rmdir()
 
+    def test_resume_legacy_checkpoint_with_preexisting_agents_directory_does_not_remove_it(self) -> None:
+        with temp_git_repo() as repo:
+            spec = repo_spec(repo)
+            agents = repo / ".agents"
+            agents.mkdir()
+            git(repo, "switch", "-c", spec.branch)
+            state = LoopState("legacy", spec.task_id, "hash", "origin/main", git(repo, "rev-parse", "origin/main").stdout.strip(), spec.branch, "branch_ready")
+
+            class FakeCodex:
+                def __init__(self, _exe, repo_path, _runner, _evidence_dir=None, **_kwargs):
+                    self.repo = repo_path
+
+                def login_status(self):
+                    return ProcessResult(("codex",), 0, "Logged in using ChatGPT", "")
+
+                def exec(self, *_args, **_kwargs):
+                    (self.repo / "allowed.txt").write_text("done", encoding="utf-8")
+                    return CodexTurnResult(True, 0, "", "", "11111111-1111-1111-1111-111111111111", Usage(), json.dumps({"status": "implemented", "summary": "ok", "changed_paths_claimed": ["allowed.txt"], "needs_input": False, "blocker": None}), ())
+
+            with mock.patch("scripts.agent_loop.runner.discover_codex", return_value=type("D", (), {"ok": True, "executable": "codex", "errors": ()})()), mock.patch(
+                "scripts.agent_loop.runner.CodexClient",
+                FakeCodex,
+            ), mock.patch("scripts.agent_loop.runner.review_diff", return_value=([], "")):
+                resumed = LoopRunner(repo, spec, "hash", process_runner=FakeProcessRunner([ProcessResult(("check",), 0, "ok", "")]), run_id="legacy").resume(state)
+
+            self.assertEqual("passed", resumed.status)
+            self.assertTrue(agents.exists())
+            self.assertFalse(resumed.agents_runtime["created_by_run"])
+            self.assertEqual("preexisting", resumed.agents_runtime["classification"])
+
+    def test_command_preflight_rejects_invalid_git_environment_before_git_calls(self) -> None:
+        task = valid_spec()
+        with tempfile.TemporaryDirectory() as tmp:
+            task_path = Path(tmp) / "task.json"
+            task_path.write_text(json.dumps(task), encoding="utf-8")
+            args = type("Args", (), {"task": task_path, "json_output": None, "codex_executable": None})()
+            with mock.patch.object(run_agent_loop, "build_git_scoped_environment", side_effect=ValueError("codex.invalid_git_config_environment: bad env")), mock.patch.object(
+                run_agent_loop,
+                "ensure_clean",
+                side_effect=AssertionError("ensure_clean must not run after invalid env"),
+            ), redirect_stdout(io.StringIO()):
+                self.assertEqual(6, run_agent_loop.command_preflight(args))
+
     def test_loop_success_first_iteration(self) -> None:
         with temp_git_repo() as repo:
             spec = repo_spec(repo)
 
             class FakeCodex:
-                def __init__(self, _exe, repo_path, _runner, _evidence_dir=None):
+                def __init__(self, _exe, repo_path, _runner, _evidence_dir=None, **_kwargs):
                     self.repo = repo_path
 
                 def login_status(self):
@@ -302,7 +363,7 @@ class AgentLoopRuntimeTest(unittest.TestCase):
             calls = {"n": 0}
 
             class FakeCodex:
-                def __init__(self, _exe, repo_path, _runner, _evidence_dir=None):
+                def __init__(self, _exe, repo_path, _runner, _evidence_dir=None, **_kwargs):
                     self.repo = repo_path
 
                 def login_status(self):
@@ -333,7 +394,7 @@ class AgentLoopRuntimeTest(unittest.TestCase):
             spec = repo_spec(repo)
 
             class FakeCodex:
-                def __init__(self, _exe, repo_path, _runner, _evidence_dir=None):
+                def __init__(self, _exe, repo_path, _runner, _evidence_dir=None, **_kwargs):
                     self.repo = repo_path
 
                 def login_status(self):

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import sys
 import time
@@ -16,6 +17,7 @@ if str(ROOT) not in sys.path:
 from scripts.agent_loop.codex_client import discover_codex  # noqa: E402
 from scripts.agent_loop.evidence import state_to_json  # noqa: E402
 from scripts.agent_loop.git_guard import current_branch, ensure_clean, fingerprint_worktree, rev_parse  # noqa: E402
+from scripts.agent_loop.git_scope import build_git_scoped_environment  # noqa: E402
 from scripts.agent_loop.io_utils import atomic_write_json  # noqa: E402
 from scripts.agent_loop.models import EXIT_CODES, LoopState, RESUMABLE_STATUSES, Usage  # noqa: E402
 from scripts.agent_loop.runner import LoopRunner  # noqa: E402
@@ -56,6 +58,7 @@ def command_validate(args: argparse.Namespace) -> int:
 def command_preflight(args: argparse.Namespace) -> int:
     try:
         spec, task_hash = load_task_spec(args.task)
+        build_git_scoped_environment(os.environ, ROOT)
         ensure_clean(ROOT)
         base_sha = rev_parse(ROOT, spec.base_ref)
         discovery = discover_codex(args.codex_executable)
@@ -74,7 +77,7 @@ def command_preflight(args: argparse.Namespace) -> int:
         write_output(args.json_output, data)
         print(f"Preflight passed: {spec.task_id}")
         return 0
-    except (TaskSpecError, RuntimeError) as exc:
+    except (TaskSpecError, RuntimeError, ValueError) as exc:
         data = result_from_error("tool_failure", [str(exc)])
         write_output(args.json_output, data)
         print(str(exc))
@@ -117,6 +120,7 @@ def command_resume(args: argparse.Namespace) -> int:
         if not task_path.exists():
             raise RuntimeError("task snapshot is missing")
         spec, task_hash = load_task_spec(task_path)
+        build_git_scoped_environment(os.environ, ROOT)
         if task_hash != state_data.get("task_hash"):
             raise RuntimeError("task hash changed")
         if current_branch(ROOT) != state_data.get("branch"):
@@ -140,7 +144,7 @@ def command_resume(args: argparse.Namespace) -> int:
         write_output(args.json_output, data)
         print(f"Agent loop status: {resumed.status}")
         return EXIT_CODES.get(resumed.status, 6)
-    except (OSError, json.JSONDecodeError, RuntimeError, TaskSpecError) as exc:
+    except (OSError, json.JSONDecodeError, RuntimeError, TaskSpecError, ValueError) as exc:
         data = result_from_error("tool_failure", [str(exc)], run_id=args.run_id)
         write_output(args.json_output, data)
         print(str(exc))
@@ -172,6 +176,7 @@ def loop_state_from_json(data: dict) -> LoopState:
     state.fingerprint = data.get("fingerprint") if isinstance(data.get("fingerprint"), str) else None
     state.changed_files = list(data.get("changed_files") or [])
     state.errors = list(data.get("errors") or [])
+    state.agents_runtime = dict(data.get("agents_runtime") or {})
     return state
 
 
