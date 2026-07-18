@@ -42,7 +42,7 @@ namespace VictoriantChile.Simulation.Tests.EditMode
             ContentPack pack = LoadRealPack();
             GameState state = CreateState(pack, 7);
 
-            Assert.That(state.ContentMetadata.ContentPackVersion, Is.EqualTo(2));
+            Assert.That(state.ContentMetadata.ContentPackVersion, Is.EqualTo(3));
             Assert.That(state.ContentMetadata.ContentSchemaVersion, Is.EqualTo(1));
             Assert.That(state.ContentMetadata.MinimumGameSchemaVersion, Is.EqualTo(1));
             Assert.That(state.ContentMetadata.DefaultLanguage, Is.EqualTo("es"));

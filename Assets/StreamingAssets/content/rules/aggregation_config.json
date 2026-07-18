@@ -61,10 +61,10 @@
           "alpha_ppm": 159104,
           "cap_per_weekS": 400,
           "components": [
-            { "target": "internals.tension.cost_of_living", "weight_ppm": -350000 },
-            { "target": "internals.tension.polarization", "weight_ppm": -250000 },
-            { "target": "internals.tension.protest_activity", "weight_ppm": -250000 },
-            { "target": "internals.tension.institutional_trust", "weight_ppm": 150000 }
+            { "target": "internals.tension.cost_of_living", "weight_ppm": 350000 },
+            { "target": "internals.tension.polarization", "weight_ppm": 250000 },
+            { "target": "internals.tension.protest_activity", "weight_ppm": 250000 },
+            { "target": "internals.tension.institutional_trust", "weight_ppm": -150000 }
           ]
         },
         {

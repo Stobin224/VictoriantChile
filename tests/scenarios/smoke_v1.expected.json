@@ -118,13 +118,13 @@
       "diagnostics": []
     }
   ],
-  "state_hash": "sha256:73f89b78951bb56d3a761f0e22d09f6e29361cf9d67fe3e38b442962a018668e",
+  "state_hash": "sha256:7b302a8d323c47913ce8618315285a65d93ed040752245ec9252034694eb494c",
   "state": {
     "state_schema_version": 1,
     "tick": 0,
     "rng_seed": 424242,
     "content": {
-      "content_pack_version": 2,
+      "content_pack_version": 3,
       "content_schema_version": 1,
       "min_game_schema_version": 1,
       "default_language": "es",
@@ -143,7 +143,7 @@
         },
         {
           "path": "rules/aggregation_config.json",
-          "hash": "sha256:0f7c01573e3981d469112828032b1615a26fcd841035303991e50e033225bb32"
+          "hash": "sha256:7cdc82aea9ade235261a023f9955defe55c86e8a9ed8bae0e9c96e77a96e5b51"
         },
         {
           "path": "rules/legislative_config.json",

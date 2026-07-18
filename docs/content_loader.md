@@ -45,17 +45,22 @@ read of the same file.
 
 ## Validation
 
-The loader validates:
+The loader validates and projects:
 
 - `manifest.json` versions, languages, paths, required entries and hashes;
 - `rules/target_config.json` into `TargetConfig` and `TargetConfigCatalog`;
 - `core/regions.json`;
 - `core/igs.json`;
 - `core/movements.json`.
+- `strings/es.json` into an immutable localization table for the default language;
+- `rules/aggregation_config.json` into immutable aggregation models;
+- `rules/legislative_config.json` into immutable legislative models;
+- `templates/effects.json` into immutable ordered effect templates with ID lookup.
 
-All declared manifest files are read and hash-checked even when this PR does not
-project their JSON into runtime models yet. That includes templates, strings,
-aggregation, and legislative config files.
+All declared manifest files are read and hash-checked. The current runtime pack
+projects the core content, default-language localization, aggregation config,
+legislative config, and effect templates, while still treating invalid content
+as a fail-closed load error.
 
 Schema compatibility is exact in this baseline:
 
@@ -69,6 +74,7 @@ If any error diagnostic is produced, `ContentLoadResult.Pack` is null and
 
 ## Out Of Scope
 
-This PR does not implement a JSON loader for effects, events, reforms,
-legislation, aggregation, strings, GameState, mutation, persistence, scheduling,
-normalization runtime, Android APK loading, web loading, or UnityWebRequest.
+This PR does not implement event loading, reform loading, effect execution,
+aggregation formulas, legislative execution, GameState, mutation, persistence,
+scheduling, normalization runtime, Android APK loading, web loading, or
+UnityWebRequest.

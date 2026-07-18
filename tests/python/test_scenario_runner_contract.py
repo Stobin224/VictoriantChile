@@ -19,7 +19,7 @@ sys.path.insert(0, str(ROOT))
 import scripts.run_scenario as run_scenario
 from scripts.find_unity import UnityResolution
 
-EXPECTED_STATE_HASH = "sha256:73f89b78951bb56d3a761f0e22d09f6e29361cf9d67fe3e38b442962a018668e"
+EXPECTED_STATE_HASH = "sha256:7b302a8d323c47913ce8618315285a65d93ed040752245ec9252034694eb494c"
 
 
 def re_unfiltered_catch_exception(text: str) -> bool:

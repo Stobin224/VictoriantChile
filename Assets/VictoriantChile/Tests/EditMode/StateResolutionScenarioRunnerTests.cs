@@ -16,7 +16,7 @@ namespace VictoriantChile.Simulation.Tests.EditMode
 {
     public sealed class StateResolutionScenarioRunnerTests
     {
-        private const string SmokeStateHash = "sha256:73f89b78951bb56d3a761f0e22d09f6e29361cf9d67fe3e38b442962a018668e";
+        private const string SmokeStateHash = "sha256:7b302a8d323c47913ce8618315285a65d93ed040752245ec9252034694eb494c";
 
         [TestCase("metrics.legitimacy", 5000)]
         [TestCase("internals.economy.growth", 5000)]
