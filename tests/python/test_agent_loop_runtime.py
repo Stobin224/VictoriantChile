@@ -217,6 +217,49 @@ class AgentLoopRuntimeTest(unittest.TestCase):
             }
         )
         self.assertEqual({}, state.agents_runtime)
+        self.assertEqual({}, state.runtime_temp)
+        self.assertEqual({}, state.budget_observations)
+
+    def test_loop_state_from_json_restores_checks_and_findings_for_resume(self) -> None:
+        state = run_agent_loop.loop_state_from_json(
+            {
+                "run_id": "run1",
+                "task_id": "task",
+                "task_hash": "hash",
+                "base_ref": "origin/main",
+                "base_sha": "abc",
+                "branch": "feat/x",
+                "status": "fixing",
+                "checks": [
+                    {
+                        "id": "focused",
+                        "argv": ["python", "--version"],
+                        "status": "FAIL",
+                        "exit_code": 1,
+                        "stdout": "",
+                        "stderr": "boom",
+                    }
+                ],
+                "findings": [
+                    {
+                        "id": "REV-001",
+                        "severity": "medium",
+                        "title": "Fix me",
+                        "evidence": "details",
+                        "path": "allowed.txt",
+                        "line": 4,
+                        "in_scope": True,
+                        "suggested_fix": "change it",
+                    }
+                ],
+            }
+        )
+        self.assertEqual(1, len(state.checks))
+        self.assertEqual("focused", state.checks[0].id)
+        self.assertEqual("FAIL", state.checks[0].status)
+        self.assertEqual(1, len(state.findings))
+        self.assertEqual("REV-001", state.findings[0].id)
+        self.assertEqual("medium", state.findings[0].severity)
 
     def test_resume_rejects_terminal_and_can_continue_valid_checkpoint_with_fake_runner(self) -> None:
         run_id = f"unit-resume-{uuid.uuid4().hex}"

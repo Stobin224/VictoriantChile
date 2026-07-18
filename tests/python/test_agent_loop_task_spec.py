@@ -67,6 +67,19 @@ class AgentLoopTaskSpecTest(unittest.TestCase):
         with self.assertRaises(TaskSpecError):
             parse_task_spec(data)
 
+    def test_optional_token_budgets_are_supported_and_validated(self) -> None:
+        data = valid_spec()
+        data["budgets"]["max_input_tokens"] = 300000
+        data["budgets"]["max_output_tokens"] = 12000
+        spec = parse_task_spec(data)
+        self.assertEqual(300000, spec.budgets.max_input_tokens)
+        self.assertEqual(12000, spec.budgets.max_output_tokens)
+
+        data = valid_spec()
+        data["budgets"]["max_input_tokens"] = 0
+        with self.assertRaises(TaskSpecError):
+            parse_task_spec(data)
+
     def test_main_master_branches_fail(self) -> None:
         for branch in ("main", "master", "feature/main"):
             data = valid_spec()

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import time
 import uuid
 from pathlib import Path
@@ -9,8 +10,17 @@ from typing import Any
 
 from .codex_client import CodexClient, discover_codex
 from .evidence import EvidenceStore
-from .git_guard import audit_scope, create_branch, current_branch, ensure_clean, fingerprint_worktree, rev_parse
-from .git_scope import build_git_scoped_environment, cleanup_agents_directory, initial_agents_runtime, inspect_agents_directory, reconcile_agents_runtime
+from .git_guard import ScopeAudit, audit_scope, create_branch, current_branch, ensure_clean, fingerprint_worktree, rev_parse
+from .git_scope import (
+    build_git_scoped_environment,
+    build_runtime_temp_environment,
+    cleanup_agents_directory,
+    cleanup_runtime_temp_directory,
+    initial_agents_runtime,
+    initial_runtime_temp_state,
+    inspect_agents_directory,
+    reconcile_agents_runtime,
+)
 from .io_utils import atomic_write_json
 from .models import CheckResult, Finding, LoopState, TaskSpec
 from .process_runner import ProcessRunner
@@ -87,15 +97,17 @@ class LoopRunner:
         create_branch(self.repo, self.spec.branch, base_sha)
         state = LoopState(self.run_id, self.spec.task_id, self.task_hash, self.spec.base_ref, base_sha, self.spec.branch, "branch_ready")
         state.agents_runtime = initial_agents_runtime(self.repo)
+        state.runtime_temp = initial_runtime_temp_state(self.repo / ".agent-loop" / "runs" / self.run_id)
         evidence = EvidenceStore(self.repo, self.run_id, self.clock)
         evidence.write_state(state, start_time=start)
+        env, metadata = self.build_turn_environment(state, evidence)
         client = CodexClient(
             executable,
             self.repo,
             self.process_runner,
             evidence.run_dir,
-            env=self.codex_environment,
-            git_env_metadata=self.codex_git_env_metadata,
+            env=env,
+            git_env_metadata=metadata,
         )
         return self._continue(state, client, evidence, start, base_sha, publish=publish, resume_first=False)
 
@@ -128,15 +140,30 @@ class LoopRunner:
         evidence = EvidenceStore(self.repo, self.run_id, self.clock)
         if not state.agents_runtime:
             state.agents_runtime = initial_agents_runtime(self.repo)
+        if not state.runtime_temp:
+            state.runtime_temp = initial_runtime_temp_state(evidence.run_dir)
+        env, metadata = self.build_turn_environment(state, evidence)
         client = CodexClient(
             discovery.executable,
             self.repo,
             self.process_runner,
             evidence.run_dir,
-            env=self.codex_environment,
-            git_env_metadata=self.codex_git_env_metadata,
+            env=env,
+            git_env_metadata=metadata,
         )
         return self._continue(state, client, evidence, start, base_sha, publish=publish, resume_first=bool(state.writer_session_id))
+
+    def build_turn_environment(self, state: LoopState, evidence: EvidenceStore) -> tuple[dict[str, str], dict[str, Any]]:
+        base_env = self.codex_environment if self.codex_environment is not None else build_git_scoped_environment(os.environ, self.repo).environment
+        evidence.run_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            runtime = build_runtime_temp_environment(base_env, self.repo, evidence.run_dir, state.runtime_temp)
+        except ValueError as exc:
+            raise RuntimeError(str(exc)) from exc
+        state.runtime_temp = runtime.runtime_state
+        metadata = dict(self.codex_git_env_metadata)
+        metadata.update(runtime.metadata())
+        return runtime.environment, metadata
 
     def _continue(
         self,
@@ -173,7 +200,11 @@ class LoopRunner:
                 state.iteration += 1
                 state.status = "implementing"
                 evidence.write_state(state, start_time=start)
-                before_fingerprint = fingerprint_worktree(self.repo, base_sha=base_sha)
+                before_fingerprint, before_error = self.safe_fingerprint(base_sha)
+                if before_error:
+                    state.status = "tool_failure"
+                    state.errors.append(before_error)
+                    break
                 prompt = self.writer_prompt(state)
                 turn_index = state.codex_turns + 1
                 resumed = bool(state.writer_session_id)
@@ -188,20 +219,18 @@ class LoopRunner:
                     state.writer_session_id = turn.session_id
                 writer_result = parse_writer_result(turn.final_message)
                 state.agents_runtime, agents_error = reconcile_agents_runtime(state.agents_runtime, inspect_agents_directory(self.repo))
-                if not turn.ok:
-                    state.status = classify_codex_error(turn.errors)
-                    state.errors.extend(turn.errors)
-                    break
-                if agents_error:
-                    state.status = "scope_violation"
-                    state.errors.append(f"runtime_artifact_violation: {agents_error}")
-                    break
-                audit = audit_scope(self.repo, self.spec, base_sha=base_sha, expected_branch=self.spec.branch)
-                state.changed_files = list(audit.changed_files)
-                state.fingerprint = audit.fingerprint
-                progress = before_fingerprint != audit.fingerprint
+                audit, audit_error = self.safe_audit(base_sha)
+                if audit is not None:
+                    state.changed_files = list(audit.changed_files)
+                    state.fingerprint = audit.fingerprint
+                    progress = before_fingerprint != audit.fingerprint
+                else:
+                    state.changed_files = []
+                    state.fingerprint = before_fingerprint
+                    progress = False
                 claimed_paths = writer_result["changed_paths_claimed"]
                 tool_failures = list(turn.tool_failures)
+                self.observe_post_turn_budgets(state)
                 evidence.write_turn_evidence(
                     turn_index,
                     "writer",
@@ -212,37 +241,66 @@ class LoopRunner:
                         "exit_code": turn.exit_code,
                         "event_counts": turn.event_counts or {},
                         "item_type_counts": turn.item_type_counts or {},
-                        "changed_paths_real": list(audit.changed_files),
+                        "changed_paths_real": list(state.changed_files),
                         "changed_paths_claimed": claimed_paths,
                         "tool_failures": tool_failures,
+                        "turn_errors": list(turn.errors),
                         "progress": progress,
                         "fingerprint_before": before_fingerprint,
-                        "fingerprint_after": audit.fingerprint,
-                        "claim_discrepancy": bool(claimed_paths and not audit.changed_files),
+                        "fingerprint_after": state.fingerprint,
+                        "claim_discrepancy": claimed_paths != list(state.changed_files),
                         "needs_input": writer_result["needs_input"],
                         "blocker": writer_result["blocker"],
                         "failed_checks_delivered": [check_summary(check) for check in state.checks if check.status != "PASS"],
                         "agents_runtime": dict(state.agents_runtime),
+                        "runtime_temp": dict(state.runtime_temp),
+                        "budget_observations": dict(state.budget_observations),
                     },
                 )
-                if tool_failures and not progress:
-                    for failure in tool_failures[:5]:
-                        state.errors.append(f"writer_tool_failure: {format_tool_failure(failure)}")
+                if audit_error:
+                    state.status = "tool_failure"
+                    state.errors.append(audit_error)
+                    break
                 if writer_result["needs_input"]:
                     state.status = "needs_input"
                     state.errors.append(writer_result["blocker"] or "writer requested human input")
+                    break
+                if agents_error:
+                    state.status = "scope_violation"
+                    state.errors.append(f"runtime_artifact_violation: {agents_error}")
                     break
                 if not audit.ok:
                     state.status = "scope_violation"
                     state.errors.extend(audit.violations)
                     break
+                if not turn.ok:
+                    state.status = classify_codex_error(turn.errors)
+                    state.errors.extend(turn.errors)
+                    break
+                if tool_failures:
+                    if not progress:
+                        state.status = "tool_failure"
+                        state.errors.append("writer_no_changes: writer tool failures produced no working-tree changes")
+                        for failure in tool_failures[:5]:
+                            state.errors.append(f"writer_tool_failure: {format_tool_failure(failure)}")
+                        break
+                    if not tool_failures_are_recoverable(tool_failures):
+                        state.status = "tool_failure"
+                        for failure in tool_failures[:5]:
+                            state.errors.append(f"writer_tool_failure: {format_tool_failure(failure)}")
+                        break
                 state.status = "checking"
                 evidence.write_state(state, start_time=start)
                 state.checks = self.run_checks()
-                audit = audit_scope(self.repo, self.spec, base_sha=base_sha, expected_branch=self.spec.branch)
-                state.changed_files = list(audit.changed_files)
-                state.fingerprint = audit.fingerprint
+                audit, audit_error = self.safe_audit(base_sha)
+                if audit is not None:
+                    state.changed_files = list(audit.changed_files)
+                    state.fingerprint = audit.fingerprint
                 state.agents_runtime, agents_error = reconcile_agents_runtime(state.agents_runtime, inspect_agents_directory(self.repo))
+                if audit_error:
+                    state.status = "tool_failure"
+                    state.errors.append(audit_error)
+                    break
                 if agents_error:
                     state.status = "scope_violation"
                     state.errors.append(f"runtime_artifact_violation: {agents_error}")
@@ -256,6 +314,10 @@ class LoopRunner:
                 if failed:
                     if not progress:
                         state.errors.append(f"writer_no_changes: iteration {state.iteration} produced no working-tree changes")
+                    if budget_turn_limit_hit(state):
+                        state.status = "budget_exhausted"
+                        state.errors.append("post-turn token budget exceeded before another writer turn could begin")
+                        break
                     if signature == last_signature:
                         repeat_count += 1
                     else:
@@ -266,6 +328,10 @@ class LoopRunner:
                         state.errors.append("same failure repeated without progress")
                         break
                     continue
+                if budget_turn_limit_hit(state) and self.spec.review.enabled:
+                    state.status = "budget_exhausted"
+                    state.errors.append("post-turn token budget exceeded before reviewer turn could begin")
+                    break
                 if self.spec.review.enabled:
                     if state.review_turns >= self.spec.budgets.max_review_turns:
                         state.status = "budget_exhausted"
@@ -300,6 +366,11 @@ class LoopRunner:
                 state.status = "passed"
                 break
         finally:
+            state.runtime_temp, runtime_temp_error = cleanup_runtime_temp_directory(state.runtime_temp, self.repo, evidence.run_dir)
+            if runtime_temp_error:
+                state.errors.append(runtime_temp_error)
+                if state.status == "passed":
+                    state.status = "tool_failure"
             state.agents_runtime, cleanup_error = cleanup_agents_directory(state.agents_runtime, self.repo)
             if cleanup_error:
                 state.errors.append(cleanup_error)
@@ -322,6 +393,35 @@ class LoopRunner:
         evidence.write_state(state, start_time=start)
         return state
 
+    def safe_audit(self, base_sha: str) -> tuple[ScopeAudit | None, str | None]:
+        try:
+            return audit_scope(self.repo, self.spec, base_sha=base_sha, expected_branch=self.spec.branch), None
+        except (OSError, subprocess.SubprocessError, RuntimeError) as exc:
+            return None, f"git_audit_failed: {type(exc).__name__}: {exc}"
+
+    def safe_fingerprint(self, base_sha: str) -> tuple[str | None, str | None]:
+        try:
+            return fingerprint_worktree(self.repo, base_sha=base_sha), None
+        except (OSError, subprocess.SubprocessError, RuntimeError) as exc:
+            return None, f"git_audit_failed: {type(exc).__name__}: {exc}"
+
+    def observe_post_turn_budgets(self, state: LoopState) -> None:
+        observations = dict(state.budget_observations or {})
+        observations["usage_telemetry_is_post_turn"] = True
+        violations = list(observations.get("violations") or [])
+        for key, limit, observed in (
+            ("input_tokens", self.spec.budgets.max_input_tokens, state.usage.input_tokens),
+            ("output_tokens", self.spec.budgets.max_output_tokens, state.usage.output_tokens),
+        ):
+            if limit is None or observed is None or observed <= limit:
+                continue
+            violation = {"kind": key, "limit": limit, "observed": observed, "observed_post_turn": True}
+            if violation not in violations:
+                violations.append(violation)
+                state.errors.append(f"budget_observed_post_turn: {key} observed {observed} exceeded limit {limit}")
+        observations["violations"] = violations
+        state.budget_observations = observations
+
     def run_checks(self) -> list[CheckResult]:
         results: list[CheckResult] = []
         for check in self.spec.checks:
@@ -341,7 +441,6 @@ class LoopRunner:
 
     def writer_prompt(self, state: LoopState) -> str:
         findings = "\n".join(f"- {f.severity}: {f.title}: {f.suggested_fix or f.evidence}" for f in state.findings) or "none"
-        checks = "\n".join(" ".join(check.argv) for check in self.spec.checks)
         failed = [check for check in state.checks if check.status != "PASS"]
         failed_text = "\n".join(format_check_failure(check) for check in failed) or "none"
         diagnostics = "\n".join(f"- {error}" for error in state.errors[-10:]) or "none"
@@ -356,9 +455,11 @@ class LoopRunner:
             "You are authorized and expected to create, modify, rename, or delete only the exact allowed paths. "
             "Do not merely propose a plan, summarize, or describe hypothetical edits.\n"
             "The supervisor controls Git publication. You must edit the working tree, but you must not commit, push, create a PR, merge, mark ready, or modify the task/supervisor.\n"
+            "Official supervisor checks run after your turn outside the sandbox. Do not run the full unittest discovery suite, do not run scripts/run_checks.py, do not run repository wrappers, and do not repeat the supervisor checks inside Codex.\n"
+            "Do not run ACL, ownership, TEMP, sandbox, or security diagnostics. On Windows the shell is PowerShell, not Bash; do not use POSIX heredocs.\n"
             f"Task ID: {self.spec.task_id}\nGoal: {self.spec.goal}\nDone when: {'; '.join(self.spec.done_when)}\n"
             f"Base SHA: {state.base_sha}\nBranch: {self.spec.branch}\nAllowed paths: {', '.join(self.spec.allowed_paths)}\n"
-            f"Protected paths: {', '.join(self.spec.protected_paths)}\nChecks:\n{checks}\n"
+            f"Protected paths: {', '.join(self.spec.protected_paths)}\n"
             f"Failed checks from the previous turn:\n{failed_text}\n"
             f"Supervisor diagnostics from previous turns:\n{diagnostics}\n"
             f"Pending review findings:\n{findings}\n"
@@ -378,7 +479,20 @@ def classify_codex_error(errors: tuple[str, ...]) -> str:
     text = "\n".join(errors).lower()
     if "usage limit" in text:
         return "usage_limit_reached"
-    if "auth" in text or "rate limit" in text:
+    if "rate limit" in text:
+        return "tool_failure"
+    if any(
+        marker in text
+        for marker in (
+            "authentication",
+            "not logged",
+            "login required",
+            "login status did not confirm",
+            "api key",
+            "unauthenticated",
+            "authorization failed",
+        )
+    ):
         return "tool_failure"
     return "tool_failure"
 
@@ -444,3 +558,11 @@ def tail(text: str, limit: int = 2000) -> str:
     if len(text) <= limit:
         return text
     return text[-limit:]
+
+
+def tool_failures_are_recoverable(tool_failures: list[dict[str, Any]]) -> bool:
+    return bool(tool_failures) and all(failure.get("item_type") == "command_execution" for failure in tool_failures)
+
+
+def budget_turn_limit_hit(state: LoopState) -> bool:
+    return bool((state.budget_observations or {}).get("violations"))

@@ -194,6 +194,18 @@ class AgentLoopJsonlStreamTest(unittest.TestCase):
         events = decode([first, second])
         self.assertEqual("x" * 220, events[0]["message"])
 
+    def test_command_output_with_unauthorized_text_does_not_trigger_auth_failure(self) -> None:
+        payload = b"".join(
+            [
+                record({"type": "thread.started", "thread_id": SESSION_ID}),
+                record({"type": "item.completed", "item": {"id": "item_1", "type": "command_execution", "status": "failed", "aggregated_output": "Attempted to perform an unauthorized operation"}}),
+                record({"type": "turn.completed"}),
+                record({"type": "final_message", "message": "{\"status\":\"blocked\"}"}),
+            ]
+        )
+        parsed = parse_jsonl_bytes(payload)
+        self.assertEqual([], parsed["errors"])
+
     def test_stderr_warnings_are_separate_and_raw_evidence_is_ignored(self) -> None:
         run_id = f"unit-jsonl-{uuid.uuid4().hex}"
         evidence_dir = ROOT / ".agent-loop" / "runs" / run_id

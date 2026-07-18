@@ -103,6 +103,9 @@ class WriterExecutionTest(unittest.TestCase):
             self.assertIn("must edit the working tree", prompt)
             self.assertIn("must not commit", prompt)
             self.assertIn("Allowed paths: allowed.txt", prompt)
+            self.assertIn("do not run the full unittest discovery suite", prompt.lower())
+            self.assertIn("do not run scripts/run_checks.py", prompt)
+            self.assertIn("shell is powershell", prompt.lower())
             self.assertNotIn("do not make changes", prompt.lower())
             self.assertNotIn("no changes", prompt.lower())
 
@@ -140,10 +143,42 @@ class WriterExecutionTest(unittest.TestCase):
             self.assertIn("No working-tree changes were detected", calls[1][1])
             self.assertIn("writer_no_changes", "\n".join(state.errors))
 
-    def test_tool_failures_with_no_changes_are_delivered_to_resume(self) -> None:
+    def test_failed_checks_resume_prompt_keeps_supervisor_check_boundary(self) -> None:
         with temp_git_repo() as repo:
             spec = repo_spec()
             prompts: list[str] = []
+
+            class FixingCodex:
+                def __init__(self, _exe, repo_path, _runner, _evidence_dir=None, **_kwargs):
+                    self.repo = repo_path
+
+                def login_status(self):
+                    return ProcessResult(("codex",), 0, "Logged in using ChatGPT", "")
+
+                def exec(self, prompt, **_kwargs):
+                    prompts.append(prompt)
+                    (self.repo / "allowed.txt").write_text("one", encoding="utf-8")
+                    return writer_turn(changed_paths_claimed=["allowed.txt"])
+
+                def resume(self, _session_id, prompt, **_kwargs):
+                    prompts.append(prompt)
+                    (self.repo / "allowed.txt").write_text("two", encoding="utf-8")
+                    return writer_turn(changed_paths_claimed=["allowed.txt"])
+
+            checks = [ProcessResult(("focused",), 1, "", "failure"), ProcessResult(("focused",), 0, "ok", "")]
+            with patched_writer_runtime(repo, FixingCodex), mock.patch("scripts.agent_loop.runner.review_diff", return_value=([], "")):
+                state = LoopRunner(repo, spec, "hash", process_runner=FakeProcessRunner(checks), run_id="resume-boundary").run()
+            self.assertEqual("passed", state.status)
+            self.assertEqual(2, len(prompts))
+            self.assertIn("Failed checks from the previous turn", prompts[1])
+            self.assertIn("do not run the full unittest discovery suite", prompts[1].lower())
+            self.assertIn("do not run scripts/run_checks.py", prompts[1])
+
+    def test_tool_failures_with_no_changes_fail_closed_without_resume(self) -> None:
+        with temp_git_repo() as repo:
+            spec = repo_spec()
+            prompts: list[str] = []
+            resumes: list[str] = []
 
             class ToolFailingCodex:
                 def __init__(self, _exe, repo_path, _runner, _evidence_dir=None, **_kwargs):
@@ -157,18 +192,38 @@ class WriterExecutionTest(unittest.TestCase):
                     return writer_turn(tool_failures=[{"event_index": 4, "item_type": "file_change", "status": "failed"}])
 
                 def resume(self, _session_id, prompt, **_kwargs):
-                    prompts.append(prompt)
+                    resumes.append(prompt)
                     return writer_turn(tool_failures=[{"event_index": 5, "item_type": "command_execution", "status": "failed", "exit_code": -1}])
 
-            checks = [ProcessResult(("check",), 1, "", "missing file"), ProcessResult(("check",), 1, "", "missing file")]
             with patched_writer_runtime(repo, ToolFailingCodex):
-                state = LoopRunner(repo, spec, "hash", process_runner=FakeProcessRunner(checks), run_id="toolfail").run()
+                state = LoopRunner(repo, spec, "hash", process_runner=FakeProcessRunner([ProcessResult(("check",), 1, "", "missing file")]), run_id="toolfail").run()
             evidence = json.loads((repo / ".agent-loop" / "runs" / "toolfail" / "writer-turn-001.json").read_text(encoding="utf-8"))
-            self.assertEqual("budget_exhausted", state.status)
+            self.assertEqual("tool_failure", state.status)
             self.assertEqual("file_change", evidence["tool_failures"][0]["item_type"])
             self.assertIn("writer_tool_failure", "\n".join(state.errors))
-            self.assertIn("writer_tool_failure", prompts[1])
-            self.assertIn("No working-tree changes were detected", prompts[1])
+            self.assertEqual([], resumes)
+            self.assertEqual([], state.checks)
+
+    def test_turn_failure_with_real_changes_persists_git_truth_before_terminal_status(self) -> None:
+        with temp_git_repo() as repo:
+            spec = repo_spec()
+
+            class FailingCodex:
+                def __init__(self, _exe, repo_path, _runner, _evidence_dir=None, **_kwargs):
+                    self.repo = repo_path
+
+                def login_status(self):
+                    return ProcessResult(("codex",), 0, "Logged in using ChatGPT", "")
+
+                def exec(self, *_args, **_kwargs):
+                    (self.repo / "allowed.txt").write_text("done", encoding="utf-8")
+                    return CodexTurnResult(False, 1, "", "", SESSION_ID, Usage(input_tokens=3), json.dumps({"status": "blocked", "summary": "done", "changed_paths_claimed": ["allowed.txt"], "needs_input": False, "blocker": None}), ("codex exited with code 1",))
+
+            with patched_writer_runtime(repo, FailingCodex):
+                state = LoopRunner(repo, spec, "hash", process_runner=FakeProcessRunner(), run_id="turn-fail-change").run()
+            self.assertEqual("tool_failure", state.status)
+            self.assertEqual(["allowed.txt"], state.changed_files)
+            self.assertIn("codex exited with code 1", "\n".join(state.errors))
 
     def test_tool_failure_followed_by_real_change_can_pass(self) -> None:
         with temp_git_repo() as repo:
@@ -192,6 +247,60 @@ class WriterExecutionTest(unittest.TestCase):
             self.assertEqual(["allowed.txt"], state.changed_files)
             self.assertEqual("command_execution", evidence["tool_failures"][0]["item_type"])
             self.assertNotIn("writer_tool_failure", "\n".join(state.errors))
+
+    def test_v3_regression_real_changes_survive_command_failures_and_finish_passed(self) -> None:
+        with temp_git_repo() as repo:
+            data = valid_spec()
+            data["allowed_paths"] = [
+                "docs/mvp_contract_decisions.json",
+                "docs/mvp_contract_decisions.md",
+                "tests/python/test_mvp_contract_decisions.py",
+            ]
+            data["protected_paths"] = ["Assets/", "Packages/", "ProjectSettings/", "scripts/"]
+            data["checks"] = [{"id": "focused", "argv": ["python", "--version"], "timeout_seconds": 5}]
+            spec = parse_task_spec(data)
+            tool_failures = [
+                {"event_index": 7, "item_type": "command_execution", "status": "failed", "exit_code": 1, "error": "PermissionError: [WinError 5] Access denied"},
+                {"event_index": 11, "item_type": "command_execution", "status": "failed", "exit_code": 1, "error": "PowerShell parser error"},
+            ]
+
+            class RegressionCodex:
+                def __init__(self, _exe, repo_path, _runner, _evidence_dir=None, **_kwargs):
+                    self.repo = repo_path
+
+                def login_status(self):
+                    return ProcessResult(("codex",), 0, "Logged in using ChatGPT", "")
+
+                def exec(self, *_args, **_kwargs):
+                    (self.repo / "docs").mkdir(exist_ok=True)
+                    (self.repo / "tests" / "python").mkdir(parents=True, exist_ok=True)
+                    (self.repo / "docs" / "mvp_contract_decisions.json").write_text("{}", encoding="utf-8")
+                    (self.repo / "docs" / "mvp_contract_decisions.md").write_text("# pending\n", encoding="utf-8")
+                    (self.repo / "tests" / "python" / "test_mvp_contract_decisions.py").write_text("pass\n", encoding="utf-8")
+                    return writer_turn(
+                        status="blocked",
+                        changed_paths_claimed=[
+                            "docs/mvp_contract_decisions.json",
+                            "docs/mvp_contract_decisions.md",
+                            "tests/python/test_mvp_contract_decisions.py",
+                        ],
+                        tool_failures=tool_failures,
+                    )
+
+            with patched_writer_runtime(repo, RegressionCodex), mock.patch("scripts.agent_loop.runner.review_diff", return_value=([], "")):
+                state = LoopRunner(repo, spec, "hash", process_runner=FakeProcessRunner([ProcessResult(("focused",), 0, "ok", "")]), run_id="v3-regression").run()
+            evidence = json.loads((repo / ".agent-loop" / "runs" / "v3-regression" / "writer-turn-001.json").read_text(encoding="utf-8"))
+            self.assertEqual("passed", state.status)
+            self.assertEqual(
+                [
+                    "docs/mvp_contract_decisions.json",
+                    "docs/mvp_contract_decisions.md",
+                    "tests/python/test_mvp_contract_decisions.py",
+                ],
+                state.changed_files,
+            )
+            self.assertEqual(2, len(evidence["tool_failures"]))
+            self.assertEqual("command_execution", evidence["tool_failures"][0]["item_type"])
 
     def test_claimed_changes_without_git_changes_is_recorded_as_discrepancy(self) -> None:
         with temp_git_repo() as repo:
@@ -219,6 +328,27 @@ class WriterExecutionTest(unittest.TestCase):
             self.assertEqual([], evidence["changed_paths_real"])
             self.assertEqual("budget_exhausted", state.status)
 
+    def test_scope_violation_persists_observable_changes(self) -> None:
+        with temp_git_repo() as repo:
+            spec = repo_spec()
+
+            class OutOfScopeCodex:
+                def __init__(self, _exe, repo_path, _runner, _evidence_dir=None, **_kwargs):
+                    self.repo = repo_path
+
+                def login_status(self):
+                    return ProcessResult(("codex",), 0, "Logged in using ChatGPT", "")
+
+                def exec(self, *_args, **_kwargs):
+                    (self.repo / "outside.txt").write_text("bad", encoding="utf-8")
+                    return writer_turn(changed_paths_claimed=["outside.txt"])
+
+            with patched_writer_runtime(repo, OutOfScopeCodex):
+                state = LoopRunner(repo, spec, "hash", process_runner=FakeProcessRunner(), run_id="scope-violation").run()
+            self.assertEqual("scope_violation", state.status)
+            self.assertEqual(["outside.txt"], state.changed_files)
+            self.assertIn("outside.txt: outside allowed paths", "\n".join(state.errors))
+
     def test_writer_needs_input_stops_without_checks(self) -> None:
         with temp_git_repo() as repo:
             spec = repo_spec()
@@ -238,6 +368,26 @@ class WriterExecutionTest(unittest.TestCase):
             self.assertEqual("needs_input", state.status)
             self.assertEqual([], state.checks)
             self.assertIn("missing decision", state.errors)
+
+    def test_writer_needs_input_with_changes_persists_changed_files(self) -> None:
+        with temp_git_repo() as repo:
+            spec = repo_spec()
+
+            class NeedsInputCodex:
+                def __init__(self, _exe, repo_path, _runner, _evidence_dir=None, **_kwargs):
+                    self.repo = repo_path
+
+                def login_status(self):
+                    return ProcessResult(("codex",), 0, "Logged in using ChatGPT", "")
+
+                def exec(self, *_args, **_kwargs):
+                    (self.repo / "allowed.txt").write_text("pending", encoding="utf-8")
+                    return writer_turn(status="needs_input", changed_paths_claimed=["allowed.txt"], needs_input=True, blocker="decision")
+
+            with patched_writer_runtime(repo, NeedsInputCodex):
+                state = LoopRunner(repo, spec, "hash", process_runner=FakeProcessRunner(), run_id="input-with-change").run()
+            self.assertEqual("needs_input", state.status)
+            self.assertEqual(["allowed.txt"], state.changed_files)
 
     def test_no_changes_even_when_checks_pass_requires_human_confirmation(self) -> None:
         with temp_git_repo() as repo:
@@ -302,6 +452,24 @@ class WriterExecutionTest(unittest.TestCase):
                 state = LoopRunner(repo, spec, "hash", process_runner=FakeProcessRunner(), run_id="usage").run()
             self.assertEqual("usage_limit_reached", state.status)
 
+    def test_real_auth_error_still_classifies_as_tool_failure(self) -> None:
+        with temp_git_repo() as repo:
+            spec = repo_spec()
+
+            class ErrorCodex:
+                def __init__(self, _exe, repo_path, _runner, _evidence_dir=None, **_kwargs):
+                    pass
+
+                def login_status(self):
+                    return ProcessResult(("codex",), 0, "Logged in using ChatGPT", "")
+
+                def exec(self, *_args, **_kwargs):
+                    return CodexTurnResult(False, 1, "", "", SESSION_ID, Usage(), "", ('{"type":"error","message":"Authentication required"}',))
+
+            with patched_writer_runtime(repo, ErrorCodex):
+                state = LoopRunner(repo, spec, "hash", process_runner=FakeProcessRunner(), run_id="auth").run()
+            self.assertEqual("tool_failure", state.status)
+
     def test_loop_runner_uses_runner_namespace_discovery_patch_not_real_cli(self) -> None:
         with temp_git_repo() as repo:
             spec = repo_spec()
@@ -346,13 +514,38 @@ class WriterExecutionTest(unittest.TestCase):
                 state = LoopRunner(repo, spec, "hash", process_runner=FakeProcessRunner([ProcessResult(("check",), 0, "ok", "")]), run_id="env").run()
 
             self.assertEqual("passed", state.status)
-            self.assertGreaterEqual(len(captured_envs), 2)
+            runtime_envs = [env for env in captured_envs if env and "TMPDIR" in env]
+            self.assertGreaterEqual(len(runtime_envs), 1)
             expected = git_safe_directory_value(repo)
-            for env in captured_envs:
+            for env in runtime_envs:
                 self.assertIsNotNone(env)
                 self.assertEqual("1", env["GIT_CONFIG_COUNT"])
                 self.assertEqual("safe.directory", env["GIT_CONFIG_KEY_0"])
                 self.assertEqual(expected, env["GIT_CONFIG_VALUE_0"])
+                self.assertEqual(env["TEMP"], env["TMP"])
+                self.assertEqual(env["TEMP"], env["TMPDIR"])
+
+    def test_supervisor_checks_do_not_inherit_private_runtime_temp(self) -> None:
+        with temp_git_repo() as repo:
+            spec = repo_spec()
+
+            class ImplementingCodex:
+                def __init__(self, _exe, repo_path, _runner, _evidence_dir=None, **kwargs):
+                    self.repo = repo_path
+                    self.env = dict(kwargs.get("env") or {})
+
+                def login_status(self):
+                    return ProcessResult(("codex",), 0, "Logged in using ChatGPT", "")
+
+                def exec(self, *_args, **_kwargs):
+                    (self.repo / "allowed.txt").write_text("done", encoding="utf-8")
+                    return writer_turn(changed_paths_claimed=["allowed.txt"])
+
+            runner = FakeProcessRunner([ProcessResult(("check",), 0, "ok", "")])
+            with patched_writer_runtime(repo, ImplementingCodex), mock.patch("scripts.agent_loop.runner.review_diff", return_value=([], "")):
+                state = LoopRunner(repo, spec, "hash", process_runner=runner, run_id="check-env").run()
+            self.assertEqual("passed", state.status)
+            self.assertEqual(None, runner.envs[0])
 
     def test_invalid_git_config_environment_fails_closed_before_launch(self) -> None:
         with temp_git_repo() as repo:
@@ -378,6 +571,60 @@ class WriterExecutionTest(unittest.TestCase):
             ), mock.patch("scripts.agent_loop.runner.CodexClient", ShouldNotLaunchCodex):
                 with self.assertRaisesRegex(RuntimeError, "codex.invalid_git_config_environment"):
                     LoopRunner(repo, spec, "hash", process_runner=FakeProcessRunner(), run_id="badenv").validate_preflight()
+
+    def test_git_audit_failure_is_stable_and_fail_closed(self) -> None:
+        with temp_git_repo() as repo:
+            spec = repo_spec()
+
+            class ImplementingCodex:
+                def __init__(self, _exe, repo_path, _runner, _evidence_dir=None, **_kwargs):
+                    self.repo = repo_path
+
+                def login_status(self):
+                    return ProcessResult(("codex",), 0, "Logged in using ChatGPT", "")
+
+                def exec(self, *_args, **_kwargs):
+                    (self.repo / "allowed.txt").write_text("done", encoding="utf-8")
+                    return writer_turn(changed_paths_claimed=["allowed.txt"])
+
+            with patched_writer_runtime(repo, ImplementingCodex), mock.patch(
+                "scripts.agent_loop.runner.audit_scope",
+                side_effect=RuntimeError("dubious ownership"),
+            ):
+                state = LoopRunner(repo, spec, "hash", process_runner=FakeProcessRunner(), run_id="git-audit-fail").run()
+            self.assertEqual("tool_failure", state.status)
+            self.assertIn("git_audit_failed", "\n".join(state.errors))
+
+    def test_budget_observation_records_post_turn_overrun_and_blocks_new_writer_turn(self) -> None:
+        with temp_git_repo() as repo:
+            data = valid_spec()
+            data["allowed_paths"] = ["allowed.txt"]
+            data["protected_paths"] = ["protected/"]
+            data["base_ref"] = "origin/main"
+            data["branch"] = "feat/test"
+            data["checks"] = [{"id": "focused", "argv": ["python", "--version"], "timeout_seconds": 5}]
+            data["budgets"]["max_iterations"] = 2
+            data["budgets"]["max_input_tokens"] = 1
+            spec = parse_task_spec(data)
+
+            class ImplementingCodex:
+                def __init__(self, _exe, repo_path, _runner, _evidence_dir=None, **_kwargs):
+                    self.repo = repo_path
+
+                def login_status(self):
+                    return ProcessResult(("codex",), 0, "Logged in using ChatGPT", "")
+
+                def exec(self, *_args, **_kwargs):
+                    (self.repo / "allowed.txt").write_text("done", encoding="utf-8")
+                    usage = Usage(input_tokens=5, output_tokens=1)
+                    return CodexTurnResult(True, 0, "", "", SESSION_ID, usage, json.dumps({"status": "implemented", "summary": "done", "changed_paths_claimed": ["allowed.txt"], "needs_input": False, "blocker": None}), ())
+
+            with patched_writer_runtime(repo, ImplementingCodex), mock.patch("scripts.agent_loop.runner.review_diff", return_value=([], "")):
+                state = LoopRunner(repo, spec, "hash", process_runner=FakeProcessRunner([ProcessResult(("focused",), 0, "ok", "")]), run_id="budget-overrun").run()
+            self.assertEqual("budget_exhausted", state.status)
+            self.assertEqual(["allowed.txt"], state.changed_files)
+            self.assertTrue(state.budget_observations["usage_telemetry_is_post_turn"])
+            self.assertEqual("input_tokens", state.budget_observations["violations"][0]["kind"])
 
     def test_agents_directory_new_empty_is_ephemeral_and_cleaned(self) -> None:
         with temp_git_repo() as repo:

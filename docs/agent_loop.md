@@ -107,9 +107,15 @@ Paths are relative to the repository and use `/`. A path ending in `/` means sub
 
 The writer is the only write-capable model turn. Initial writer turns run with `workspace-write` and the repository root as the explicit working root. Correction turns resume the same writer thread and keep the same write-capable workspace. The writer prompt must ask for implementation now, not a plan, while making clear that Git publication remains controlled by the supervisor.
 
+The writer is told explicitly that repository checks belong to the supervisor, not to the model turn. The writer must not run the full Python suite, `scripts/run_checks.py`, Unity, wrappers, repository-wide diagnostics, or sandbox/ACL/TEMP investigations inside Codex. Failed official checks are summarized back into correction turns as actionable diagnostics, but the writer is still instructed to implement fixes rather than reproduce the checks under the sandbox. On Windows the prompt also states that the interactive shell is PowerShell and that POSIX heredocs are not valid there.
+
 The reviewer is a separate read-only turn with structured output. Reviewer prompts explicitly forbid modifying files, staging, committing, pushing, or opening PRs.
 
-The supervisor treats Git as the source of truth. A writer's final response may claim changed paths, but the supervisor compares those claims against the actual working tree. If a writer exits successfully without working-tree progress, the next correction prompt receives the failed checks, the real changed path list, and an explicit no-progress diagnostic. Repeated no-progress with the same failure is stopped by the existing budgets.
+The supervisor treats Git as the source of truth. A writer's final response may claim changed paths, but the supervisor compares those claims against the actual working tree. Git reconciliation happens after every writer turn before terminal state is persisted, even when the turn ends with recoverable command failures, `needs_input`, or another non-successful model result. Real changed files, scope violations, and claim discrepancies are therefore recorded from Git rather than inferred from the model response.
+
+If a writer produces only internal `command_execution` failures but Git shows valid in-scope progress, the supervisor still runs the authoritative host-side checks and can continue to reviewer. If there is no real progress, or if failures involve unsafe tool categories, invalid JSONL, launch failure, timeout, usage limit, protected-path writes, or an unauditable Git state, the loop fails closed.
+
+Each Codex turn also receives a private runtime temp directory under `.agent-loop/runs/<run-id>/runtime-tmp` through process-scoped `TEMP`, `TMP`, and `TMPDIR` overrides. This temp root is validated as an ordinary directory under the run evidence root, never written into user or system environment settings, and never inherited by the host-side supervisor checks. If the runtime temp is created by the current run and remains empty, the supervisor removes it with a single `os.rmdir(...)` at terminal cleanup. Non-empty content is preserved as ignored local evidence instead of being deleted recursively.
 
 On Windows with Codex sandbox `unelevated`, Git may reject host-created repositories as dubious ownership because the restricted token sees `Administrators` as deny-only. The supervisor injects an exact process-scoped `safe.directory` entry for the current repo into the Codex process environment by extending `GIT_CONFIG_COUNT/GIT_CONFIG_KEY_n/GIT_CONFIG_VALUE_n`. This applies only to the Codex process tree, preserves pre-existing valid `GIT_CONFIG_*` entries, never uses `safe.directory=*`, and never modifies `.git/config` or Git global/system configuration. Git may still consult the user's normal configuration files; the supervisor only guarantees that it does not edit them. `GIT_CONFIG_PARAMETERS` is treated as unauditable ambient override state and fails closed before Codex launches.
 
@@ -148,7 +154,7 @@ The loop enforces hard limits for:
 - wall time;
 - repeated identical failure signatures.
 
-Token telemetry from Codex JSONL is recorded when available. It is not converted to dollars and is not treated as remaining ChatGPT Plus quota.
+Optional task-spec token limits may be recorded for `input_tokens` and `output_tokens`, but Codex only reports that usage after a turn completes. Those limits are therefore post-turn guardrails, not intraturn interrupt mechanisms. The truly hard controls remain process timeout, max turns, max iterations, and repeated-failure limits. If a post-turn token limit is exceeded, the supervisor records that overrun explicitly and will not start another writer or reviewer turn afterward, even though the completed turn's effects and host-side checks are still reconciled and persisted.
 
 ## Publication
 

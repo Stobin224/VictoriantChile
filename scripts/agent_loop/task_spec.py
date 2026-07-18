@@ -30,7 +30,9 @@ TASK_KEYS = {
     "review",
     "publication",
 }
-BUDGET_KEYS = {"max_iterations", "max_codex_turns", "max_review_turns", "max_wall_minutes", "max_repeated_failure"}
+REQUIRED_BUDGET_KEYS = {"max_iterations", "max_codex_turns", "max_review_turns", "max_wall_minutes", "max_repeated_failure"}
+OPTIONAL_BUDGET_KEYS = {"max_input_tokens", "max_output_tokens"}
+BUDGET_KEYS = REQUIRED_BUDGET_KEYS | OPTIONAL_BUDGET_KEYS
 CHECK_KEYS = {"id", "argv", "timeout_seconds"}
 REVIEW_KEYS = {"enabled", "blocking_severities", "allow_internal_subagents"}
 PUBLICATION_KEYS = {"commit", "push", "draft_pr", "mark_ready", "merge"}
@@ -200,7 +202,7 @@ def parse_budgets(value: Any) -> Budgets:
     unknown = set(value) - BUDGET_KEYS
     if unknown:
         raise TaskSpecError(f"budgets has unknown properties: {sorted(unknown)}")
-    missing = BUDGET_KEYS - set(value)
+    missing = REQUIRED_BUDGET_KEYS - set(value)
     if missing:
         raise TaskSpecError(f"budgets missing properties: {sorted(missing)}")
     return Budgets(
@@ -209,6 +211,8 @@ def parse_budgets(value: Any) -> Budgets:
         plain_positive_int(value["max_review_turns"], "max_review_turns"),
         plain_positive_int(value["max_wall_minutes"], "max_wall_minutes"),
         plain_positive_int(value["max_repeated_failure"], "max_repeated_failure"),
+        plain_positive_int(value["max_input_tokens"], "max_input_tokens") if "max_input_tokens" in value else None,
+        plain_positive_int(value["max_output_tokens"], "max_output_tokens") if "max_output_tokens" in value else None,
     )
 
 
