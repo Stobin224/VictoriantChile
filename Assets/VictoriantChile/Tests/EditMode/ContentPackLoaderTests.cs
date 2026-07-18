@@ -34,6 +34,12 @@ namespace VictoriantChile.Simulation.Tests.EditMode
             Assert.That(result.Pack.LegislativeConfig.PlayerStrategiesById.ContainsKey("PUSH"), Is.True);
             Assert.That(result.Pack.Effects.Count, Is.EqualTo(17));
             Assert.That(result.Pack.EffectsById["eff_exceptional_route_cost_default"].Modifiers.Count, Is.EqualTo(2));
+            Assert.That(result.Pack.Events.Count, Is.EqualTo(8));
+            Assert.That(result.Pack.EventsById["evt_media_scandal"].Options.Count, Is.EqualTo(3));
+            Assert.That(result.Pack.EventsById["evt_labor_pressure_escalation"].Blocking, Is.True);
+            Assert.That(result.Pack.Reforms.Count, Is.EqualTo(7));
+            Assert.That(result.Pack.ReformsById["ref_constitutional_process_call"].EffectiveInterestGroupStances.Count, Is.EqualTo(9));
+            Assert.That(result.Pack.ReformsById["ref_security_police_modernization"].EffectiveInterestGroupStancesById["ig_orden_seguridad"], Is.EqualTo(70));
             Assert.That(result.Pack.TargetConfigCatalog.Resolve(TargetPath.Parse("metrics.legitimacy")).Pattern.ToString(), Is.EqualTo("metrics.legitimacy"));
             Assert.That(result.Pack.RegionsById["metropolitana"].Name, Is.EqualTo("Metropolitana"));
         }

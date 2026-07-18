@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Text.RegularExpressions;
 using NUnit.Framework;
 using VictoriantChile.Content.Diagnostics;
 using VictoriantChile.Content.Loading;
@@ -32,6 +33,10 @@ namespace VictoriantChile.Simulation.Tests.EditMode
             Assert.That(result.Pack.AggregationConfig, Is.Not.Null);
             Assert.That(result.Pack.LegislativeConfig, Is.Not.Null);
             Assert.That(result.Pack.Effects.Count, Is.EqualTo(17));
+            Assert.That(result.Pack.Events.Count, Is.EqualTo(8));
+            Assert.That(result.Pack.Reforms.Count, Is.EqualTo(7));
+            Assert.That(result.Pack.EventsById.ContainsKey("evt_media_scandal"), Is.True);
+            Assert.That(result.Pack.ReformsById.ContainsKey("ref_constitutional_process_call"), Is.True);
 
             long regionalWeight = 0;
             foreach (RegionDefinition region in result.Pack.Regions)
@@ -49,6 +54,14 @@ namespace VictoriantChile.Simulation.Tests.EditMode
             Assert.That(result.Pack.AggregationConfig.Passes[1].Metrics[2].Components[0].WeightPpm, Is.EqualTo(350000));
             Assert.That(result.Pack.LegislativeConfig.PlayerStrategiesById["COMPROMISE"].ImplementationEffectMultiplierPpm, Is.EqualTo(850000));
             Assert.That(result.Pack.EffectsById["eff_legitimacy_down_small"].LocalizationTitleKey, Is.EqualTo("effect.eff_legitimacy_down_small.title"));
+            Assert.That(result.Pack.EventsById["evt_media_scandal"].VariablesByName["region"], Is.TypeOf<EventRegionBinding>());
+            Assert.That(result.Pack.EventsById["evt_headlines_cycle"].AutoOptionId, Is.EqualTo("auto"));
+            Assert.That(result.Pack.EventsById["evt_labor_pressure_escalation"].Conditions, Is.TypeOf<EventConditionAllNode>());
+            Assert.That(result.Pack.ReformsById["ref_constitutional_process_call"].Stages.Count, Is.EqualTo(5));
+            Assert.That(result.Pack.ReformsById["ref_constitutional_process_call"].EffectiveInterestGroupStances.Count, Is.EqualTo(9));
+            Assert.That(result.Pack.ReformsById["ref_security_police_modernization"].EffectiveInterestGroupStancesById["ig_orden_seguridad"], Is.EqualTo(70));
+            Assert.That(result.Pack.ReformsById["ref_health_waitlist_acceleration"].EffectiveInterestGroupStancesById["ig_territorio_productivo"], Is.EqualTo(-10));
+            Assert.That(result.Pack.ReformsById["ref_institutional_anti_corruption_package"].EffectiveInterestGroupStancesById["ig_profesionales_clase_media"], Is.EqualTo(75));
 
             string root = ContentRoot();
             foreach (KeyValuePair<string, string> declared in result.Pack.Manifest.Files)
@@ -174,6 +187,104 @@ namespace VictoriantChile.Simulation.Tests.EditMode
             Dictionary<string, byte[]> badUnknownProperty = ValidFixture();
             badUnknownProperty["rules/legislative_config.json"] = Bytes(Text(badUnknownProperty["rules/legislative_config.json"]).Replace("\"gates\": {", "\"gates\": {\"unknown\":1,"));
             AssertFailure(Load(RebuildManifest(badUnknownProperty)), ContentDiagnosticCode.UnknownProperty);
+        }
+
+        [Test]
+        public void EventSchemaBindingReferenceAndMemoryFailuresAreClosed()
+        {
+            Dictionary<string, byte[]> badKind = MutateJsonFile(ValidFixture(), "templates/events.json", text =>
+                ReplaceRegexOnce(text, "(\"id\"\\s*:\\s*\"evt_headlines_cycle\".*?\"kind\"\\s*:\\s*)\"AUTO\"", "$1\"BAD\""));
+            AssertFailure(Load(RebuildManifest(badKind)), ContentDiagnosticCode.InvalidEnum);
+
+            Dictionary<string, byte[]> badConditionShape = MutateJsonFile(ValidFixture(), "templates/events.json", text =>
+                ReplaceRegexOnce(text, "(\"id\"\\s*:\\s*\"evt_headlines_cycle\".*?\"conditions\"\\s*:\\s*\\{\\s*\"all\"\\s*:\\s*\\[\\s*)\\{\\s*\"cooldown_ready\"\\s*:\\s*true\\s*\\}", "$1{\"cooldown_ready\": true, \"max_count_not_reached\": true}"));
+            AssertFailure(Load(RebuildManifest(badConditionShape)), ContentDiagnosticCode.InvalidConditionShape);
+
+            Dictionary<string, byte[]> badBindingTarget = MutateJsonFile(ValidFixture(), "templates/events.json", text =>
+                ReplaceRegexOnce(text, "(\"id\"\\s*:\\s*\"evt_media_scandal\".*?\"ig\"\\s*:\\s*\\{.*?\"target\"\\s*:\\s*)\"igs\\.\\*\\.clout\"", "$1\"regions.*.tension\""));
+            AssertFailure(Load(RebuildManifest(badBindingTarget)), ContentDiagnosticCode.InvalidReference);
+
+            Dictionary<string, byte[]> badScopeBinding = MutateJsonFile(ValidFixture(), "templates/events.json", text =>
+                ReplaceRegexOnce(text, "(\"id\"\\s*:\\s*\"evt_labor_pressure_escalation\".*?\"region\"\\s*:\\s*\\{.*?\"bind\"\\s*:\\s*)\"pick_region\"", "$1\"pick_ig\""));
+            AssertFailure(Load(RebuildManifest(badScopeBinding)), ContentDiagnosticCode.InvalidReference);
+
+            Dictionary<string, byte[]> badLocalization = MutateJsonFile(ValidFixture(), "templates/events.json", text =>
+                ReplaceRegexOnce(text, "(\"id\"\\s*:\\s*\"evt_media_scandal\".*?\"id\"\\s*:\\s*\"minimize\".*?\"loc_label\"\\s*:\\s*)\"event\\.evt_media_scandal\\.opt_minimize\\.label\"", "$1\"event.missing.option.label\""));
+            AssertFailure(Load(RebuildManifest(badLocalization)), ContentDiagnosticCode.MissingLocalizationKey);
+
+            Dictionary<string, byte[]> badEffectReference = MutateJsonFile(ValidFixture(), "templates/events.json", text =>
+                ReplaceRegexOnce(text, "(\"id\"\\s*:\\s*\"evt_media_scandal\".*?\"id\"\\s*:\\s*\"minimize\".*?\"template_id\"\\s*:\\s*)\"eff_agenda_down_small\"", "$1\"eff_missing\""));
+            AssertFailure(Load(RebuildManifest(badEffectReference)), ContentDiagnosticCode.InvalidReference);
+
+            Dictionary<string, byte[]> badFollowup = MutateJsonFile(ValidFixture(), "templates/events.json", text =>
+                ReplaceRegexOnce(text, "(\"id\"\\s*:\\s*\"evt_media_scandal\".*?\"id\"\\s*:\\s*\"minimize\".*?\"event_id\"\\s*:\\s*)\"evt_media_scandal_followup\"", "$1\"evt_missing\""));
+            AssertFailure(Load(RebuildManifest(badFollowup)), ContentDiagnosticCode.InvalidReference);
+
+            Dictionary<string, byte[]> badFlag = MutateJsonFile(ValidFixture(), "templates/events.json", text =>
+                ReplaceRegexOnce(text, "(\"id\"\\s*:\\s*\"evt_media_scandal\".*?\"id\"\\s*:\\s*\"minimize\".*?\"set_flag\"\\s*:\\s*\\[\\s*)\"flag\\.scandal_active\"", "$1\"flag Bad\""));
+            AssertFailure(Load(RebuildManifest(badFlag)), ContentDiagnosticCode.InvalidFlagFormat);
+
+            Dictionary<string, byte[]> conflictingFlags = MutateJsonFile(ValidFixture(), "templates/events.json", text =>
+                ReplaceRegexOnce(text, "(\"id\"\\s*:\\s*\"evt_media_scandal_followup\".*?\"id\"\\s*:\\s*\"auto\".*?\"memory\"\\s*:\\s*\\{)", "$1\"set_flag\": [\"flag.scandal_active\"], "));
+            AssertFailure(Load(RebuildManifest(conflictingFlags)), ContentDiagnosticCode.InvalidValue);
+        }
+
+        [Test]
+        public void ReformSchemaCompilerAndReferenceFailuresAreClosed()
+        {
+            Dictionary<string, byte[]> badArea = MutateJsonFile(ValidFixture(), "templates/reforms.json", text =>
+                ReplaceRegexOnce(text, "(\"id\"\\s*:\\s*\"ref_security_police_modernization\".*?\"area\"\\s*:\\s*)\"seguridad\"", "$1\"bad_area\""));
+            AssertFailure(Load(RebuildManifest(badArea)), ContentDiagnosticCode.InvalidEnum);
+
+            Dictionary<string, byte[]> badPolicyTag = MutateJsonFile(ValidFixture(), "templates/reforms.json", text =>
+                ReplaceRegexOnce(text, "(\"id\"\\s*:\\s*\"ref_security_police_modernization\".*?\"policy_tags\"\\s*:\\s*\\[\\s*)\"policy\\.security_crackdown\"", "$1\"policy.unknown\""));
+            AssertFailure(Load(RebuildManifest(badPolicyTag)), ContentDiagnosticCode.InvalidReference);
+
+            Dictionary<string, byte[]> badMovementTag = MutateJsonFile(ValidFixture(), "templates/reforms.json", text =>
+                ReplaceRegexOnce(text, "(\"id\"\\s*:\\s*\"ref_security_police_modernization\".*?\"movement_tags\"\\s*:\\s*\\[\\s*)\"theme\\.seguridad\"", "$1\"theme.unknown\""));
+            AssertFailure(Load(RebuildManifest(badMovementTag)), ContentDiagnosticCode.InvalidReference);
+
+            Dictionary<string, byte[]> badExplicitIg = MutateJsonFile(ValidFixture(), "templates/reforms.json", text =>
+                ReplaceRegexOnce(text, "(\"id\"\\s*:\\s*\"ref_security_police_modernization\".*?\"igs_stance\"\\s*:\\s*\\{\\s*)\"ig_orden_seguridad\"", "$1\"ig_missing\""));
+            AssertFailure(Load(RebuildManifest(badExplicitIg)), ContentDiagnosticCode.InvalidReference);
+
+            Dictionary<string, byte[]> badStanceRange = MutateJsonFile(ValidFixture(), "templates/reforms.json", text =>
+                ReplaceRegexOnce(text, "(\"id\"\\s*:\\s*\"ref_security_police_modernization\".*?\"ig_orden_seguridad\"\\s*:\\s*)70", "${1}170"));
+            AssertFailure(Load(RebuildManifest(badStanceRange)), ContentDiagnosticCode.InvalidRange);
+
+            Dictionary<string, byte[]> badStageDuplicate = MutateJsonFile(ValidFixture(), "templates/reforms.json", text =>
+                ReplaceRegexOnce(text, "(\"id\"\\s*:\\s*\"ref_security_police_modernization\".*?\"id\"\\s*:\\s*)\"vote_lower\"", "$1\"vote_upper\""));
+            AssertFailure(Load(RebuildManifest(badStageDuplicate)), ContentDiagnosticCode.DuplicateId);
+
+            Dictionary<string, byte[]> badVoteNone = MutateJsonFile(ValidFixture(), "templates/reforms.json", text =>
+                ReplaceRegexOnce(text, "(\"id\"\\s*:\\s*\"ref_security_police_modernization\".*?\"id\"\\s*:\\s*\"vote_lower\".*?\"chamber\"\\s*:\\s*)\"LOWER\"", "$1\"NONE\""));
+            AssertFailure(Load(RebuildManifest(badVoteNone)), ContentDiagnosticCode.InvalidValue);
+
+            Dictionary<string, byte[]> tooManyStages = MutateJsonFile(ValidFixture(), "templates/reforms.json", text =>
+                ReplaceRegexOnce(text, "(\"id\"\\s*:\\s*\"ref_security_police_modernization\".*?\"stages\"\\s*:\\s*\\[)", "$1{\"id\":\"extra_stage_one\",\"kind\":\"WORK\",\"chamber\":\"NONE\",\"weightS\":10000},{\"id\":\"extra_stage_two\",\"kind\":\"WORK\",\"chamber\":\"NONE\",\"weightS\":10000},"));
+            AssertFailure(Load(RebuildManifest(tooManyStages)), ContentDiagnosticCode.InvalidRange);
+
+            Dictionary<string, byte[]> badOnPassEffect = MutateJsonFile(ValidFixture(), "templates/reforms.json", text =>
+                ReplaceRegexOnce(text, "(\"id\"\\s*:\\s*\"ref_security_police_modernization\".*?\"on_pass_effects\"\\s*:\\s*\\[.*?\"template_id\"\\s*:\\s*)\"eff_internal_security_police_capacity_up_small\"", "$1\"eff_missing\""));
+            AssertFailure(Load(RebuildManifest(badOnPassEffect)), ContentDiagnosticCode.InvalidReference);
+        }
+
+        [Test]
+        public void ReformCompilerProducesNineOrderedStancesAndPreservesExplicitOverrides()
+        {
+            ContentLoadResult result = LoadRealPack();
+            ReformTemplate reform = result.Pack.ReformsById["ref_health_waitlist_acceleration"];
+
+            Assert.That(result.IsSuccess, Is.True, Diagnostics(result));
+            Assert.That(reform.EffectiveInterestGroupStances.Count, Is.EqualTo(9));
+            Assert.That(reform.EffectiveInterestGroupStances[0].InterestGroupId, Is.EqualTo("ig_empresariado_finanzas"));
+            Assert.That(reform.EffectiveInterestGroupStances[8].InterestGroupId, Is.EqualTo("ig_ambiental_regionalista"));
+            Assert.That(reform.ExplicitInterestGroupStancesById["ig_sector_publico_burocracia"], Is.EqualTo(45));
+            Assert.That(reform.EffectiveInterestGroupStancesById["ig_sector_publico_burocracia"], Is.EqualTo(45));
+            Assert.That(reform.EffectiveInterestGroupStancesById["ig_profesionales_clase_media"], Is.EqualTo(-10));
+            Assert.That(reform.EffectiveInterestGroupStancesById["ig_territorio_productivo"], Is.EqualTo(-10));
+            Assert.Throws<NotSupportedException>(() => ((IList<ReformInterestGroupStance>)reform.EffectiveInterestGroupStances).Add(reform.EffectiveInterestGroupStances[0]));
+            Assert.Throws<NotSupportedException>(() => ((IDictionary<string, int>)reform.EffectiveInterestGroupStancesById).Add("ig_other", 10));
         }
 
         [Test]
@@ -465,12 +576,18 @@ namespace VictoriantChile.Simulation.Tests.EditMode
             Assert.Throws<NotSupportedException>(() => ((IDictionary<string, RegionDefinition>)result.Pack.RegionsById).Add("other", result.Pack.Regions[0]));
             Assert.Throws<NotSupportedException>(() => ((IDictionary<string, string>)result.Pack.Localization.Entries).Add("new.key", "value"));
             Assert.Throws<NotSupportedException>(() => ((IList<EffectTemplate>)result.Pack.Effects).Add(result.Pack.Effects[0]));
+            Assert.Throws<NotSupportedException>(() => ((IList<EventTemplate>)result.Pack.Events).Add(result.Pack.Events[0]));
+            Assert.Throws<NotSupportedException>(() => ((IDictionary<string, EventTemplate>)result.Pack.EventsById).Add("evt_other", result.Pack.Events[0]));
+            Assert.Throws<NotSupportedException>(() => ((IList<ReformTemplate>)result.Pack.Reforms).Add(result.Pack.Reforms[0]));
+            Assert.Throws<NotSupportedException>(() => ((IDictionary<string, ReformTemplate>)result.Pack.ReformsById).Add("ref_other", result.Pack.Reforms[0]));
             Assert.Throws<KeyNotFoundException>(() => result.Pack.Localization.ResolveRequired("missing.key"));
 
             files["core/regions.json"] = Bytes("{\"regions\":[]}");
             Assert.That(result.Pack.Regions.Count, Is.EqualTo(originalRegionCount));
             Assert.That(result.Pack.RegionsById.ContainsKey(originalFirstRegionId), Is.True);
             Assert.That(result.Pack.EffectsById.ContainsKey("eff_legitimacy_down_small"), Is.True);
+            Assert.That(result.Pack.EventsById.ContainsKey("evt_media_scandal"), Is.True);
+            Assert.That(result.Pack.ReformsById.ContainsKey("ref_constitutional_process_call"), Is.True);
         }
 
         [Test]
@@ -607,6 +724,25 @@ namespace VictoriantChile.Simulation.Tests.EditMode
         private static string Text(byte[] bytes)
         {
             return Encoding.UTF8.GetString(bytes);
+        }
+
+        private static Dictionary<string, byte[]> MutateJsonFile(Dictionary<string, byte[]> files, string path, Func<string, string> mutate)
+        {
+            Dictionary<string, byte[]> result = new Dictionary<string, byte[]>(files, StringComparer.Ordinal);
+            result[path] = Bytes(mutate(Text(result[path])));
+            return result;
+        }
+
+        private static string ReplaceRegexOnce(string text, string pattern, string replacement)
+        {
+            Regex regex = new Regex(pattern, RegexOptions.CultureInvariant | RegexOptions.Singleline);
+            Match match = regex.Match(text);
+            if (!match.Success)
+            {
+                Assert.Fail("Pattern not found: " + pattern);
+            }
+
+            return regex.Replace(text, replacement, 1);
         }
 
         private static Dictionary<string, byte[]> LoadRealFixture()

@@ -927,6 +927,510 @@ namespace VictoriantChile.Content.Models
         public int? MaxS { get; }
     }
 
+    public enum EventKind
+    {
+        Auto,
+        Choice,
+        Crisis
+    }
+
+    public enum EventScope
+    {
+        National,
+        Region
+    }
+
+    public enum EventSelectorMode
+    {
+        ArgMax,
+        Weighted
+    }
+
+    public enum EventComparator
+    {
+        LessThan,
+        LessThanOrEqual,
+        Equal,
+        GreaterThanOrEqual,
+        GreaterThan
+    }
+
+    public enum EffectInvocationType
+    {
+        Modifier
+    }
+
+    public abstract class EventVariableBinding
+    {
+        protected EventVariableBinding(string name)
+        {
+            Name = name ?? throw new ArgumentNullException(nameof(name));
+        }
+
+        public string Name { get; }
+    }
+
+    public sealed class EventRegionBinding : EventVariableBinding
+    {
+        public EventRegionBinding(string name, EventSelectorMode mode, TargetPattern targetPattern)
+            : base(name)
+        {
+            Mode = mode;
+            TargetPattern = targetPattern;
+        }
+
+        public EventSelectorMode Mode { get; }
+
+        public TargetPattern TargetPattern { get; }
+    }
+
+    public sealed class EventInterestGroupBinding : EventVariableBinding
+    {
+        public EventInterestGroupBinding(string name, EventSelectorMode mode, TargetPattern targetPattern)
+            : base(name)
+        {
+            Mode = mode;
+            TargetPattern = targetPattern;
+        }
+
+        public EventSelectorMode Mode { get; }
+
+        public TargetPattern TargetPattern { get; }
+    }
+
+    public sealed class EventSeverityBinding : EventVariableBinding
+    {
+        public EventSeverityBinding(string name, TargetPath target, IEnumerable<EventSeverityBand> bands)
+            : base(name)
+        {
+            Target = target;
+            Bands = Array.AsReadOnly(ModelSnapshot.Array(bands, nameof(bands)));
+        }
+
+        public TargetPath Target { get; }
+
+        public IReadOnlyList<EventSeverityBand> Bands { get; }
+    }
+
+    public sealed class EventSeverityBand
+    {
+        public EventSeverityBand(int minValueS, int maxValueS, int severity)
+        {
+            MinValueS = minValueS;
+            MaxValueS = maxValueS;
+            Severity = severity;
+        }
+
+        public int MinValueS { get; }
+
+        public int MaxValueS { get; }
+
+        public int Severity { get; }
+    }
+
+    public abstract class EventConditionNode
+    {
+    }
+
+    public sealed class EventConditionAllNode : EventConditionNode
+    {
+        public EventConditionAllNode(IEnumerable<EventConditionNode> children)
+        {
+            Children = Array.AsReadOnly(ModelSnapshot.Array(children, nameof(children)));
+        }
+
+        public IReadOnlyList<EventConditionNode> Children { get; }
+    }
+
+    public sealed class EventConditionCompareTargetNode : EventConditionNode
+    {
+        public EventConditionCompareTargetNode(TargetPath target, EventComparator comparator, int valueS)
+        {
+            Target = target;
+            Comparator = comparator;
+            ValueS = valueS;
+        }
+
+        public TargetPath Target { get; }
+
+        public EventComparator Comparator { get; }
+
+        public int ValueS { get; }
+    }
+
+    public sealed class EventConditionCompareMovementNode : EventConditionNode
+    {
+        public EventConditionCompareMovementNode(string movementId, EventComparator comparator, int valueS)
+        {
+            MovementId = movementId ?? throw new ArgumentNullException(nameof(movementId));
+            Comparator = comparator;
+            ValueS = valueS;
+        }
+
+        public string MovementId { get; }
+
+        public EventComparator Comparator { get; }
+
+        public int ValueS { get; }
+    }
+
+    public sealed class EventConditionFlagIsSetNode : EventConditionNode
+    {
+        public EventConditionFlagIsSetNode(string flagId)
+        {
+            FlagId = flagId ?? throw new ArgumentNullException(nameof(flagId));
+        }
+
+        public string FlagId { get; }
+    }
+
+    public sealed class EventConditionCooldownReadyNode : EventConditionNode
+    {
+    }
+
+    public sealed class EventConditionMaxCountNotReachedNode : EventConditionNode
+    {
+    }
+
+    public sealed class EffectTemplateInvocation
+    {
+        public EffectTemplateInvocation(EffectInvocationType type, string templateId, int durationWeeks)
+        {
+            Type = type;
+            TemplateId = templateId ?? throw new ArgumentNullException(nameof(templateId));
+            DurationWeeks = durationWeeks;
+        }
+
+        public EffectInvocationType Type { get; }
+
+        public string TemplateId { get; }
+
+        public int DurationWeeks { get; }
+    }
+
+    public sealed class EventMemoryMutation
+    {
+        public EventMemoryMutation(IEnumerable<string> setFlags, IEnumerable<string> clearFlags, bool setCooldown)
+        {
+            SetFlags = Array.AsReadOnly(ModelSnapshot.ArrayOrEmpty(setFlags));
+            ClearFlags = Array.AsReadOnly(ModelSnapshot.ArrayOrEmpty(clearFlags));
+            SetCooldown = setCooldown;
+        }
+
+        public IReadOnlyList<string> SetFlags { get; }
+
+        public IReadOnlyList<string> ClearFlags { get; }
+
+        public bool SetCooldown { get; }
+    }
+
+    public sealed class EventFollowup
+    {
+        public EventFollowup(int afterWeeks, string eventId)
+        {
+            AfterWeeks = afterWeeks;
+            EventId = eventId ?? throw new ArgumentNullException(nameof(eventId));
+        }
+
+        public int AfterWeeks { get; }
+
+        public string EventId { get; }
+    }
+
+    public sealed class EventOption
+    {
+        public EventOption(
+            string id,
+            string localizationLabelKey,
+            EventConditionNode requirements,
+            IEnumerable<EffectTemplateInvocation> effects,
+            EventMemoryMutation memory,
+            IEnumerable<EventFollowup> followups)
+        {
+            Id = id ?? throw new ArgumentNullException(nameof(id));
+            LocalizationLabelKey = localizationLabelKey ?? throw new ArgumentNullException(nameof(localizationLabelKey));
+            Requirements = requirements ?? throw new ArgumentNullException(nameof(requirements));
+            Effects = Array.AsReadOnly(ModelSnapshot.Array(effects, nameof(effects)));
+            Memory = memory ?? throw new ArgumentNullException(nameof(memory));
+            Followups = Array.AsReadOnly(ModelSnapshot.ArrayOrEmpty(followups));
+        }
+
+        public string Id { get; }
+
+        public string LocalizationLabelKey { get; }
+
+        public EventConditionNode Requirements { get; }
+
+        public IReadOnlyList<EffectTemplateInvocation> Effects { get; }
+
+        public EventMemoryMutation Memory { get; }
+
+        public IReadOnlyList<EventFollowup> Followups { get; }
+    }
+
+    public sealed class EventTemplate
+    {
+        public EventTemplate(
+            string id,
+            string localizationTitleKey,
+            EventKind kind,
+            EventScope scope,
+            bool blocking,
+            int basePriority,
+            int weight,
+            int cooldownWeeks,
+            int maxPerCampaign,
+            IEnumerable<string> tags,
+            IEnumerable<EventVariableBinding> variables,
+            EventConditionNode conditions,
+            IEnumerable<EventOption> options,
+            string autoOptionId)
+        {
+            Id = id ?? throw new ArgumentNullException(nameof(id));
+            LocalizationTitleKey = localizationTitleKey ?? throw new ArgumentNullException(nameof(localizationTitleKey));
+            Kind = kind;
+            Scope = scope;
+            Blocking = blocking;
+            BasePriority = basePriority;
+            Weight = weight;
+            CooldownWeeks = cooldownWeeks;
+            MaxPerCampaign = maxPerCampaign;
+            Tags = Array.AsReadOnly(ModelSnapshot.Array(tags, nameof(tags)));
+            EventVariableBinding[] variableSnapshot = ModelSnapshot.ArrayOrEmpty(variables);
+            Variables = Array.AsReadOnly(variableSnapshot);
+            VariablesByName = ModelSnapshot.Dictionary(MapEventVariablesByName(variableSnapshot), nameof(variables));
+            Conditions = conditions ?? throw new ArgumentNullException(nameof(conditions));
+            EventOption[] optionSnapshot = ModelSnapshot.Array(options, nameof(options));
+            Options = Array.AsReadOnly(optionSnapshot);
+            OptionsById = ModelSnapshot.Dictionary(MapEventOptionsById(optionSnapshot), nameof(options));
+            AutoOptionId = autoOptionId;
+        }
+
+        public string Id { get; }
+
+        public string LocalizationTitleKey { get; }
+
+        public EventKind Kind { get; }
+
+        public EventScope Scope { get; }
+
+        public bool Blocking { get; }
+
+        public int BasePriority { get; }
+
+        public int Weight { get; }
+
+        public int CooldownWeeks { get; }
+
+        public int MaxPerCampaign { get; }
+
+        public IReadOnlyList<string> Tags { get; }
+
+        public IReadOnlyList<EventVariableBinding> Variables { get; }
+
+        public IReadOnlyDictionary<string, EventVariableBinding> VariablesByName { get; }
+
+        public EventConditionNode Conditions { get; }
+
+        public IReadOnlyList<EventOption> Options { get; }
+
+        public IReadOnlyDictionary<string, EventOption> OptionsById { get; }
+
+        public string AutoOptionId { get; }
+
+        private static IEnumerable<KeyValuePair<string, EventVariableBinding>> MapEventVariablesByName(IEnumerable<EventVariableBinding> values)
+        {
+            foreach (EventVariableBinding value in values)
+            {
+                yield return new KeyValuePair<string, EventVariableBinding>(value.Name, value);
+            }
+        }
+
+        private static IEnumerable<KeyValuePair<string, EventOption>> MapEventOptionsById(IEnumerable<EventOption> values)
+        {
+            foreach (EventOption value in values)
+            {
+                yield return new KeyValuePair<string, EventOption>(value.Id, value);
+            }
+        }
+    }
+
+    public enum ReformKind
+    {
+        Normal,
+        SpecialConstitutional
+    }
+
+    public enum ReformPrerequisiteType
+    {
+        Metric
+    }
+
+    public enum ReformStageKind
+    {
+        Work,
+        Vote
+    }
+
+    public enum ReformStageChamber
+    {
+        None,
+        Lower,
+        Upper,
+        Both
+    }
+
+    public sealed class ReformInterestGroupStance
+    {
+        public ReformInterestGroupStance(string interestGroupId, int stance)
+        {
+            InterestGroupId = interestGroupId ?? throw new ArgumentNullException(nameof(interestGroupId));
+            Stance = stance;
+        }
+
+        public string InterestGroupId { get; }
+
+        public int Stance { get; }
+    }
+
+    public sealed class ReformPrerequisite
+    {
+        public ReformPrerequisite(ReformPrerequisiteType type, TargetPath target, EventComparator comparator, int valueS)
+        {
+            Type = type;
+            Target = target;
+            Comparator = comparator;
+            ValueS = valueS;
+        }
+
+        public ReformPrerequisiteType Type { get; }
+
+        public TargetPath Target { get; }
+
+        public EventComparator Comparator { get; }
+
+        public int ValueS { get; }
+    }
+
+    public sealed class ReformStage
+    {
+        public ReformStage(string id, ReformStageKind kind, ReformStageChamber chamber, int weightS)
+        {
+            Id = id ?? throw new ArgumentNullException(nameof(id));
+            Kind = kind;
+            Chamber = chamber;
+            WeightS = weightS;
+        }
+
+        public string Id { get; }
+
+        public ReformStageKind Kind { get; }
+
+        public ReformStageChamber Chamber { get; }
+
+        public int WeightS { get; }
+    }
+
+    public sealed class ReformTemplate
+    {
+        public ReformTemplate(
+            string id,
+            string localizationTitleKey,
+            string localizationDescriptionKey,
+            string area,
+            ReformKind kind,
+            int cooldownWeeks,
+            int maxPerCampaign,
+            IEnumerable<string> movementTags,
+            IEnumerable<string> policyTags,
+            IEnumerable<ReformInterestGroupStance> explicitInterestGroupStances,
+            IEnumerable<ReformInterestGroupStance> effectiveInterestGroupStances,
+            IEnumerable<ReformPrerequisite> prerequisites,
+            int baseDifficultyS,
+            IEnumerable<ReformStage> stages,
+            IEnumerable<EffectTemplateInvocation> onPassEffects)
+        {
+            Id = id ?? throw new ArgumentNullException(nameof(id));
+            LocalizationTitleKey = localizationTitleKey ?? throw new ArgumentNullException(nameof(localizationTitleKey));
+            LocalizationDescriptionKey = localizationDescriptionKey ?? throw new ArgumentNullException(nameof(localizationDescriptionKey));
+            Area = area ?? throw new ArgumentNullException(nameof(area));
+            Kind = kind;
+            CooldownWeeks = cooldownWeeks;
+            MaxPerCampaign = maxPerCampaign;
+            MovementTags = Array.AsReadOnly(ModelSnapshot.Array(movementTags, nameof(movementTags)));
+            PolicyTags = Array.AsReadOnly(ModelSnapshot.Array(policyTags, nameof(policyTags)));
+
+            ReformInterestGroupStance[] explicitSnapshot = ModelSnapshot.Array(explicitInterestGroupStances, nameof(explicitInterestGroupStances));
+            ExplicitInterestGroupStances = Array.AsReadOnly(explicitSnapshot);
+            ExplicitInterestGroupStancesById = ModelSnapshot.Dictionary(MapInterestGroupStancesById(explicitSnapshot), nameof(explicitInterestGroupStances));
+
+            ReformInterestGroupStance[] effectiveSnapshot = ModelSnapshot.Array(effectiveInterestGroupStances, nameof(effectiveInterestGroupStances));
+            EffectiveInterestGroupStances = Array.AsReadOnly(effectiveSnapshot);
+            EffectiveInterestGroupStancesById = ModelSnapshot.Dictionary(MapInterestGroupStancesById(effectiveSnapshot), nameof(effectiveInterestGroupStances));
+
+            Prerequisites = Array.AsReadOnly(ModelSnapshot.ArrayOrEmpty(prerequisites));
+            BaseDifficultyS = baseDifficultyS;
+
+            ReformStage[] stageSnapshot = ModelSnapshot.Array(stages, nameof(stages));
+            Stages = Array.AsReadOnly(stageSnapshot);
+            StagesById = ModelSnapshot.Dictionary(MapStagesById(stageSnapshot), nameof(stages));
+
+            OnPassEffects = Array.AsReadOnly(ModelSnapshot.ArrayOrEmpty(onPassEffects));
+        }
+
+        public string Id { get; }
+
+        public string LocalizationTitleKey { get; }
+
+        public string LocalizationDescriptionKey { get; }
+
+        public string Area { get; }
+
+        public ReformKind Kind { get; }
+
+        public int CooldownWeeks { get; }
+
+        public int MaxPerCampaign { get; }
+
+        public IReadOnlyList<string> MovementTags { get; }
+
+        public IReadOnlyList<string> PolicyTags { get; }
+
+        public IReadOnlyList<ReformInterestGroupStance> ExplicitInterestGroupStances { get; }
+
+        public IReadOnlyDictionary<string, int> ExplicitInterestGroupStancesById { get; }
+
+        public IReadOnlyList<ReformInterestGroupStance> EffectiveInterestGroupStances { get; }
+
+        public IReadOnlyDictionary<string, int> EffectiveInterestGroupStancesById { get; }
+
+        public IReadOnlyList<ReformPrerequisite> Prerequisites { get; }
+
+        public int BaseDifficultyS { get; }
+
+        public IReadOnlyList<ReformStage> Stages { get; }
+
+        public IReadOnlyDictionary<string, ReformStage> StagesById { get; }
+
+        public IReadOnlyList<EffectTemplateInvocation> OnPassEffects { get; }
+
+        private static IEnumerable<KeyValuePair<string, int>> MapInterestGroupStancesById(IEnumerable<ReformInterestGroupStance> values)
+        {
+            foreach (ReformInterestGroupStance value in values)
+            {
+                yield return new KeyValuePair<string, int>(value.InterestGroupId, value.Stance);
+            }
+        }
+
+        private static IEnumerable<KeyValuePair<string, ReformStage>> MapStagesById(IEnumerable<ReformStage> values)
+        {
+            foreach (ReformStage value in values)
+            {
+                yield return new KeyValuePair<string, ReformStage>(value.Id, value);
+            }
+        }
+    }
+
     public sealed class ContentPack
     {
         public ContentPack(
@@ -935,7 +1439,7 @@ namespace VictoriantChile.Content.Models
             IEnumerable<RegionDefinition> regions,
             IEnumerable<InterestGroupDefinition> interestGroups,
             IEnumerable<MovementDefinition> movements)
-            : this(manifest, targetConfigs, regions, interestGroups, movements, null, null, null, null)
+            : this(manifest, targetConfigs, regions, interestGroups, movements, null, null, null, null, null, null)
         {
         }
 
@@ -949,6 +1453,22 @@ namespace VictoriantChile.Content.Models
             AggregationConfig aggregationConfig,
             LegislativeConfig legislativeConfig,
             IEnumerable<EffectTemplate> effects)
+            : this(manifest, targetConfigs, regions, interestGroups, movements, localization, aggregationConfig, legislativeConfig, effects, null, null)
+        {
+        }
+
+        public ContentPack(
+            ContentManifest manifest,
+            IEnumerable<TargetConfig> targetConfigs,
+            IEnumerable<RegionDefinition> regions,
+            IEnumerable<InterestGroupDefinition> interestGroups,
+            IEnumerable<MovementDefinition> movements,
+            ContentLocalizationTable localization,
+            AggregationConfig aggregationConfig,
+            LegislativeConfig legislativeConfig,
+            IEnumerable<EffectTemplate> effects,
+            IEnumerable<EventTemplate> events,
+            IEnumerable<ReformTemplate> reforms)
         {
             Manifest = manifest ?? throw new ArgumentNullException(nameof(manifest));
 
@@ -957,6 +1477,8 @@ namespace VictoriantChile.Content.Models
             InterestGroupDefinition[] interestGroupSnapshot = ModelSnapshot.Array(interestGroups, nameof(interestGroups));
             MovementDefinition[] movementSnapshot = ModelSnapshot.Array(movements, nameof(movements));
             EffectTemplate[] effectSnapshot = ModelSnapshot.ArrayOrEmpty(effects);
+            EventTemplate[] eventSnapshot = ModelSnapshot.ArrayOrEmpty(events);
+            ReformTemplate[] reformSnapshot = ModelSnapshot.ArrayOrEmpty(reforms);
 
             TargetConfigs = Array.AsReadOnly(targetConfigSnapshot);
             TargetConfigCatalog = new TargetConfigCatalog(targetConfigSnapshot);
@@ -971,6 +1493,10 @@ namespace VictoriantChile.Content.Models
             LegislativeConfig = legislativeConfig;
             Effects = Array.AsReadOnly(effectSnapshot);
             EffectsById = ModelSnapshot.Dictionary(MapEffectsById(effectSnapshot), nameof(effects));
+            Events = Array.AsReadOnly(eventSnapshot);
+            EventsById = ModelSnapshot.Dictionary(MapEventsById(eventSnapshot), nameof(events));
+            Reforms = Array.AsReadOnly(reformSnapshot);
+            ReformsById = ModelSnapshot.Dictionary(MapReformsById(reformSnapshot), nameof(reforms));
         }
 
         public ContentManifest Manifest { get; }
@@ -1001,6 +1527,14 @@ namespace VictoriantChile.Content.Models
 
         public IReadOnlyDictionary<string, EffectTemplate> EffectsById { get; }
 
+        public IReadOnlyList<EventTemplate> Events { get; }
+
+        public IReadOnlyDictionary<string, EventTemplate> EventsById { get; }
+
+        public IReadOnlyList<ReformTemplate> Reforms { get; }
+
+        public IReadOnlyDictionary<string, ReformTemplate> ReformsById { get; }
+
         private static IEnumerable<KeyValuePair<string, RegionDefinition>> MapRegionsById(IEnumerable<RegionDefinition> values)
         {
             foreach (RegionDefinition value in values)
@@ -1030,6 +1564,22 @@ namespace VictoriantChile.Content.Models
             foreach (EffectTemplate value in values)
             {
                 yield return new KeyValuePair<string, EffectTemplate>(value.Id, value);
+            }
+        }
+
+        private static IEnumerable<KeyValuePair<string, EventTemplate>> MapEventsById(IEnumerable<EventTemplate> values)
+        {
+            foreach (EventTemplate value in values)
+            {
+                yield return new KeyValuePair<string, EventTemplate>(value.Id, value);
+            }
+        }
+
+        private static IEnumerable<KeyValuePair<string, ReformTemplate>> MapReformsById(IEnumerable<ReformTemplate> values)
+        {
+            foreach (ReformTemplate value in values)
+            {
+                yield return new KeyValuePair<string, ReformTemplate>(value.Id, value);
             }
         }
     }

@@ -55,12 +55,33 @@ The loader validates and projects:
 - `strings/es.json` into an immutable localization table for the default language;
 - `rules/aggregation_config.json` into immutable aggregation models;
 - `rules/legislative_config.json` into immutable legislative models;
-- `templates/effects.json` into immutable ordered effect templates with ID lookup.
+- `templates/effects.json` into immutable ordered effect templates with ID lookup;
+- `templates/events.json` into immutable ordered event templates with:
+  - closed condition AST nodes;
+  - validated variable bindings;
+  - validated options, memory mutations and followups;
+  - localization and cross-resource references resolved fail-closed;
+- `templates/reforms.json` into immutable ordered reform templates with:
+  - validated prerequisites, stages and on-pass effects;
+  - explicit IG stance overrides preserved;
+  - deterministic compiled effective IG stances for all declared IGs.
 
 All declared manifest files are read and hash-checked. The current runtime pack
 projects the core content, default-language localization, aggregation config,
-legislative config, and effect templates, while still treating invalid content
-as a fail-closed load error.
+legislative config, effect templates, event templates, and reform templates,
+while still treating invalid content as a fail-closed load error.
+
+Event and reform loading is split into four concerns:
+
+1. strict JSON parsing;
+2. schema and range validation;
+3. cross-reference validation;
+4. one-time compilation/normalization into immutable runtime models.
+
+The reform loader compiles partial `igs_stance` declarations into a full,
+ordered runtime stance map exactly once while building the `ContentPack`. The
+future legislative runtime consumes only the compiled effective mapping; it does
+not recalculate stance expansion.
 
 Schema compatibility is exact in this baseline:
 
@@ -74,7 +95,7 @@ If any error diagnostic is produced, `ContentLoadResult.Pack` is null and
 
 ## Out Of Scope
 
-This PR does not implement event loading, reform loading, effect execution,
-aggregation formulas, legislative execution, GameState, mutation, persistence,
-scheduling, normalization runtime, Android APK loading, web loading, or
-UnityWebRequest.
+This loader does not execute events, event options, reform stages, followups,
+effects, aggregation formulas, legislative workflows, GameState mutation,
+persistence, scheduling, or causal ledger logic. It also still excludes Android
+APK loading, web loading, and UnityWebRequest.
