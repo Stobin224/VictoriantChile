@@ -104,6 +104,104 @@ namespace VictoriantChile.Simulation.Core.Causality
             }
         }
 
+        public void RequireTrackedTarget(TargetPath target)
+        {
+            EnsureMutable();
+            _visibleTargets.RequireVisible(target);
+            RequireTrackedRecord(target, CausalLedgerErrorCodes.TargetNotTracked, "Visible targets must be tracked before causal contributions can be recorded.");
+        }
+
+        public void RecordContributionsBatch(IEnumerable<CausalTargetContribution> contributions)
+        {
+            EnsureMutable();
+            if (contributions == null)
+            {
+                throw new ArgumentNullException(nameof(contributions));
+            }
+
+            List<PendingContribution> pending = new List<PendingContribution>();
+            Dictionary<TargetPath, Dictionary<CauseRef, long>> simulated = new Dictionary<TargetPath, Dictionary<CauseRef, long>>();
+            foreach (CausalTargetContribution contribution in contributions)
+            {
+                if (contribution == null || contribution.DeltaS == 0)
+                {
+                    continue;
+                }
+
+                _visibleTargets.RequireVisible(contribution.Target);
+                MutableTargetRecord record = RequireTrackedRecord(
+                    contribution.Target,
+                    CausalLedgerErrorCodes.ContributionBeforeBaseline,
+                    "Visible targets must be tracked before batched causal contributions can be recorded.");
+                if (record.Closed)
+                {
+                    throw new CausalLedgerException(
+                        CausalLedgerErrorCodes.ContributionAfterClose,
+                        contribution.Target.ToString(),
+                        Tick,
+                        "Closed targets cannot receive new batched contributions.");
+                }
+
+                if (!simulated.TryGetValue(contribution.Target, out Dictionary<CauseRef, long> byCause))
+                {
+                    byCause = new Dictionary<CauseRef, long>(record.Contributions);
+                    simulated.Add(contribution.Target, byCause);
+                }
+
+                try
+                {
+                    if (byCause.TryGetValue(contribution.Cause, out long existing))
+                    {
+                        long updated = checked(existing + contribution.DeltaS);
+                        if (updated == 0)
+                        {
+                            byCause.Remove(contribution.Cause);
+                        }
+                        else
+                        {
+                            byCause[contribution.Cause] = updated;
+                        }
+                    }
+                    else
+                    {
+                        byCause.Add(contribution.Cause, contribution.DeltaS);
+                    }
+                }
+                catch (OverflowException exception)
+                {
+                    throw new CausalLedgerException(
+                        CausalLedgerErrorCodes.ArithmeticOverflow,
+                        contribution.Target.ToString(),
+                        Tick,
+                        "Batched causal contribution accumulation overflowed.",
+                        innerException: exception);
+                }
+
+                pending.Add(new PendingContribution(record, contribution.Cause, contribution.DeltaS));
+            }
+
+            for (int i = 0; i < pending.Count; i++)
+            {
+                PendingContribution item = pending[i];
+                if (item.Record.Contributions.TryGetValue(item.Cause, out long existing))
+                {
+                    long updated = checked(existing + item.DeltaS);
+                    if (updated == 0)
+                    {
+                        item.Record.Contributions.Remove(item.Cause);
+                    }
+                    else
+                    {
+                        item.Record.Contributions[item.Cause] = updated;
+                    }
+                }
+                else
+                {
+                    item.Record.Contributions.Add(item.Cause, item.DeltaS);
+                }
+            }
+        }
+
         public void CloseTarget(TargetPath target, int finalValueS)
         {
             EnsureMutable();
@@ -254,6 +352,22 @@ namespace VictoriantChile.Simulation.Core.Causality
             public bool Closed { get; set; }
 
             public Dictionary<CauseRef, long> Contributions { get; }
+        }
+
+        private sealed class PendingContribution
+        {
+            public PendingContribution(MutableTargetRecord record, CauseRef cause, long deltaS)
+            {
+                Record = record;
+                Cause = cause;
+                DeltaS = deltaS;
+            }
+
+            public MutableTargetRecord Record { get; }
+
+            public CauseRef Cause { get; }
+
+            public long DeltaS { get; }
         }
     }
 

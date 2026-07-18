@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using VictoriantChile.Simulation.Core.Effects;
 using VictoriantChile.Simulation.Core.Targets;
 
 namespace VictoriantChile.Content.Models
@@ -1493,6 +1494,7 @@ namespace VictoriantChile.Content.Models
             LegislativeConfig = legislativeConfig;
             Effects = Array.AsReadOnly(effectSnapshot);
             EffectsById = ModelSnapshot.Dictionary(MapEffectsById(effectSnapshot), nameof(effects));
+            EffectRuntimeCatalog = new EffectRuntimeCatalog(MapEffectRuntimeTemplates(effectSnapshot));
             Events = Array.AsReadOnly(eventSnapshot);
             EventsById = ModelSnapshot.Dictionary(MapEventsById(eventSnapshot), nameof(events));
             Reforms = Array.AsReadOnly(reformSnapshot);
@@ -1526,6 +1528,8 @@ namespace VictoriantChile.Content.Models
         public IReadOnlyList<EffectTemplate> Effects { get; }
 
         public IReadOnlyDictionary<string, EffectTemplate> EffectsById { get; }
+
+        public EffectRuntimeCatalog EffectRuntimeCatalog { get; }
 
         public IReadOnlyList<EventTemplate> Events { get; }
 
@@ -1564,6 +1568,26 @@ namespace VictoriantChile.Content.Models
             foreach (EffectTemplate value in values)
             {
                 yield return new KeyValuePair<string, EffectTemplate>(value.Id, value);
+            }
+        }
+
+        private static IEnumerable<EffectTemplateRuntime> MapEffectRuntimeTemplates(IEnumerable<EffectTemplate> values)
+        {
+            foreach (EffectTemplate value in values)
+            {
+                List<EffectModifierRuntime> modifiers = new List<EffectModifierRuntime>(value.Modifiers.Count);
+                for (int i = 0; i < value.Modifiers.Count; i++)
+                {
+                    EffectModifier modifier = value.Modifiers[i];
+                    modifiers.Add(new EffectModifierRuntime(
+                        modifier.Target,
+                        modifier.Operation,
+                        modifier.ValueS,
+                        modifier.IsPerTick,
+                        modifier.Clamp == null ? null : new EffectClampRuntime(modifier.Clamp.MinS, modifier.Clamp.MaxS)));
+                }
+
+                yield return new EffectTemplateRuntime(value.Id, modifiers);
             }
         }
 

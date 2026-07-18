@@ -16,7 +16,7 @@ namespace VictoriantChile.Simulation.Tests.EditMode
 {
     public sealed class StateResolutionScenarioRunnerTests
     {
-        private const string SmokeStateHash = "sha256:7b302a8d323c47913ce8618315285a65d93ed040752245ec9252034694eb494c";
+        private const string SmokeStateHash = "sha256:1f39c5fdfb920f31532e52646c3ceca468a667aa485e49202ff2f0c357fe6aef";
 
         [TestCase("metrics.legitimacy", 5000)]
         [TestCase("internals.economy.growth", 5000)]
@@ -246,9 +246,9 @@ namespace VictoriantChile.Simulation.Tests.EditMode
             GameState valid = CreateState(pack, 10);
             Assert.That(new GameStateInvariantValidator().Validate(valid, pack.TargetConfigCatalog), Is.Empty);
 
-            GameState badMetric = new GameState(valid.RngSeed, valid.ContentMetadata, ReplaceMetric(valid, "legitimacy", 10001), valid.Internals, valid.Regions, valid.InterestGroups, valid.Movements);
-            GameState badClout = new GameState(valid.RngSeed, valid.ContentMetadata, valid.Metrics, valid.Internals, valid.Regions, ReplaceClout(valid, "ig_ambiental_regionalista", 1), valid.Movements);
-            GameState badDirection = new GameState(valid.RngSeed, valid.ContentMetadata, valid.Metrics, valid.Internals, valid.Regions, valid.InterestGroups, ReplaceDirection(valid, "mov_seguridad_mano_dura", 0));
+            GameState badMetric = new GameState(valid.RngSeed, valid.ContentMetadata, ReplaceMetric(valid, "legitimacy", 10001), valid.Internals, valid.Regions, valid.InterestGroups, valid.Movements, valid.ActiveEffects, valid.Tick);
+            GameState badClout = new GameState(valid.RngSeed, valid.ContentMetadata, valid.Metrics, valid.Internals, valid.Regions, ReplaceClout(valid, "ig_ambiental_regionalista", 1), valid.Movements, valid.ActiveEffects, valid.Tick);
+            GameState badDirection = new GameState(valid.RngSeed, valid.ContentMetadata, valid.Metrics, valid.Internals, valid.Regions, valid.InterestGroups, ReplaceDirection(valid, "mov_seguridad_mano_dura", 0), valid.ActiveEffects, valid.Tick);
 
             Assert.That(HasCode(new GameStateInvariantValidator().Validate(badMetric, pack.TargetConfigCatalog), "state.invariant_violation"), Is.True);
             Assert.That(HasCode(new GameStateInvariantValidator().Validate(badClout, pack.TargetConfigCatalog), "state.invariant_violation"), Is.True);
@@ -262,7 +262,7 @@ namespace VictoriantChile.Simulation.Tests.EditMode
             string json = new CanonicalGameStateSerializer().ToCompactJson(state);
             string hash = new GameStateHasher().ComputeHash(state);
 
-            Assert.That(json, Does.StartWith("{\"state_schema_version\":1,\"tick\":0,\"rng_seed\":424242,\"content\":"));
+            Assert.That(json, Does.StartWith("{\"state_schema_version\":2,\"tick\":0,\"rng_seed\":424242,\"content\":"));
             Assert.That(hash, Does.Match("^sha256:[0-9a-f]{64}$"));
             Assert.That(hash, Is.EqualTo(new GameStateHasher().ComputeHash(CreateState(LoadRealPack(), 424242))));
             Assert.That(hash, Is.Not.EqualTo(new GameStateHasher().ComputeHash(CreateState(LoadRealPack(), 424243))));
