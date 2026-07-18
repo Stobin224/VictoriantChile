@@ -28,10 +28,15 @@ namespace VictoriantChile.Content.Diagnostics
         MissingRequiredManifestEntry,
         DuplicateId,
         InvalidId,
+        UnsupportedSchemaVersion,
+        InvalidEnum,
         DuplicateTargetPattern,
         InvalidTargetPattern,
+        InvalidTargetReference,
         InvalidTargetOperation,
         InvalidRange,
+        InvalidWeightSum,
+        MissingLocalizationKey,
         InvalidMacrozone,
         RegionWeightTotalMismatch
     }

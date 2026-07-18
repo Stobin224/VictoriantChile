@@ -218,6 +218,9 @@ namespace VictoriantChile.Content.Loading
         private const string InterestGroupsPath = "core/igs.json";
         private const string MovementsPath = "core/movements.json";
         private const string TargetConfigPath = "rules/target_config.json";
+        private const string AggregationConfigPath = "rules/aggregation_config.json";
+        private const string LegislativeConfigPath = "rules/legislative_config.json";
+        private const string EffectsPath = "templates/effects.json";
         private const int DefaultStaticRegionS = 5000;
 
         private readonly List<ContentDiagnostic> _diagnostics = new List<ContentDiagnostic>();
@@ -242,6 +245,9 @@ namespace VictoriantChile.Content.Loading
                 VerifyRequiredManifestEntry(manifest, InterestGroupsPath);
                 VerifyRequiredManifestEntry(manifest, MovementsPath);
                 VerifyRequiredManifestEntry(manifest, TargetConfigPath);
+                VerifyRequiredManifestEntry(manifest, AggregationConfigPath);
+                VerifyRequiredManifestEntry(manifest, LegislativeConfigPath);
+                VerifyRequiredManifestEntry(manifest, EffectsPath);
                 VerifyRequiredManifestEntry(manifest, $"strings/{manifest.DefaultLanguage}.json");
             }
 
@@ -249,10 +255,24 @@ namespace VictoriantChile.Content.Loading
             List<RegionDefinition> regions = null;
             List<InterestGroupDefinition> interestGroups = null;
             List<MovementDefinition> movements = null;
+            ContentLocalizationTable localization = null;
+            AggregationConfig aggregationConfig = null;
+            LegislativeConfig legislativeConfig = null;
+            List<EffectTemplate> effects = null;
+            TargetConfigCatalog targetCatalog = null;
 
             if (manifest != null && verifiedFiles.TryGetValue(TargetConfigPath, out byte[] targetConfigBytes))
             {
                 targetConfigs = LoadTargetConfigs(ParseArray(TargetConfigPath, targetConfigBytes));
+                if (!HasErrors())
+                {
+                    targetCatalog = new TargetConfigCatalog(targetConfigs);
+                }
+            }
+
+            if (manifest != null && verifiedFiles.TryGetValue($"strings/{manifest.DefaultLanguage}.json", out byte[] localizationBytes))
+            {
+                localization = LoadLocalization(manifest.DefaultLanguage, ParseObject($"strings/{manifest.DefaultLanguage}.json", localizationBytes));
             }
 
             if (manifest != null && verifiedFiles.TryGetValue(RegionsPath, out byte[] regionBytes))
@@ -270,12 +290,27 @@ namespace VictoriantChile.Content.Loading
                 movements = LoadMovements(ParseObject(MovementsPath, movementBytes));
             }
 
+            if (targetCatalog != null && verifiedFiles.TryGetValue(AggregationConfigPath, out byte[] aggregationBytes))
+            {
+                aggregationConfig = LoadAggregationConfig(ParseObject(AggregationConfigPath, aggregationBytes), targetCatalog);
+            }
+
+            if (targetCatalog != null && verifiedFiles.TryGetValue(LegislativeConfigPath, out byte[] legislativeBytes))
+            {
+                legislativeConfig = LoadLegislativeConfig(ParseObject(LegislativeConfigPath, legislativeBytes), targetCatalog);
+            }
+
+            if (targetCatalog != null && verifiedFiles.TryGetValue(EffectsPath, out byte[] effectBytes))
+            {
+                effects = LoadEffects(ParseObject(EffectsPath, effectBytes), targetCatalog, localization);
+            }
+
             if (HasErrors())
             {
                 return new ContentLoadResult(null, _diagnostics);
             }
 
-            ContentPack pack = new ContentPack(manifest, targetConfigs, regions, interestGroups, movements);
+            ContentPack pack = new ContentPack(manifest, targetConfigs, regions, interestGroups, movements, localization, aggregationConfig, legislativeConfig, effects);
             return new ContentLoadResult(pack, _diagnostics);
         }
 
@@ -723,6 +758,915 @@ namespace VictoriantChile.Content.Loading
             }
         }
 
+        private ContentLocalizationTable LoadLocalization(string language, JObject root)
+        {
+            string file = "strings/" + language + ".json";
+            if (root == null)
+            {
+                return null;
+            }
+
+            List<KeyValuePair<string, string>> ordered = new List<KeyValuePair<string, string>>();
+            foreach (JProperty property in root.Properties())
+            {
+                string jsonPath = "$[\"" + property.Name + "\"]";
+                if (string.IsNullOrEmpty(property.Name))
+                {
+                    Add(ContentDiagnosticCode.InvalidValue, file, jsonPath, "Localization key must not be empty.");
+                    continue;
+                }
+
+                if (property.Value.Type != JTokenType.String)
+                {
+                    Add(ContentDiagnosticCode.InvalidPropertyType, file, jsonPath, "Localization value must be a string.");
+                    continue;
+                }
+
+                ordered.Add(new KeyValuePair<string, string>(property.Name, property.Value.Value<string>()));
+            }
+
+            ordered.Sort((left, right) => string.Compare(left.Key, right.Key, StringComparison.Ordinal));
+            return HasErrors() ? null : new ContentLocalizationTable(language, ordered);
+        }
+
+        private AggregationConfig LoadAggregationConfig(JObject root, TargetConfigCatalog catalog)
+        {
+            if (root == null)
+            {
+                return null;
+            }
+
+            ValidateUnknownProperties(AggregationConfigPath, root, "$", new[] { "schema_version", "scale", "midS", "rounding", "passes" });
+            int? schemaVersion = RequiredInt(AggregationConfigPath, root, "schema_version", "$.schema_version");
+            int? scale = RequiredInt(AggregationConfigPath, root, "scale", "$.scale");
+            int? midS = RequiredInt(AggregationConfigPath, root, "midS", "$.midS");
+            string roundingText = RequiredString(AggregationConfigPath, root, "rounding", "$.rounding", nonEmpty: true);
+            JArray passesArray = RequiredArray(AggregationConfigPath, root, "passes", "$.passes");
+
+            if (schemaVersion.HasValue && schemaVersion.Value != 1)
+            {
+                Add(ContentDiagnosticCode.UnsupportedSchemaVersion, AggregationConfigPath, "$.schema_version", "Unsupported schema version " + schemaVersion.Value + "; expected 1.");
+            }
+
+            if (scale.HasValue && scale.Value <= 0)
+            {
+                Add(ContentDiagnosticCode.InvalidRange, AggregationConfigPath, "$.scale", "scale must be positive.");
+            }
+
+            ContentRoundingMode rounding;
+            if (!TryMapRounding(roundingText, out rounding))
+            {
+                Add(ContentDiagnosticCode.InvalidEnum, AggregationConfigPath, "$.rounding", "rounding must be HALF_AWAY_FROM_ZERO.");
+            }
+
+            if (passesArray != null && passesArray.Count == 0)
+            {
+                Add(ContentDiagnosticCode.InvalidValue, AggregationConfigPath, "$.passes", "passes must not be empty.");
+            }
+
+            List<AggregationPass> passes = new List<AggregationPass>();
+            for (int i = 0; passesArray != null && i < passesArray.Count; i++)
+            {
+                string passPath = "$.passes[" + i + "]";
+                JObject passObject = passesArray[i] as JObject;
+                if (passObject == null)
+                {
+                    Add(ContentDiagnosticCode.InvalidPropertyType, AggregationConfigPath, passPath, "Pass must be an object.");
+                    continue;
+                }
+
+                string typeText = RequiredString(AggregationConfigPath, passObject, "type", passPath + ".type", nonEmpty: true);
+                string causePrefix = RequiredString(AggregationConfigPath, passObject, "cause_prefix", passPath + ".cause_prefix", nonEmpty: true);
+                AggregationPassType passType;
+                if (!TryMapAggregationPassType(typeText, out passType))
+                {
+                    Add(ContentDiagnosticCode.InvalidEnum, AggregationConfigPath, passPath + ".type", "Unknown aggregation pass type.");
+                    ValidateUnknownProperties(AggregationConfigPath, passObject, passPath, new[] { "type", "cause_prefix", "midS", "groups", "skip_targets", "log_components", "weights_abs_sum_ppm_required", "metrics", "rules" });
+                    continue;
+                }
+
+                if (passType == AggregationPassType.InternalReversion)
+                {
+                    passes.Add(LoadInternalReversionPass(passObject, passPath, causePrefix, catalog));
+                }
+                else if (passType == AggregationPassType.MetricAggregation)
+                {
+                    passes.Add(LoadMetricAggregationPass(passObject, passPath, causePrefix, catalog));
+                }
+                else
+                {
+                    passes.Add(LoadDerivedInternalsPass(passObject, passPath, causePrefix, catalog));
+                }
+            }
+
+            if (HasErrors())
+            {
+                return null;
+            }
+
+            return new AggregationConfig(schemaVersion.Value, scale.Value, midS.Value, rounding, passes);
+        }
+
+        private AggregationPass LoadInternalReversionPass(JObject passObject, string passPath, string causePrefix, TargetConfigCatalog catalog)
+        {
+            ValidateUnknownProperties(AggregationConfigPath, passObject, passPath, new[] { "type", "cause_prefix", "midS", "groups", "skip_targets" });
+            int? midS = RequiredInt(AggregationConfigPath, passObject, "midS", passPath + ".midS");
+            JArray groupsArray = RequiredArray(AggregationConfigPath, passObject, "groups", passPath + ".groups");
+            JArray skipTargetsArray = RequiredArray(AggregationConfigPath, passObject, "skip_targets", passPath + ".skip_targets");
+
+            List<AggregationReversionGroup> groups = new List<AggregationReversionGroup>();
+            for (int i = 0; groupsArray != null && i < groupsArray.Count; i++)
+            {
+                string groupPath = passPath + ".groups[" + i + "]";
+                JObject groupObject = groupsArray[i] as JObject;
+                if (groupObject == null)
+                {
+                    Add(ContentDiagnosticCode.InvalidPropertyType, AggregationConfigPath, groupPath, "Reversion group must be an object.");
+                    continue;
+                }
+
+                ValidateUnknownProperties(AggregationConfigPath, groupObject, groupPath, new[] { "pattern", "half_life_weeks", "alpha_ppm" });
+                TargetPattern? pattern = RequiredTargetPattern(AggregationConfigPath, groupObject, "pattern", groupPath + ".pattern", catalog);
+                int? halfLifeWeeks = RequiredInt(AggregationConfigPath, groupObject, "half_life_weeks", groupPath + ".half_life_weeks");
+                int? alphaPpm = RequiredInt(AggregationConfigPath, groupObject, "alpha_ppm", groupPath + ".alpha_ppm");
+                ValidatePositive(AggregationConfigPath, groupPath + ".half_life_weeks", halfLifeWeeks, "half_life_weeks");
+                ValidatePpm(AggregationConfigPath, groupPath + ".alpha_ppm", alphaPpm, "alpha_ppm");
+                if (HasErrorsForRow(groupPath) || !pattern.HasValue || !halfLifeWeeks.HasValue || !alphaPpm.HasValue)
+                {
+                    continue;
+                }
+
+                groups.Add(new AggregationReversionGroup(pattern.Value, halfLifeWeeks.Value, alphaPpm.Value));
+            }
+
+            List<TargetPath> skipTargets = new List<TargetPath>();
+            HashSet<string> seenSkipTargets = new HashSet<string>(StringComparer.Ordinal);
+            for (int i = 0; skipTargetsArray != null && i < skipTargetsArray.Count; i++)
+            {
+                string targetPath = passPath + ".skip_targets[" + i + "]";
+                TargetPath? target = ReadTargetPathToken(AggregationConfigPath, skipTargetsArray[i], targetPath, catalog, allowMutation: false, requiredOperation: null);
+                if (!target.HasValue)
+                {
+                    continue;
+                }
+
+                string canonical = target.Value.ToString();
+                if (!seenSkipTargets.Add(canonical))
+                {
+                    Add(ContentDiagnosticCode.InvalidValue, AggregationConfigPath, targetPath, "Duplicate skip target " + canonical + ".");
+                    continue;
+                }
+
+                skipTargets.Add(target.Value);
+            }
+
+            return new AggregationPass(AggregationPassType.InternalReversion, causePrefix, midS, groups, skipTargets, null, null, null, null);
+        }
+
+        private AggregationPass LoadMetricAggregationPass(JObject passObject, string passPath, string causePrefix, TargetConfigCatalog catalog)
+        {
+            ValidateUnknownProperties(AggregationConfigPath, passObject, passPath, new[] { "type", "cause_prefix", "log_components", "weights_abs_sum_ppm_required", "metrics" });
+            bool? logComponents = RequiredBool(AggregationConfigPath, passObject, "log_components", passPath + ".log_components");
+            int? requiredWeightSum = RequiredInt(AggregationConfigPath, passObject, "weights_abs_sum_ppm_required", passPath + ".weights_abs_sum_ppm_required");
+            JArray metricsArray = RequiredArray(AggregationConfigPath, passObject, "metrics", passPath + ".metrics");
+            ValidatePositive(AggregationConfigPath, passPath + ".weights_abs_sum_ppm_required", requiredWeightSum, "weights_abs_sum_ppm_required");
+
+            List<AggregationMetric> metrics = new List<AggregationMetric>();
+            HashSet<string> metricIds = new HashSet<string>(StringComparer.Ordinal);
+            for (int i = 0; metricsArray != null && i < metricsArray.Count; i++)
+            {
+                string metricPath = passPath + ".metrics[" + i + "]";
+                JObject metricObject = metricsArray[i] as JObject;
+                if (metricObject == null)
+                {
+                    Add(ContentDiagnosticCode.InvalidPropertyType, AggregationConfigPath, metricPath, "Metric aggregation row must be an object.");
+                    continue;
+                }
+
+                ValidateUnknownProperties(AggregationConfigPath, metricObject, metricPath, new[] { "metric", "half_life_weeks", "alpha_ppm", "cap_per_weekS", "components" });
+                TargetPath? metricTarget = RequiredTargetPath(AggregationConfigPath, metricObject, "metric", metricPath + ".metric", catalog, allowMutation: true, requiredOperation: null);
+                int? halfLifeWeeks = RequiredInt(AggregationConfigPath, metricObject, "half_life_weeks", metricPath + ".half_life_weeks");
+                int? alphaPpm = RequiredInt(AggregationConfigPath, metricObject, "alpha_ppm", metricPath + ".alpha_ppm");
+                int? capPerWeekS = RequiredInt(AggregationConfigPath, metricObject, "cap_per_weekS", metricPath + ".cap_per_weekS");
+                JArray componentsArray = RequiredArray(AggregationConfigPath, metricObject, "components", metricPath + ".components");
+                ValidatePositive(AggregationConfigPath, metricPath + ".half_life_weeks", halfLifeWeeks, "half_life_weeks");
+                ValidatePpm(AggregationConfigPath, metricPath + ".alpha_ppm", alphaPpm, "alpha_ppm");
+                if (capPerWeekS.HasValue && capPerWeekS.Value < 0)
+                {
+                    Add(ContentDiagnosticCode.InvalidRange, AggregationConfigPath, metricPath + ".cap_per_weekS", "cap_per_weekS must be non-negative.");
+                }
+
+                List<WeightedTargetComponent> components = new List<WeightedTargetComponent>();
+                HashSet<string> componentTargets = new HashSet<string>(StringComparer.Ordinal);
+                long absoluteWeightTotal = 0;
+                for (int j = 0; componentsArray != null && j < componentsArray.Count; j++)
+                {
+                    string componentPath = metricPath + ".components[" + j + "]";
+                    JObject componentObject = componentsArray[j] as JObject;
+                    if (componentObject == null)
+                    {
+                        Add(ContentDiagnosticCode.InvalidPropertyType, AggregationConfigPath, componentPath, "Aggregation component must be an object.");
+                        continue;
+                    }
+
+                    ValidateUnknownProperties(AggregationConfigPath, componentObject, componentPath, new[] { "target", "weight_ppm" });
+                    TargetPath? target = RequiredTargetPath(AggregationConfigPath, componentObject, "target", componentPath + ".target", catalog, allowMutation: false, requiredOperation: null);
+                    int? weightPpm = RequiredInt(AggregationConfigPath, componentObject, "weight_ppm", componentPath + ".weight_ppm");
+                    if (HasErrorsForRow(componentPath) || !target.HasValue || !weightPpm.HasValue)
+                    {
+                        continue;
+                    }
+
+                    string canonical = target.Value.ToString();
+                    if (!componentTargets.Add(canonical))
+                    {
+                        Add(ContentDiagnosticCode.InvalidValue, AggregationConfigPath, componentPath + ".target", "Duplicate aggregation component target " + canonical + ".");
+                        continue;
+                    }
+
+                    absoluteWeightTotal += Math.Abs((long)weightPpm.Value);
+                    components.Add(new WeightedTargetComponent(target.Value, weightPpm.Value));
+                }
+
+                if (requiredWeightSum.HasValue && absoluteWeightTotal != requiredWeightSum.Value)
+                {
+                    Add(ContentDiagnosticCode.InvalidWeightSum, AggregationConfigPath, metricPath + ".components", "Absolute weight_ppm sum must equal " + requiredWeightSum.Value + ", got " + absoluteWeightTotal + ".");
+                }
+
+                if (HasErrorsForRow(metricPath) || !metricTarget.HasValue || !halfLifeWeeks.HasValue || !alphaPpm.HasValue || !capPerWeekS.HasValue)
+                {
+                    continue;
+                }
+
+                string canonicalMetric = metricTarget.Value.ToString();
+                if (!metricIds.Add(canonicalMetric))
+                {
+                    Add(ContentDiagnosticCode.DuplicateId, AggregationConfigPath, metricPath + ".metric", "Duplicate metric aggregation target " + canonicalMetric + ".");
+                    continue;
+                }
+
+                metrics.Add(new AggregationMetric(metricTarget.Value, halfLifeWeeks.Value, alphaPpm.Value, capPerWeekS.Value, components));
+            }
+
+            return new AggregationPass(AggregationPassType.MetricAggregation, causePrefix, null, null, null, logComponents, requiredWeightSum, metrics, null);
+        }
+
+        private AggregationPass LoadDerivedInternalsPass(JObject passObject, string passPath, string causePrefix, TargetConfigCatalog catalog)
+        {
+            ValidateUnknownProperties(AggregationConfigPath, passObject, passPath, new[] { "type", "cause_prefix", "rules" });
+            JArray rulesArray = RequiredArray(AggregationConfigPath, passObject, "rules", passPath + ".rules");
+            List<DerivedAggregationRule> rules = new List<DerivedAggregationRule>();
+            for (int i = 0; rulesArray != null && i < rulesArray.Count; i++)
+            {
+                string rulePath = passPath + ".rules[" + i + "]";
+                JObject ruleObject = rulesArray[i] as JObject;
+                if (ruleObject == null)
+                {
+                    Add(ContentDiagnosticCode.InvalidPropertyType, AggregationConfigPath, rulePath, "Derived rule must be an object.");
+                    continue;
+                }
+
+                ValidateUnknownProperties(AggregationConfigPath, ruleObject, rulePath, new[] { "target", "op", "expr" });
+                TargetPath? target = RequiredTargetPath(AggregationConfigPath, ruleObject, "target", rulePath + ".target", catalog, allowMutation: true, requiredOperation: TargetOperation.Set);
+                string opText = RequiredString(AggregationConfigPath, ruleObject, "op", rulePath + ".op", nonEmpty: true);
+                TargetOperation operation;
+                if (!TryMapOperation(opText, out operation))
+                {
+                    Add(ContentDiagnosticCode.InvalidEnum, AggregationConfigPath, rulePath + ".op", "op must be ADD, MUL, or SET.");
+                }
+
+                JObject exprObject = RequiredObject(AggregationConfigPath, ruleObject, "expr", rulePath + ".expr");
+                AggregationExpression expression = LoadAggregationExpression(exprObject, rulePath + ".expr", catalog);
+                if (HasErrorsForRow(rulePath) || !target.HasValue || expression == null)
+                {
+                    continue;
+                }
+
+                rules.Add(new DerivedAggregationRule(target.Value, operation, expression));
+            }
+
+            return new AggregationPass(AggregationPassType.DerivedInternals, causePrefix, null, null, null, null, null, null, rules);
+        }
+
+        private AggregationExpression LoadAggregationExpression(JObject exprObject, string jsonPath, TargetConfigCatalog catalog)
+        {
+            if (exprObject == null)
+            {
+                return null;
+            }
+
+            ValidateUnknownProperties(AggregationConfigPath, exprObject, jsonPath, new[] { "kind", "target", "targets" });
+            string kindText = RequiredString(AggregationConfigPath, exprObject, "kind", jsonPath + ".kind", nonEmpty: true);
+            AggregationExpressionKind kind;
+            if (!TryMapAggregationExpressionKind(kindText, out kind))
+            {
+                Add(ContentDiagnosticCode.InvalidEnum, AggregationConfigPath, jsonPath + ".kind", "expr.kind must be AVG or COPY.");
+                return null;
+            }
+
+            if (kind == AggregationExpressionKind.Copy)
+            {
+                TargetPath? target = RequiredTargetPath(AggregationConfigPath, exprObject, "target", jsonPath + ".target", catalog, allowMutation: false, requiredOperation: null);
+                ValidateAbsent(exprObject, "targets", AggregationConfigPath, jsonPath + ".targets");
+                return target.HasValue ? new AggregationExpression(kind, target.Value, null) : null;
+            }
+
+            JArray targetsArray = RequiredArray(AggregationConfigPath, exprObject, "targets", jsonPath + ".targets");
+            ValidateAbsent(exprObject, "target", AggregationConfigPath, jsonPath + ".target");
+            List<TargetPath> targets = new List<TargetPath>();
+            HashSet<string> seenTargets = new HashSet<string>(StringComparer.Ordinal);
+            for (int i = 0; targetsArray != null && i < targetsArray.Count; i++)
+            {
+                string targetPath = jsonPath + ".targets[" + i + "]";
+                TargetPath? target = ReadTargetPathToken(AggregationConfigPath, targetsArray[i], targetPath, catalog, allowMutation: false, requiredOperation: null);
+                if (!target.HasValue)
+                {
+                    continue;
+                }
+
+                string canonical = target.Value.ToString();
+                if (!seenTargets.Add(canonical))
+                {
+                    Add(ContentDiagnosticCode.InvalidValue, AggregationConfigPath, targetPath, "Duplicate AVG source target " + canonical + ".");
+                    continue;
+                }
+
+                targets.Add(target.Value);
+            }
+
+            if (targets.Count == 0)
+            {
+                Add(ContentDiagnosticCode.InvalidValue, AggregationConfigPath, jsonPath + ".targets", "AVG expression must declare at least one target.");
+            }
+
+            return HasErrorsForRow(jsonPath) ? null : new AggregationExpression(kind, null, targets);
+        }
+
+        private LegislativeConfig LoadLegislativeConfig(JObject root, TargetConfigCatalog catalog)
+        {
+            if (root == null)
+            {
+                return null;
+            }
+
+            ValidateUnknownProperties(LegislativeConfigPath, root, "$", new[] { "schema_version", "scale", "midS", "rounding", "limits", "constants", "gates", "senate", "movement_matching", "exceptional_route", "support_model", "stage_model", "player_strategies", "cause_prefixes" });
+            int? schemaVersion = RequiredInt(LegislativeConfigPath, root, "schema_version", "$.schema_version");
+            int? scale = RequiredInt(LegislativeConfigPath, root, "scale", "$.scale");
+            int? midS = RequiredInt(LegislativeConfigPath, root, "midS", "$.midS");
+            string roundingText = RequiredString(LegislativeConfigPath, root, "rounding", "$.rounding", nonEmpty: true);
+            ContentRoundingMode rounding;
+            if (!TryMapRounding(roundingText, out rounding))
+            {
+                Add(ContentDiagnosticCode.InvalidEnum, LegislativeConfigPath, "$.rounding", "rounding must be HALF_AWAY_FROM_ZERO.");
+            }
+
+            if (schemaVersion.HasValue && schemaVersion.Value != 1)
+            {
+                Add(ContentDiagnosticCode.UnsupportedSchemaVersion, LegislativeConfigPath, "$.schema_version", "Unsupported schema version " + schemaVersion.Value + "; expected 1.");
+            }
+
+            if (scale.HasValue && scale.Value <= 0)
+            {
+                Add(ContentDiagnosticCode.InvalidRange, LegislativeConfigPath, "$.scale", "scale must be positive.");
+            }
+
+            LegislativeLimits limits = LoadLegislativeLimits(RequiredObject(LegislativeConfigPath, root, "limits", "$.limits"));
+            LegislativeConstants constants = LoadLegislativeConstants(RequiredObject(LegislativeConfigPath, root, "constants", "$.constants"));
+            LegislativeGates gates = LoadLegislativeGates(RequiredObject(LegislativeConfigPath, root, "gates", "$.gates"));
+            LegislativeSenate senate = LoadLegislativeSenate(RequiredObject(LegislativeConfigPath, root, "senate", "$.senate"));
+            LegislativeMovementMatching movementMatching = LoadLegislativeMovementMatching(RequiredObject(LegislativeConfigPath, root, "movement_matching", "$.movement_matching"));
+            LegislativeExceptionalRoute exceptionalRoute = LoadLegislativeExceptionalRoute(RequiredObject(LegislativeConfigPath, root, "exceptional_route", "$.exceptional_route"), catalog);
+            LegislativeSupportModel supportModel = LoadLegislativeSupportModel(RequiredObject(LegislativeConfigPath, root, "support_model", "$.support_model"), catalog);
+            LegislativeStageModel stageModel = LoadLegislativeStageModel(RequiredObject(LegislativeConfigPath, root, "stage_model", "$.stage_model"), catalog);
+            List<LegislativePlayerStrategyEntry> playerStrategies = LoadLegislativePlayerStrategies(RequiredObject(LegislativeConfigPath, root, "player_strategies", "$.player_strategies"), catalog);
+            LegislativeCausePrefixes causePrefixes = LoadLegislativeCausePrefixes(RequiredObject(LegislativeConfigPath, root, "cause_prefixes", "$.cause_prefixes"));
+
+            if (HasErrors())
+            {
+                return null;
+            }
+
+            return new LegislativeConfig(schemaVersion.Value, scale.Value, midS.Value, rounding, limits, constants, gates, senate, movementMatching, exceptionalRoute, supportModel, stageModel, playerStrategies, causePrefixes);
+        }
+
+        private LegislativeLimits LoadLegislativeLimits(JObject obj)
+        {
+            const string path = "$.limits";
+            ValidateUnknownProperties(LegislativeConfigPath, obj, path, new[] { "max_active_reforms", "max_stages" });
+            int? maxActiveReforms = RequiredInt(LegislativeConfigPath, obj, "max_active_reforms", path + ".max_active_reforms");
+            int? maxStages = RequiredInt(LegislativeConfigPath, obj, "max_stages", path + ".max_stages");
+            ValidatePositive(LegislativeConfigPath, path + ".max_active_reforms", maxActiveReforms, "max_active_reforms");
+            ValidatePositive(LegislativeConfigPath, path + ".max_stages", maxStages, "max_stages");
+            return maxActiveReforms.HasValue && maxStages.HasValue ? new LegislativeLimits(maxActiveReforms.Value, maxStages.Value) : null;
+        }
+
+        private LegislativeConstants LoadLegislativeConstants(JObject obj)
+        {
+            const string path = "$.constants";
+            ValidateUnknownProperties(LegislativeConfigPath, obj, path, new[] { "S", "HUNDRED_S" });
+            int? scale = RequiredInt(LegislativeConfigPath, obj, "S", path + ".S");
+            int? hundredS = RequiredInt(LegislativeConfigPath, obj, "HUNDRED_S", path + ".HUNDRED_S");
+            ValidatePositive(LegislativeConfigPath, path + ".S", scale, "S");
+            ValidatePositive(LegislativeConfigPath, path + ".HUNDRED_S", hundredS, "HUNDRED_S");
+            return scale.HasValue && hundredS.HasValue ? new LegislativeConstants(scale.Value, hundredS.Value) : null;
+        }
+
+        private LegislativeGates LoadLegislativeGates(JObject obj)
+        {
+            const string path = "$.gates";
+            ValidateUnknownProperties(LegislativeConfigPath, obj, path, new[] { "normal_legitimacy_minS", "cohesion_block_minS", "exceptional_movement_minS", "anti_movement_crisis_minS" });
+            int? normalLegitimacyMinS = RequiredInt(LegislativeConfigPath, obj, "normal_legitimacy_minS", path + ".normal_legitimacy_minS");
+            int? cohesionBlockMinS = RequiredInt(LegislativeConfigPath, obj, "cohesion_block_minS", path + ".cohesion_block_minS");
+            int? exceptionalMovementMinS = RequiredInt(LegislativeConfigPath, obj, "exceptional_movement_minS", path + ".exceptional_movement_minS");
+            int? antiMovementCrisisMinS = RequiredInt(LegislativeConfigPath, obj, "anti_movement_crisis_minS", path + ".anti_movement_crisis_minS");
+            return normalLegitimacyMinS.HasValue && cohesionBlockMinS.HasValue && exceptionalMovementMinS.HasValue && antiMovementCrisisMinS.HasValue
+                ? new LegislativeGates(normalLegitimacyMinS.Value, cohesionBlockMinS.Value, exceptionalMovementMinS.Value, antiMovementCrisisMinS.Value)
+                : null;
+        }
+
+        private LegislativeSenate LoadLegislativeSenate(JObject obj)
+        {
+            const string path = "$.senate";
+            ValidateUnknownProperties(LegislativeConfigPath, obj, path, new[] { "brakeS" });
+            int? brakeS = RequiredInt(LegislativeConfigPath, obj, "brakeS", path + ".brakeS");
+            return brakeS.HasValue ? new LegislativeSenate(brakeS.Value) : null;
+        }
+
+        private LegislativeMovementMatching LoadLegislativeMovementMatching(JObject obj)
+        {
+            const string path = "$.movement_matching";
+            ValidateUnknownProperties(LegislativeConfigPath, obj, path, new[] { "reform_tags_source", "match_mode", "direction_pro", "direction_anti" });
+            string reformTagsSource = RequiredString(LegislativeConfigPath, obj, "reform_tags_source", path + ".reform_tags_source", nonEmpty: true);
+            string matchModeText = RequiredString(LegislativeConfigPath, obj, "match_mode", path + ".match_mode", nonEmpty: true);
+            int? directionPro = RequiredInt(LegislativeConfigPath, obj, "direction_pro", path + ".direction_pro");
+            int? directionAnti = RequiredInt(LegislativeConfigPath, obj, "direction_anti", path + ".direction_anti");
+            LegislativeMovementMatchMode matchMode;
+            if (!TryMapMovementMatchMode(matchModeText, out matchMode))
+            {
+                Add(ContentDiagnosticCode.InvalidEnum, LegislativeConfigPath, path + ".match_mode", "match_mode must be ANY.");
+            }
+
+            if (directionPro.HasValue && directionPro.Value == 0)
+            {
+                Add(ContentDiagnosticCode.InvalidRange, LegislativeConfigPath, path + ".direction_pro", "direction_pro must not be zero.");
+            }
+
+            if (directionAnti.HasValue && directionAnti.Value == 0)
+            {
+                Add(ContentDiagnosticCode.InvalidRange, LegislativeConfigPath, path + ".direction_anti", "direction_anti must not be zero.");
+            }
+
+            return reformTagsSource != null && directionPro.HasValue && directionAnti.HasValue ? new LegislativeMovementMatching(reformTagsSource, matchMode, directionPro.Value, directionAnti.Value) : null;
+        }
+
+        private LegislativeExceptionalRoute LoadLegislativeExceptionalRoute(JObject obj, TargetConfigCatalog catalog)
+        {
+            const string path = "$.exceptional_route";
+            ValidateUnknownProperties(LegislativeConfigPath, obj, path, new[] { "enabled", "bypass_legitimacy_gate", "requires_pro_movement", "costs_per_tick" });
+            bool? enabled = RequiredBool(LegislativeConfigPath, obj, "enabled", path + ".enabled");
+            bool? bypassLegitimacyGate = RequiredBool(LegislativeConfigPath, obj, "bypass_legitimacy_gate", path + ".bypass_legitimacy_gate");
+            bool? requiresProMovement = RequiredBool(LegislativeConfigPath, obj, "requires_pro_movement", path + ".requires_pro_movement");
+            List<TargetDeltaDefinition> costsPerTick = LoadTargetDeltaArray(RequiredArray(LegislativeConfigPath, obj, "costs_per_tick", path + ".costs_per_tick"), path + ".costs_per_tick", catalog);
+            return enabled.HasValue && bypassLegitimacyGate.HasValue && requiresProMovement.HasValue ? new LegislativeExceptionalRoute(enabled.Value, bypassLegitimacyGate.Value, requiresProMovement.Value, costsPerTick) : null;
+        }
+
+        private LegislativeSupportModel LoadLegislativeSupportModel(JObject obj, TargetConfigCatalog catalog)
+        {
+            const string path = "$.support_model";
+            ValidateUnknownProperties(LegislativeConfigPath, obj, path, new[] { "support_rangeS", "discipline", "base_component", "legitimacy_component", "ig_alignment_component", "movement_component", "upper_chamber" });
+            LegislativeRange supportRange = LoadLegislativeRange(RequiredObject(LegislativeConfigPath, obj, "support_rangeS", path + ".support_rangeS"), path + ".support_rangeS");
+            LegislativeDiscipline discipline = LoadLegislativeDiscipline(RequiredObject(LegislativeConfigPath, obj, "discipline", path + ".discipline"), path + ".discipline");
+            LegislativeBaseComponent baseComponent = LoadLegislativeBaseComponent(RequiredObject(LegislativeConfigPath, obj, "base_component", path + ".base_component"), path + ".base_component", catalog);
+            LegislativeLegitimacyComponent legitimacyComponent = LoadLegislativeLegitimacyComponent(RequiredObject(LegislativeConfigPath, obj, "legitimacy_component", path + ".legitimacy_component"), path + ".legitimacy_component", catalog);
+            LegislativeIgAlignmentComponent igAlignmentComponent = LoadLegislativeIgAlignmentComponent(RequiredObject(LegislativeConfigPath, obj, "ig_alignment_component", path + ".ig_alignment_component"), path + ".ig_alignment_component", catalog);
+            LegislativeMovementComponent movementComponent = LoadLegislativeMovementComponent(RequiredObject(LegislativeConfigPath, obj, "movement_component", path + ".movement_component"), path + ".movement_component");
+            LegislativeUpperChamber upperChamber = LoadLegislativeUpperChamber(RequiredObject(LegislativeConfigPath, obj, "upper_chamber", path + ".upper_chamber"));
+            return supportRange != null && discipline != null && baseComponent != null && legitimacyComponent != null && igAlignmentComponent != null && movementComponent != null && upperChamber != null
+                ? new LegislativeSupportModel(supportRange, discipline, baseComponent, legitimacyComponent, igAlignmentComponent, movementComponent, upperChamber)
+                : null;
+        }
+
+        private LegislativeRange LoadLegislativeRange(JObject obj, string path)
+        {
+            ValidateUnknownProperties(LegislativeConfigPath, obj, path, new[] { "minS", "maxS" });
+            int? minS = RequiredInt(LegislativeConfigPath, obj, "minS", path + ".minS");
+            int? maxS = RequiredInt(LegislativeConfigPath, obj, "maxS", path + ".maxS");
+            if (minS.HasValue && maxS.HasValue && minS.Value > maxS.Value)
+            {
+                Add(ContentDiagnosticCode.InvalidRange, LegislativeConfigPath, path, "minS must be less than or equal to maxS.");
+            }
+
+            return minS.HasValue && maxS.HasValue ? new LegislativeRange(minS.Value, maxS.Value) : null;
+        }
+
+        private LegislativeDiscipline LoadLegislativeDiscipline(JObject obj, string path)
+        {
+            ValidateUnknownProperties(LegislativeConfigPath, obj, path, new[] { "party_organization_weight_ppm", "internal_cohesion_weight_ppm" });
+            int? partyOrganizationWeightPpm = RequiredInt(LegislativeConfigPath, obj, "party_organization_weight_ppm", path + ".party_organization_weight_ppm");
+            int? internalCohesionWeightPpm = RequiredInt(LegislativeConfigPath, obj, "internal_cohesion_weight_ppm", path + ".internal_cohesion_weight_ppm");
+            return partyOrganizationWeightPpm.HasValue && internalCohesionWeightPpm.HasValue ? new LegislativeDiscipline(partyOrganizationWeightPpm.Value, internalCohesionWeightPpm.Value) : null;
+        }
+
+        private LegislativeBaseComponent LoadLegislativeBaseComponent(JObject obj, string path, TargetConfigCatalog catalog)
+        {
+            ValidateUnknownProperties(LegislativeConfigPath, obj, path, new[] { "metric", "addS" });
+            TargetPath? metric = RequiredTargetPath(LegislativeConfigPath, obj, "metric", path + ".metric", catalog, allowMutation: false, requiredOperation: null);
+            int? addS = RequiredInt(LegislativeConfigPath, obj, "addS", path + ".addS");
+            return metric.HasValue && addS.HasValue ? new LegislativeBaseComponent(metric.Value, addS.Value) : null;
+        }
+
+        private LegislativeLegitimacyComponent LoadLegislativeLegitimacyComponent(JObject obj, string path, TargetConfigCatalog catalog)
+        {
+            ValidateUnknownProperties(LegislativeConfigPath, obj, path, new[] { "metric", "midS", "divS" });
+            TargetPath? metric = RequiredTargetPath(LegislativeConfigPath, obj, "metric", path + ".metric", catalog, allowMutation: false, requiredOperation: null);
+            int? midS = RequiredInt(LegislativeConfigPath, obj, "midS", path + ".midS");
+            int? divS = RequiredInt(LegislativeConfigPath, obj, "divS", path + ".divS");
+            ValidatePositive(LegislativeConfigPath, path + ".divS", divS, "divS");
+            return metric.HasValue && midS.HasValue && divS.HasValue ? new LegislativeLegitimacyComponent(metric.Value, midS.Value, divS.Value) : null;
+        }
+
+        private LegislativeIgAlignmentComponent LoadLegislativeIgAlignmentComponent(JObject obj, string path, TargetConfigCatalog catalog)
+        {
+            ValidateUnknownProperties(LegislativeConfigPath, obj, path, new[] { "uses", "approval_to_01", "effective_stance_factor", "stance_input_range", "stance_scale_to_S", "clout_denomS", "term_div", "apply_discipline", "post_divS" });
+            LegislativeIgAlignmentUses uses = LoadLegislativeIgAlignmentUses(RequiredObject(LegislativeConfigPath, obj, "uses", path + ".uses"), path + ".uses", catalog);
+            LegislativeApprovalTo01 approvalTo01 = LoadLegislativeApprovalTo01(RequiredObject(LegislativeConfigPath, obj, "approval_to_01", path + ".approval_to_01"), path + ".approval_to_01");
+            LegislativeEffectiveStanceFactor effectiveStanceFactor = LoadLegislativeEffectiveStanceFactor(RequiredObject(LegislativeConfigPath, obj, "effective_stance_factor", path + ".effective_stance_factor"), path + ".effective_stance_factor");
+            int? stanceInputRange = RequiredInt(LegislativeConfigPath, obj, "stance_input_range", path + ".stance_input_range");
+            int? stanceScaleToS = RequiredInt(LegislativeConfigPath, obj, "stance_scale_to_S", path + ".stance_scale_to_S");
+            int? cloutDenomS = RequiredInt(LegislativeConfigPath, obj, "clout_denomS", path + ".clout_denomS");
+            int? termDiv = RequiredInt(LegislativeConfigPath, obj, "term_div", path + ".term_div");
+            bool? applyDiscipline = RequiredBool(LegislativeConfigPath, obj, "apply_discipline", path + ".apply_discipline");
+            int? postDivS = RequiredInt(LegislativeConfigPath, obj, "post_divS", path + ".post_divS");
+            ValidatePositive(LegislativeConfigPath, path + ".stance_input_range", stanceInputRange, "stance_input_range");
+            ValidatePositive(LegislativeConfigPath, path + ".stance_scale_to_S", stanceScaleToS, "stance_scale_to_S");
+            ValidatePositive(LegislativeConfigPath, path + ".clout_denomS", cloutDenomS, "clout_denomS");
+            ValidatePositive(LegislativeConfigPath, path + ".term_div", termDiv, "term_div");
+            ValidatePositive(LegislativeConfigPath, path + ".post_divS", postDivS, "post_divS");
+            return uses != null && approvalTo01 != null && effectiveStanceFactor != null && stanceInputRange.HasValue && stanceScaleToS.HasValue && cloutDenomS.HasValue && termDiv.HasValue && applyDiscipline.HasValue && postDivS.HasValue
+                ? new LegislativeIgAlignmentComponent(uses, approvalTo01, effectiveStanceFactor, stanceInputRange.Value, stanceScaleToS.Value, cloutDenomS.Value, termDiv.Value, applyDiscipline.Value, postDivS.Value)
+                : null;
+        }
+
+        private LegislativeIgAlignmentUses LoadLegislativeIgAlignmentUses(JObject obj, string path, TargetConfigCatalog catalog)
+        {
+            ValidateUnknownProperties(LegislativeConfigPath, obj, path, new[] { "clout_target_pattern", "approval_target_pattern" });
+            TargetPattern? cloutTargetPattern = RequiredTargetPattern(LegislativeConfigPath, obj, "clout_target_pattern", path + ".clout_target_pattern", catalog);
+            TargetPattern? approvalTargetPattern = RequiredTargetPattern(LegislativeConfigPath, obj, "approval_target_pattern", path + ".approval_target_pattern", catalog);
+            return cloutTargetPattern.HasValue && approvalTargetPattern.HasValue ? new LegislativeIgAlignmentUses(cloutTargetPattern.Value, approvalTargetPattern.Value) : null;
+        }
+
+        private LegislativeApprovalTo01 LoadLegislativeApprovalTo01(JObject obj, string path)
+        {
+            ValidateUnknownProperties(LegislativeConfigPath, obj, path, new[] { "offsetS", "divS" });
+            int? offsetS = RequiredInt(LegislativeConfigPath, obj, "offsetS", path + ".offsetS");
+            int? divS = RequiredInt(LegislativeConfigPath, obj, "divS", path + ".divS");
+            ValidatePositive(LegislativeConfigPath, path + ".divS", divS, "divS");
+            return offsetS.HasValue && divS.HasValue ? new LegislativeApprovalTo01(offsetS.Value, divS.Value) : null;
+        }
+
+        private LegislativeEffectiveStanceFactor LoadLegislativeEffectiveStanceFactor(JObject obj, string path)
+        {
+            ValidateUnknownProperties(LegislativeConfigPath, obj, path, new[] { "baseS", "approval01_divS", "denomS" });
+            int? baseS = RequiredInt(LegislativeConfigPath, obj, "baseS", path + ".baseS");
+            int? approval01DivS = RequiredInt(LegislativeConfigPath, obj, "approval01_divS", path + ".approval01_divS");
+            int? denomS = RequiredInt(LegislativeConfigPath, obj, "denomS", path + ".denomS");
+            ValidatePositive(LegislativeConfigPath, path + ".approval01_divS", approval01DivS, "approval01_divS");
+            ValidatePositive(LegislativeConfigPath, path + ".denomS", denomS, "denomS");
+            return baseS.HasValue && approval01DivS.HasValue && denomS.HasValue ? new LegislativeEffectiveStanceFactor(baseS.Value, approval01DivS.Value, denomS.Value) : null;
+        }
+
+        private LegislativeMovementComponent LoadLegislativeMovementComponent(JObject obj, string path)
+        {
+            ValidateUnknownProperties(LegislativeConfigPath, obj, path, new[] { "term_clampS", "support_divS" });
+            int? termClampS = RequiredInt(LegislativeConfigPath, obj, "term_clampS", path + ".term_clampS");
+            int? supportDivS = RequiredInt(LegislativeConfigPath, obj, "support_divS", path + ".support_divS");
+            ValidatePositive(LegislativeConfigPath, path + ".support_divS", supportDivS, "support_divS");
+            return termClampS.HasValue && supportDivS.HasValue ? new LegislativeMovementComponent(termClampS.Value, supportDivS.Value) : null;
+        }
+
+        private LegislativeUpperChamber LoadLegislativeUpperChamber(JObject obj)
+        {
+            const string path = "$.support_model.upper_chamber";
+            ValidateUnknownProperties(LegislativeConfigPath, obj, path, new[] { "type", "deltaS" });
+            string typeText = RequiredString(LegislativeConfigPath, obj, "type", path + ".type", nonEmpty: true);
+            int? deltaS = RequiredInt(LegislativeConfigPath, obj, "deltaS", path + ".deltaS");
+            LegislativeUpperChamberAdjustmentType type;
+            if (!TryMapUpperChamberAdjustmentType(typeText, out type))
+            {
+                Add(ContentDiagnosticCode.InvalidEnum, LegislativeConfigPath, path + ".type", "upper_chamber.type must be SUBTRACT_CONST.");
+            }
+
+            return deltaS.HasValue ? new LegislativeUpperChamber(type, deltaS.Value) : null;
+        }
+
+        private LegislativeStageModel LoadLegislativeStageModel(JObject obj, TargetConfigCatalog catalog)
+        {
+            const string path = "$.stage_model";
+            ValidateUnknownProperties(LegislativeConfigPath, obj, path, new[] { "base_difficulty_defaultS", "stage_weight", "throughput", "vote" });
+            int? baseDifficultyDefaultS = RequiredInt(LegislativeConfigPath, obj, "base_difficulty_defaultS", path + ".base_difficulty_defaultS");
+            LegislativeStageWeight stageWeight = LoadLegislativeStageWeight(RequiredObject(LegislativeConfigPath, obj, "stage_weight", path + ".stage_weight"));
+            LegislativeThroughput throughput = LoadLegislativeThroughput(RequiredObject(LegislativeConfigPath, obj, "throughput", path + ".throughput"), catalog);
+            LegislativeVote vote = LoadLegislativeVote(RequiredObject(LegislativeConfigPath, obj, "vote", path + ".vote"), catalog);
+            return baseDifficultyDefaultS.HasValue && stageWeight != null && throughput != null && vote != null ? new LegislativeStageModel(baseDifficultyDefaultS.Value, stageWeight, throughput, vote) : null;
+        }
+
+        private LegislativeStageWeight LoadLegislativeStageWeight(JObject obj)
+        {
+            const string path = "$.stage_model.stage_weight";
+            ValidateUnknownProperties(LegislativeConfigPath, obj, path, new[] { "scale_denomS", "default_weightS" });
+            int? scaleDenomS = RequiredInt(LegislativeConfigPath, obj, "scale_denomS", path + ".scale_denomS");
+            ValidatePositive(LegislativeConfigPath, path + ".scale_denomS", scaleDenomS, "scale_denomS");
+            JObject defaultWeightS = RequiredObject(LegislativeConfigPath, obj, "default_weightS", path + ".default_weightS");
+            Dictionary<string, int> weights = new Dictionary<string, int>(StringComparer.Ordinal);
+            if (defaultWeightS != null)
+            {
+                ValidateUnknownProperties(LegislativeConfigPath, defaultWeightS, path + ".default_weightS", new[] { "WORK", "VOTE" });
+                foreach (string key in new[] { "WORK", "VOTE" })
+                {
+                    if (!defaultWeightS.TryGetValue(key, out JToken token))
+                    {
+                        Add(ContentDiagnosticCode.MissingRequiredProperty, LegislativeConfigPath, path + ".default_weightS." + key, "Missing required property " + key + ".");
+                        continue;
+                    }
+
+                    int? value = ReadInt(LegislativeConfigPath, token, path + ".default_weightS." + key);
+                    if (value.HasValue)
+                    {
+                        weights[key] = value.Value;
+                    }
+                }
+            }
+
+            return scaleDenomS.HasValue && weights.Count == 2 ? new LegislativeStageWeight(scaleDenomS.Value, weights) : null;
+        }
+
+        private LegislativeThroughput LoadLegislativeThroughput(JObject obj, TargetConfigCatalog catalog)
+        {
+            const string path = "$.stage_model.throughput";
+            ValidateUnknownProperties(LegislativeConfigPath, obj, path, new[] { "baseS", "governability_metric", "metric_denomS", "support_denomS", "chamber_both_support" });
+            int? baseS = RequiredInt(LegislativeConfigPath, obj, "baseS", path + ".baseS");
+            TargetPath? governabilityMetric = RequiredTargetPath(LegislativeConfigPath, obj, "governability_metric", path + ".governability_metric", catalog, allowMutation: false, requiredOperation: null);
+            int? metricDenomS = RequiredInt(LegislativeConfigPath, obj, "metric_denomS", path + ".metric_denomS");
+            int? supportDenomS = RequiredInt(LegislativeConfigPath, obj, "support_denomS", path + ".support_denomS");
+            string chamberBothSupportText = RequiredString(LegislativeConfigPath, obj, "chamber_both_support", path + ".chamber_both_support", nonEmpty: true);
+            ValidatePositive(LegislativeConfigPath, path + ".metric_denomS", metricDenomS, "metric_denomS");
+            ValidatePositive(LegislativeConfigPath, path + ".support_denomS", supportDenomS, "support_denomS");
+            LegislativeChamberSupportMode chamberBothSupport;
+            if (!TryMapChamberSupportMode(chamberBothSupportText, out chamberBothSupport))
+            {
+                Add(ContentDiagnosticCode.InvalidEnum, LegislativeConfigPath, path + ".chamber_both_support", "chamber_both_support must be MIN.");
+            }
+
+            return baseS.HasValue && governabilityMetric.HasValue && metricDenomS.HasValue && supportDenomS.HasValue
+                ? new LegislativeThroughput(baseS.Value, governabilityMetric.Value, metricDenomS.Value, supportDenomS.Value, chamberBothSupport)
+                : null;
+        }
+
+        private LegislativeVote LoadLegislativeVote(JObject obj, TargetConfigCatalog catalog)
+        {
+            const string path = "$.stage_model.vote";
+            ValidateUnknownProperties(LegislativeConfigPath, obj, path, new[] { "support_floorS", "support_spanS", "pass_thresholdS", "fail_reset_progressS", "fail_penalties" });
+            int? supportFloorS = RequiredInt(LegislativeConfigPath, obj, "support_floorS", path + ".support_floorS");
+            int? supportSpanS = RequiredInt(LegislativeConfigPath, obj, "support_spanS", path + ".support_spanS");
+            int? passThresholdS = RequiredInt(LegislativeConfigPath, obj, "pass_thresholdS", path + ".pass_thresholdS");
+            int? failResetProgressS = RequiredInt(LegislativeConfigPath, obj, "fail_reset_progressS", path + ".fail_reset_progressS");
+            List<TargetDeltaDefinition> failPenalties = LoadTargetDeltaArray(RequiredArray(LegislativeConfigPath, obj, "fail_penalties", path + ".fail_penalties"), path + ".fail_penalties", catalog);
+            return supportFloorS.HasValue && supportSpanS.HasValue && passThresholdS.HasValue && failResetProgressS.HasValue
+                ? new LegislativeVote(supportFloorS.Value, supportSpanS.Value, passThresholdS.Value, failResetProgressS.Value, failPenalties)
+                : null;
+        }
+
+        private List<LegislativePlayerStrategyEntry> LoadLegislativePlayerStrategies(JObject obj, TargetConfigCatalog catalog)
+        {
+            const string path = "$.player_strategies";
+            string[] expected = { "STEADY", "PUSH", "COMPROMISE", "DELAY" };
+            ValidateUnknownProperties(LegislativeConfigPath, obj, path, expected);
+
+            List<LegislativePlayerStrategyEntry> result = new List<LegislativePlayerStrategyEntry>();
+            foreach (string strategyId in expected)
+            {
+                JObject strategyObject = RequiredObject(LegislativeConfigPath, obj, strategyId, path + "." + strategyId);
+                LegislativePlayerStrategy strategy = LoadLegislativePlayerStrategy(strategyObject, path + "." + strategyId, catalog);
+                if (strategy != null)
+                {
+                    result.Add(new LegislativePlayerStrategyEntry(strategyId, strategy));
+                }
+            }
+
+            return result;
+        }
+
+        private LegislativePlayerStrategy LoadLegislativePlayerStrategy(JObject obj, string path, TargetConfigCatalog catalog)
+        {
+            if (obj == null)
+            {
+                return null;
+            }
+
+            ValidateUnknownProperties(LegislativeConfigPath, obj, path, new[] { "support_bonusS", "throughput_multiplier_ppm", "implementation_effect_multiplier_ppm", "per_tick_deltas" });
+            int? supportBonusS = RequiredInt(LegislativeConfigPath, obj, "support_bonusS", path + ".support_bonusS");
+            int? throughputMultiplierPpm = RequiredInt(LegislativeConfigPath, obj, "throughput_multiplier_ppm", path + ".throughput_multiplier_ppm");
+            int? implementationEffectMultiplierPpm = OptionalInt(LegislativeConfigPath, obj, "implementation_effect_multiplier_ppm", path + ".implementation_effect_multiplier_ppm");
+            List<TargetDeltaDefinition> perTickDeltas = LoadTargetDeltaArray(RequiredArray(LegislativeConfigPath, obj, "per_tick_deltas", path + ".per_tick_deltas"), path + ".per_tick_deltas", catalog);
+            ValidatePositive(LegislativeConfigPath, path + ".throughput_multiplier_ppm", throughputMultiplierPpm, "throughput_multiplier_ppm");
+            if (implementationEffectMultiplierPpm.HasValue && implementationEffectMultiplierPpm.Value <= 0)
+            {
+                Add(ContentDiagnosticCode.InvalidRange, LegislativeConfigPath, path + ".implementation_effect_multiplier_ppm", "implementation_effect_multiplier_ppm must be positive when present.");
+            }
+
+            return supportBonusS.HasValue && throughputMultiplierPpm.HasValue ? new LegislativePlayerStrategy(supportBonusS.Value, throughputMultiplierPpm.Value, implementationEffectMultiplierPpm, perTickDeltas) : null;
+        }
+
+        private LegislativeCausePrefixes LoadLegislativeCausePrefixes(JObject obj)
+        {
+            const string path = "$.cause_prefixes";
+            ValidateUnknownProperties(LegislativeConfigPath, obj, path, new[] { "progress", "support", "block", "exception_cost", "vote_fail" });
+            string progress = RequiredString(LegislativeConfigPath, obj, "progress", path + ".progress", nonEmpty: true);
+            string support = RequiredString(LegislativeConfigPath, obj, "support", path + ".support", nonEmpty: true);
+            string block = RequiredString(LegislativeConfigPath, obj, "block", path + ".block", nonEmpty: true);
+            string exceptionCost = RequiredString(LegislativeConfigPath, obj, "exception_cost", path + ".exception_cost", nonEmpty: true);
+            string voteFail = RequiredString(LegislativeConfigPath, obj, "vote_fail", path + ".vote_fail", nonEmpty: true);
+            return progress != null && support != null && block != null && exceptionCost != null && voteFail != null ? new LegislativeCausePrefixes(progress, support, block, exceptionCost, voteFail) : null;
+        }
+
+        private List<TargetDeltaDefinition> LoadTargetDeltaArray(JArray array, string jsonPath, TargetConfigCatalog catalog)
+        {
+            List<TargetDeltaDefinition> result = new List<TargetDeltaDefinition>();
+            for (int i = 0; array != null && i < array.Count; i++)
+            {
+                string rowPath = jsonPath + "[" + i + "]";
+                JObject row = array[i] as JObject;
+                if (row == null)
+                {
+                    Add(ContentDiagnosticCode.InvalidPropertyType, LegislativeConfigPath, rowPath, "Delta row must be an object.");
+                    continue;
+                }
+
+                ValidateUnknownProperties(LegislativeConfigPath, row, rowPath, new[] { "target", "deltaS", "cause" });
+                TargetPath? target = RequiredTargetPath(LegislativeConfigPath, row, "target", rowPath + ".target", catalog, allowMutation: true, requiredOperation: TargetOperation.Add);
+                int? deltaS = RequiredInt(LegislativeConfigPath, row, "deltaS", rowPath + ".deltaS");
+                string cause = RequiredString(LegislativeConfigPath, row, "cause", rowPath + ".cause", nonEmpty: true);
+                if (HasErrorsForRow(rowPath) || !target.HasValue || !deltaS.HasValue || cause == null)
+                {
+                    continue;
+                }
+
+                result.Add(new TargetDeltaDefinition(target.Value, deltaS.Value, cause));
+            }
+
+            return result;
+        }
+
+        private List<EffectTemplate> LoadEffects(JObject root, TargetConfigCatalog catalog, ContentLocalizationTable localization)
+        {
+            if (root == null)
+            {
+                return null;
+            }
+
+            ValidateUnknownProperties(EffectsPath, root, "$", new[] { "effects" });
+            JArray effectArray = RequiredArray(EffectsPath, root, "effects", "$.effects");
+            List<EffectTemplate> result = new List<EffectTemplate>();
+            HashSet<string> ids = new HashSet<string>(StringComparer.Ordinal);
+            for (int i = 0; effectArray != null && i < effectArray.Count; i++)
+            {
+                string rowPath = "$.effects[" + i + "]";
+                JObject row = effectArray[i] as JObject;
+                if (row == null)
+                {
+                    Add(ContentDiagnosticCode.InvalidPropertyType, EffectsPath, rowPath, "Effect row must be an object.");
+                    continue;
+                }
+
+                ValidateUnknownProperties(EffectsPath, row, rowPath, new[] { "id", "loc_title", "mods", "tags" });
+                string id = RequiredString(EffectsPath, row, "id", rowPath + ".id", nonEmpty: true);
+                string locTitle = RequiredString(EffectsPath, row, "loc_title", rowPath + ".loc_title", nonEmpty: true);
+                JArray modsArray = RequiredArray(EffectsPath, row, "mods", rowPath + ".mods");
+                JArray tagsArray = RequiredArray(EffectsPath, row, "tags", rowPath + ".tags");
+                if (id != null)
+                {
+                    if (!IsAsciiLowerSnake(id) || !id.StartsWith("eff_", StringComparison.Ordinal))
+                    {
+                        Add(ContentDiagnosticCode.InvalidId, EffectsPath, rowPath + ".id", "Effect id must be ASCII lowercase snake_case with prefix eff_.");
+                    }
+                    else if (!ids.Add(id))
+                    {
+                        Add(ContentDiagnosticCode.DuplicateId, EffectsPath, rowPath + ".id", "Duplicate effect id " + id + ".");
+                    }
+                }
+
+                if (localization != null && locTitle != null && !localization.TryResolve(locTitle, out _))
+                {
+                    Add(ContentDiagnosticCode.MissingLocalizationKey, EffectsPath, rowPath + ".loc_title", "Missing localization key " + locTitle + ".");
+                }
+
+                List<EffectModifier> modifiers = new List<EffectModifier>();
+                for (int j = 0; modsArray != null && j < modsArray.Count; j++)
+                {
+                    string modPath = rowPath + ".mods[" + j + "]";
+                    JObject modObject = modsArray[j] as JObject;
+                    if (modObject == null)
+                    {
+                        Add(ContentDiagnosticCode.InvalidPropertyType, EffectsPath, modPath, "Effect modifier must be an object.");
+                        continue;
+                    }
+
+                    ValidateUnknownProperties(EffectsPath, modObject, modPath, new[] { "target", "op", "valueS", "is_per_tick", "clamp_minS", "clamp_maxS" });
+                    TargetPath? target = RequiredTargetPath(EffectsPath, modObject, "target", modPath + ".target", catalog, allowMutation: true, requiredOperation: null);
+                    string opText = RequiredString(EffectsPath, modObject, "op", modPath + ".op", nonEmpty: true);
+                    int? valueS = RequiredInt(EffectsPath, modObject, "valueS", modPath + ".valueS");
+                    bool? isPerTick = RequiredBool(EffectsPath, modObject, "is_per_tick", modPath + ".is_per_tick");
+                    int? clampMinS = OptionalInt(EffectsPath, modObject, "clamp_minS", modPath + ".clamp_minS");
+                    int? clampMaxS = OptionalInt(EffectsPath, modObject, "clamp_maxS", modPath + ".clamp_maxS");
+                    if (clampMinS.HasValue && clampMaxS.HasValue && clampMinS.Value > clampMaxS.Value)
+                    {
+                        Add(ContentDiagnosticCode.InvalidRange, EffectsPath, modPath, "clamp_minS must be less than or equal to clamp_maxS.");
+                    }
+
+                    TargetOperation operation;
+                    if (!TryMapOperation(opText, out operation))
+                    {
+                        Add(ContentDiagnosticCode.InvalidEnum, EffectsPath, modPath + ".op", "op must be ADD, MUL, or SET.");
+                    }
+
+                    if (target.HasValue && catalog.TryResolve(target.Value, out TargetConfig config) && !config.Allows(operation))
+                    {
+                        Add(ContentDiagnosticCode.InvalidTargetOperation, EffectsPath, modPath + ".op", "Operation " + opText + " is not allowed for target " + target.Value + ".");
+                    }
+
+                    if (HasErrorsForRow(modPath) || !target.HasValue || !valueS.HasValue || !isPerTick.HasValue)
+                    {
+                        continue;
+                    }
+
+                    modifiers.Add(new EffectModifier(target.Value, operation, valueS.Value, isPerTick.Value, (clampMinS.HasValue || clampMaxS.HasValue) ? new EffectClamp(clampMinS, clampMaxS) : null));
+                }
+
+                if (modsArray != null && modsArray.Count == 0)
+                {
+                    Add(ContentDiagnosticCode.InvalidValue, EffectsPath, rowPath + ".mods", "mods must not be empty.");
+                }
+
+                List<string> tags = LoadTags(EffectsPath, tagsArray, rowPath + ".tags");
+                if (HasErrorsForRow(rowPath) || id == null || locTitle == null)
+                {
+                    continue;
+                }
+
+                result.Add(new EffectTemplate(id, locTitle, modifiers, tags));
+            }
+
+            return result;
+        }
+
+        private List<string> LoadTags(string file, JArray tagsArray, string jsonPath)
+        {
+            List<string> tags = new List<string>();
+            HashSet<string> seen = new HashSet<string>(StringComparer.Ordinal);
+            if (tagsArray == null)
+            {
+                return tags;
+            }
+
+            if (tagsArray.Count == 0)
+            {
+                Add(ContentDiagnosticCode.InvalidValue, file, jsonPath, "tags must not be empty.");
+            }
+
+            for (int i = 0; i < tagsArray.Count; i++)
+            {
+                string tagPath = jsonPath + "[" + i + "]";
+                if (tagsArray[i].Type != JTokenType.String)
+                {
+                    Add(ContentDiagnosticCode.InvalidPropertyType, file, tagPath, "Tag must be a string.");
+                    continue;
+                }
+
+                string tag = tagsArray[i].Value<string>();
+                if (string.IsNullOrEmpty(tag))
+                {
+                    Add(ContentDiagnosticCode.InvalidValue, file, tagPath, "Tag must not be empty.");
+                    continue;
+                }
+
+                if (!IsTwoSegmentDottedLowercase(tag))
+                {
+                    Add(ContentDiagnosticCode.InvalidValue, file, tagPath, "Tag must use ASCII lowercase dotted format namespace.value.");
+                    continue;
+                }
+
+                if (!seen.Add(tag))
+                {
+                    Add(ContentDiagnosticCode.InvalidValue, file, tagPath, "Duplicate tag " + tag + ".");
+                    continue;
+                }
+
+                tags.Add(tag);
+            }
+
+            return tags;
+        }
+
         private byte[] ReadRequired(IContentFileSource source, string path, ContentDiagnosticCode missingCode)
         {
             ContentFileReadResult read = source.TryReadAllBytes(path);
@@ -949,10 +1893,37 @@ namespace VictoriantChile.Content.Loading
             return value;
         }
 
+        private bool? RequiredBool(string file, JObject obj, string propertyName, string jsonPath)
+        {
+            JToken token = RequiredToken(file, obj, propertyName, jsonPath);
+            if (token == null)
+            {
+                return null;
+            }
+
+            if (token.Type != JTokenType.Boolean)
+            {
+                Add(ContentDiagnosticCode.InvalidPropertyType, file, jsonPath, "Expected boolean.");
+                return null;
+            }
+
+            return token.Value<bool>();
+        }
+
         private int? RequiredInt(string file, JObject obj, string propertyName, string jsonPath)
         {
             JToken token = RequiredToken(file, obj, propertyName, jsonPath);
             return token == null ? null : ReadInt(file, token, jsonPath);
+        }
+
+        private int? OptionalInt(string file, JObject obj, string propertyName, string jsonPath)
+        {
+            if (!obj.TryGetValue(propertyName, out JToken token) || token.Type == JTokenType.Null)
+            {
+                return null;
+            }
+
+            return ReadInt(file, token, jsonPath);
         }
 
         private int? ReadInt(string file, JToken token, string jsonPath)
@@ -996,6 +1967,14 @@ namespace VictoriantChile.Content.Loading
             }
 
             return result;
+        }
+
+        private void ValidateAbsent(JObject obj, string propertyName, string file, string jsonPath)
+        {
+            if (obj.TryGetValue(propertyName, out JToken token) && token.Type != JTokenType.Null)
+            {
+                Add(ContentDiagnosticCode.UnknownProperty, file, jsonPath, "Property " + propertyName + " is not allowed for this expression kind.");
+            }
         }
 
         private JArray RequiredArray(string file, JObject obj, string propertyName, string jsonPath)
@@ -1052,6 +2031,113 @@ namespace VictoriantChile.Content.Loading
             }
 
             return value.Value;
+        }
+
+        private void ValidatePositive(string file, string jsonPath, int? value, string name)
+        {
+            if (value.HasValue && value.Value <= 0)
+            {
+                Add(ContentDiagnosticCode.InvalidRange, file, jsonPath, name + " must be positive.");
+            }
+        }
+
+        private void ValidatePpm(string file, string jsonPath, int? value, string name)
+        {
+            if (value.HasValue && (value.Value <= 0 || value.Value > 1000000))
+            {
+                Add(ContentDiagnosticCode.InvalidRange, file, jsonPath, name + " must be in 1..1000000.");
+            }
+        }
+
+        private TargetPath? RequiredTargetPath(string file, JObject obj, string propertyName, string jsonPath, TargetConfigCatalog catalog, bool allowMutation, TargetOperation? requiredOperation)
+        {
+            JToken token = RequiredToken(file, obj, propertyName, jsonPath);
+            return token == null ? null : ReadTargetPathToken(file, token, jsonPath, catalog, allowMutation, requiredOperation);
+        }
+
+        private TargetPath? ReadTargetPathToken(string file, JToken token, string jsonPath, TargetConfigCatalog catalog, bool allowMutation, TargetOperation? requiredOperation)
+        {
+            if (token.Type != JTokenType.String)
+            {
+                Add(ContentDiagnosticCode.InvalidPropertyType, file, jsonPath, "Expected string.");
+                return null;
+            }
+
+            string targetText = token.Value<string>();
+            if (!TargetPath.TryParse(targetText, out TargetPath target))
+            {
+                Add(ContentDiagnosticCode.InvalidTargetReference, file, jsonPath, "Target path is invalid.");
+                return null;
+            }
+
+            if (!catalog.TryResolve(target, out TargetConfig config))
+            {
+                Add(ContentDiagnosticCode.InvalidTargetReference, file, jsonPath, "Target path does not resolve against TargetConfig.");
+                return null;
+            }
+
+            if (requiredOperation.HasValue && !config.Allows(requiredOperation.Value))
+            {
+                Add(ContentDiagnosticCode.InvalidTargetOperation, file, jsonPath, "Target does not allow operation " + requiredOperation.Value + ".");
+                return null;
+            }
+
+            return target;
+        }
+
+        private TargetPattern? RequiredTargetPattern(string file, JObject obj, string propertyName, string jsonPath, TargetConfigCatalog catalog)
+        {
+            JToken token = RequiredToken(file, obj, propertyName, jsonPath);
+            if (token == null)
+            {
+                return null;
+            }
+
+            if (token.Type != JTokenType.String)
+            {
+                Add(ContentDiagnosticCode.InvalidPropertyType, file, jsonPath, "Expected string.");
+                return null;
+            }
+
+            string patternText = token.Value<string>();
+            if (!TargetPattern.TryParse(patternText, out TargetPattern pattern))
+            {
+                Add(ContentDiagnosticCode.InvalidTargetPattern, file, jsonPath, "Target pattern is invalid.");
+                return null;
+            }
+
+            if (IsStaticRegionalPattern(patternText))
+            {
+                Add(ContentDiagnosticCode.InvalidTargetPattern, file, jsonPath, "Static regional resources are read-only and cannot be targeted by runtime patterns.");
+                return null;
+            }
+
+            if (!IsPatternCoveredByCatalog(pattern, catalog))
+            {
+                Add(ContentDiagnosticCode.InvalidTargetPattern, file, jsonPath, "Target pattern does not match any supported TargetConfig pattern.");
+                return null;
+            }
+
+            return pattern;
+        }
+
+        private static bool IsPatternCoveredByCatalog(TargetPattern pattern, TargetConfigCatalog catalog)
+        {
+            string[] segments = pattern.ToString().Split('.');
+            for (int i = 0; i < segments.Length; i++)
+            {
+                if (segments[i] == "*")
+                {
+                    segments[i] = "probe";
+                }
+            }
+
+            if (!TargetPath.TryParse(string.Join(".", segments), out TargetPath candidate))
+            {
+                return false;
+            }
+
+            return catalog.TryResolve(candidate, out _);
         }
 
         private List<string> LoadStringArray(string file, JArray array, string jsonPath, int minCount, bool unique)
@@ -1243,6 +2329,96 @@ namespace VictoriantChile.Content.Loading
             }
 
             macrozone = default;
+            return false;
+        }
+
+        private static bool TryMapRounding(string text, out ContentRoundingMode rounding)
+        {
+            if (text == "HALF_AWAY_FROM_ZERO")
+            {
+                rounding = ContentRoundingMode.HalfAwayFromZero;
+                return true;
+            }
+
+            rounding = default;
+            return false;
+        }
+
+        private static bool TryMapAggregationPassType(string text, out AggregationPassType passType)
+        {
+            if (text == "INTERNAL_REVERSION")
+            {
+                passType = AggregationPassType.InternalReversion;
+                return true;
+            }
+
+            if (text == "METRIC_AGGREGATION")
+            {
+                passType = AggregationPassType.MetricAggregation;
+                return true;
+            }
+
+            if (text == "DERIVED_INTERNALS")
+            {
+                passType = AggregationPassType.DerivedInternals;
+                return true;
+            }
+
+            passType = default;
+            return false;
+        }
+
+        private static bool TryMapAggregationExpressionKind(string text, out AggregationExpressionKind kind)
+        {
+            if (text == "AVG")
+            {
+                kind = AggregationExpressionKind.Avg;
+                return true;
+            }
+
+            if (text == "COPY")
+            {
+                kind = AggregationExpressionKind.Copy;
+                return true;
+            }
+
+            kind = default;
+            return false;
+        }
+
+        private static bool TryMapMovementMatchMode(string text, out LegislativeMovementMatchMode mode)
+        {
+            if (text == "ANY")
+            {
+                mode = LegislativeMovementMatchMode.Any;
+                return true;
+            }
+
+            mode = default;
+            return false;
+        }
+
+        private static bool TryMapUpperChamberAdjustmentType(string text, out LegislativeUpperChamberAdjustmentType type)
+        {
+            if (text == "SUBTRACT_CONST")
+            {
+                type = LegislativeUpperChamberAdjustmentType.SubtractConst;
+                return true;
+            }
+
+            type = default;
+            return false;
+        }
+
+        private static bool TryMapChamberSupportMode(string text, out LegislativeChamberSupportMode mode)
+        {
+            if (text == "MIN")
+            {
+                mode = LegislativeChamberSupportMode.Min;
+                return true;
+            }
+
+            mode = default;
             return false;
         }
 

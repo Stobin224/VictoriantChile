@@ -25,9 +25,13 @@ namespace VictoriantChile.Simulation.Tests.EditMode
             Assert.That(result.Pack.Regions.Count, Is.EqualTo(16));
             Assert.That(result.Pack.InterestGroups.Count, Is.EqualTo(9));
             Assert.That(result.Pack.Movements.Count, Is.EqualTo(9));
-            Assert.That(result.Pack.Manifest.ContentPackVersion, Is.EqualTo(2));
+            Assert.That(result.Pack.Manifest.ContentPackVersion, Is.EqualTo(3));
             Assert.That(result.Pack.Manifest.ContentSchemaVersion, Is.EqualTo(1));
             Assert.That(result.Pack.Manifest.MinGameSchemaVersion, Is.EqualTo(1));
+            Assert.That(result.Pack.Localization, Is.Not.Null);
+            Assert.That(result.Pack.AggregationConfig, Is.Not.Null);
+            Assert.That(result.Pack.LegislativeConfig, Is.Not.Null);
+            Assert.That(result.Pack.Effects.Count, Is.EqualTo(17));
 
             long regionalWeight = 0;
             foreach (RegionDefinition region in result.Pack.Regions)
@@ -41,6 +45,10 @@ namespace VictoriantChile.Simulation.Tests.EditMode
             TargetConfig direction = result.Pack.TargetConfigCatalog.Resolve(TargetPath.Parse("movements.mov_trabajo_huelgas.direction"));
             Assert.That(direction.AllowedOperations, Is.EqualTo(new[] { TargetOperation.Set }));
             Assert.That(result.Pack.TargetConfigCatalog.Resolve(TargetPath.Parse("igs.ig_sindicatos_trabajo.clout")).NormalizeGroup, Is.EqualTo("igs.clout_sum_100"));
+            Assert.That(result.Pack.Localization.ResolveRequired("effect.eff_legitimacy_down_small.title"), Is.EqualTo("Legitimidad (↓ leve)"));
+            Assert.That(result.Pack.AggregationConfig.Passes[1].Metrics[2].Components[0].WeightPpm, Is.EqualTo(350000));
+            Assert.That(result.Pack.LegislativeConfig.PlayerStrategiesById["COMPROMISE"].ImplementationEffectMultiplierPpm, Is.EqualTo(850000));
+            Assert.That(result.Pack.EffectsById["eff_legitimacy_down_small"].LocalizationTitleKey, Is.EqualTo("effect.eff_legitimacy_down_small.title"));
 
             string root = ContentRoot();
             foreach (KeyValuePair<string, string> declared in result.Pack.Manifest.Files)
@@ -92,6 +100,96 @@ namespace VictoriantChile.Simulation.Tests.EditMode
             files.Remove("templates/events.json");
 
             AssertFailure(Load(files), ContentDiagnosticCode.MissingDeclaredFile);
+        }
+
+        [Test]
+        public void LocalizationValueMustBeString()
+        {
+            AssertFailure(Load(RebuildManifest(WithFile(ValidFixture(), "strings/es.json", "{\"key\":1}"))), ContentDiagnosticCode.InvalidPropertyType);
+        }
+
+        [Test]
+        public void MissingEffectLocalizationKeyFailsClosed()
+        {
+            Dictionary<string, byte[]> files = ValidFixture();
+            files["templates/effects.json"] = Bytes(Text(files["templates/effects.json"]).Replace("effect.eff_legitimacy_down_small.title", "effect.missing.title"));
+            files = RebuildManifest(files);
+
+            AssertFailure(Load(files), ContentDiagnosticCode.MissingLocalizationKey);
+        }
+
+        [Test]
+        public void DuplicateEffectIdFailsClosed()
+        {
+            Dictionary<string, byte[]> files = ValidFixture();
+            files["templates/effects.json"] = Bytes(Text(files["templates/effects.json"]).Replace("\"id\": \"eff_legitimacy_up_small\"", "\"id\": \"eff_legitimacy_down_small\""));
+            files = RebuildManifest(files);
+
+            AssertFailure(Load(files), ContentDiagnosticCode.DuplicateId);
+        }
+
+        [Test]
+        public void EffectTargetOperationAndClampAreValidated()
+        {
+            Dictionary<string, byte[]> badTarget = ValidFixture();
+            badTarget["templates/effects.json"] = Bytes(Text(badTarget["templates/effects.json"]).Replace("\"metrics.legitimacy\"", "\"unknown.bucket.value\""));
+            AssertFailure(Load(RebuildManifest(badTarget)), ContentDiagnosticCode.InvalidTargetReference);
+
+            Dictionary<string, byte[]> badOp = ValidFixture();
+            badOp["templates/effects.json"] = Bytes(Text(badOp["templates/effects.json"]).Replace("\"op\": \"ADD\"", "\"op\": \"BAD\""));
+            AssertFailure(Load(RebuildManifest(badOp)), ContentDiagnosticCode.InvalidEnum);
+
+            Dictionary<string, byte[]> badClamp = ValidFixture();
+            badClamp["templates/effects.json"] = Bytes(Text(badClamp["templates/effects.json"]).Replace("\"is_per_tick\": true", "\"is_per_tick\": true, \"clamp_minS\": 10, \"clamp_maxS\": 0"));
+            AssertFailure(Load(RebuildManifest(badClamp)), ContentDiagnosticCode.InvalidRange);
+        }
+
+        [Test]
+        public void AggregationWeightTargetAndExpressionFailuresAreClosed()
+        {
+            Dictionary<string, byte[]> badWeight = ValidFixture();
+            badWeight["rules/aggregation_config.json"] = Bytes(Text(badWeight["rules/aggregation_config.json"]).Replace("\"weight_ppm\": 350000", "\"weight_ppm\": 349999"));
+            AssertFailure(Load(RebuildManifest(badWeight)), ContentDiagnosticCode.InvalidWeightSum);
+
+            Dictionary<string, byte[]> badTarget = ValidFixture();
+            badTarget["rules/aggregation_config.json"] = Bytes(Text(badTarget["rules/aggregation_config.json"]).Replace("\"internals.economy.growth\"", "\"unknown.bucket.value\""));
+            AssertFailure(Load(RebuildManifest(badTarget)), ContentDiagnosticCode.InvalidTargetReference);
+
+            Dictionary<string, byte[]> badKind = ValidFixture();
+            badKind["rules/aggregation_config.json"] = Bytes(Text(badKind["rules/aggregation_config.json"]).Replace("\"kind\": \"AVG\"", "\"kind\": \"BAD\""));
+            AssertFailure(Load(RebuildManifest(badKind)), ContentDiagnosticCode.InvalidEnum);
+        }
+
+        [Test]
+        public void LegislativePatternStrategyAndUnknownPropertyFailuresAreClosed()
+        {
+            Dictionary<string, byte[]> badPattern = ValidFixture();
+            badPattern["rules/legislative_config.json"] = Bytes(Text(badPattern["rules/legislative_config.json"]).Replace("\"igs.*.clout\"", "\"igs.*.missing\""));
+            AssertFailure(Load(RebuildManifest(badPattern)), ContentDiagnosticCode.InvalidTargetPattern);
+
+            Dictionary<string, byte[]> badStrategy = ValidFixture();
+            badStrategy["rules/legislative_config.json"] = Bytes(Text(badStrategy["rules/legislative_config.json"]).Replace("\"match_mode\": \"ANY\"", "\"match_mode\": \"BAD\""));
+            AssertFailure(Load(RebuildManifest(badStrategy)), ContentDiagnosticCode.InvalidEnum);
+
+            Dictionary<string, byte[]> badUnknownProperty = ValidFixture();
+            badUnknownProperty["rules/legislative_config.json"] = Bytes(Text(badUnknownProperty["rules/legislative_config.json"]).Replace("\"gates\": {", "\"gates\": {\"unknown\":1,"));
+            AssertFailure(Load(RebuildManifest(badUnknownProperty)), ContentDiagnosticCode.UnknownProperty);
+        }
+
+        [Test]
+        public void SchemaVersionAndUnknownPropertyPerFamilyFailClosed()
+        {
+            Dictionary<string, byte[]> badAggSchema = ValidFixture();
+            badAggSchema["rules/aggregation_config.json"] = Bytes(Text(badAggSchema["rules/aggregation_config.json"]).Replace("\"schema_version\": 1", "\"schema_version\": 2"));
+            AssertFailure(Load(RebuildManifest(badAggSchema)), ContentDiagnosticCode.UnsupportedSchemaVersion);
+
+            Dictionary<string, byte[]> badAggUnknown = ValidFixture();
+            badAggUnknown["rules/aggregation_config.json"] = Bytes(Text(badAggUnknown["rules/aggregation_config.json"]).Replace("\"rounding\": \"HALF_AWAY_FROM_ZERO\",", "\"rounding\": \"HALF_AWAY_FROM_ZERO\",\n  \"unknown\": true,"));
+            AssertFailure(Load(RebuildManifest(badAggUnknown)), ContentDiagnosticCode.UnknownProperty);
+
+            Dictionary<string, byte[]> badEffectUnknown = ValidFixture();
+            badEffectUnknown["templates/effects.json"] = Bytes(Text(badEffectUnknown["templates/effects.json"]).Replace("\"tags\": [\"theme.institucional\", \"theme.corrupcion\"]", "\"tags\": [\"theme.institucional\", \"theme.corrupcion\"], \"unknown\": true"));
+            AssertFailure(Load(RebuildManifest(badEffectUnknown)), ContentDiagnosticCode.UnknownProperty);
         }
 
         [Test]
@@ -266,14 +364,7 @@ namespace VictoriantChile.Simulation.Tests.EditMode
         [Test]
         public void TargetConfigLoadOrderAndResolutionArePreserved()
         {
-            string configs = "["
-                + "{\"pattern\":\"metrics.*\",\"scale\":100,\"minS\":0,\"maxS\":10000,\"defaultS\":5000,\"allow_ops\":[\"ADD\"]},"
-                + "{\"pattern\":\"metrics.legitimacy\",\"scale\":100,\"minS\":0,\"maxS\":10000,\"defaultS\":5000,\"allow_ops\":[\"SET\"]},"
-                + "{\"pattern\":\"igs.*.approval\",\"scale\":100,\"minS\":-10000,\"maxS\":10000,\"defaultS\":0,\"allow_ops\":[\"ADD\",\"SET\"]},"
-                + "{\"pattern\":\"movements.*.direction\",\"scale\":1,\"minS\":-1,\"maxS\":1,\"defaultS\":1,\"allow_ops\":[\"SET\"]}"
-                + "]";
-
-            ContentLoadResult result = Load(RebuildManifest(WithFile(ValidFixture(), "rules/target_config.json", configs)));
+            ContentLoadResult result = Load(ValidFixture());
 
             Assert.That(result.IsSuccess, Is.True, Diagnostics(result));
             Assert.That(result.Pack.TargetConfigs[0].Pattern.ToString(), Is.EqualTo("metrics.*"));
@@ -366,14 +457,20 @@ namespace VictoriantChile.Simulation.Tests.EditMode
         {
             Dictionary<string, byte[]> files = ValidFixture();
             ContentLoadResult result = Load(files);
+            int originalRegionCount = result.Pack.Regions.Count;
+            string originalFirstRegionId = result.Pack.Regions[0].Id;
 
             Assert.That(result.IsSuccess, Is.True, Diagnostics(result));
             Assert.Throws<NotSupportedException>(() => ((IList<RegionDefinition>)result.Pack.Regions).Add(result.Pack.Regions[0]));
             Assert.Throws<NotSupportedException>(() => ((IDictionary<string, RegionDefinition>)result.Pack.RegionsById).Add("other", result.Pack.Regions[0]));
+            Assert.Throws<NotSupportedException>(() => ((IDictionary<string, string>)result.Pack.Localization.Entries).Add("new.key", "value"));
+            Assert.Throws<NotSupportedException>(() => ((IList<EffectTemplate>)result.Pack.Effects).Add(result.Pack.Effects[0]));
+            Assert.Throws<KeyNotFoundException>(() => result.Pack.Localization.ResolveRequired("missing.key"));
 
             files["core/regions.json"] = Bytes("{\"regions\":[]}");
-            Assert.That(result.Pack.Regions.Count, Is.EqualTo(1));
-            Assert.That(result.Pack.RegionsById.ContainsKey("metropolitana"), Is.True);
+            Assert.That(result.Pack.Regions.Count, Is.EqualTo(originalRegionCount));
+            Assert.That(result.Pack.RegionsById.ContainsKey(originalFirstRegionId), Is.True);
+            Assert.That(result.Pack.EffectsById.ContainsKey("eff_legitimacy_down_small"), Is.True);
         }
 
         [Test]
@@ -388,6 +485,8 @@ namespace VictoriantChile.Simulation.Tests.EditMode
             Assert.That(second.Pack.Manifest.ContentPackVersion, Is.EqualTo(first.Pack.Manifest.ContentPackVersion));
             Assert.That(second.Pack.TargetConfigs.Count, Is.EqualTo(first.Pack.TargetConfigs.Count));
             Assert.That(second.Pack.RegionsById["metropolitana"].Name, Is.EqualTo(first.Pack.RegionsById["metropolitana"].Name));
+            Assert.That(second.Pack.Localization.ResolveRequired("effect.eff_legitimacy_down_small.title"), Is.EqualTo(first.Pack.Localization.ResolveRequired("effect.eff_legitimacy_down_small.title")));
+            Assert.That(second.Pack.EffectsById["eff_exceptional_route_cost_default"].Modifiers.Count, Is.EqualTo(first.Pack.EffectsById["eff_exceptional_route_cost_default"].Modifiers.Count));
         }
 
         private static ContentLoadResult LoadRealPack()
@@ -452,18 +551,10 @@ namespace VictoriantChile.Simulation.Tests.EditMode
 
         private static Dictionary<string, byte[]> ValidFixture(bool includeMovements = true)
         {
-            Dictionary<string, byte[]> files = new Dictionary<string, byte[]>(StringComparer.Ordinal)
+            Dictionary<string, byte[]> files = LoadRealFixture();
+            if (!includeMovements)
             {
-                { "core/regions.json", Bytes("{\"regions\":[{\"id\":\"metropolitana\",\"name\":\"Metropolitana\",\"weight_ppm\":1000000,\"macrozone\":\"CENTER\"}]}") },
-                { "core/igs.json", Bytes("{\"igs\":[{\"id\":\"ig_test\",\"name\":\"Test IG\",\"tags\":[\"political.left\",\"labor.union\"]}]}") },
-                { "rules/target_config.json", Bytes("[{\"pattern\":\"metrics.*\",\"scale\":100,\"minS\":0,\"maxS\":10000,\"defaultS\":5000,\"allow_ops\":[\"ADD\",\"MUL\",\"SET\"]},{\"pattern\":\"igs.*.approval\",\"scale\":100,\"minS\":-10000,\"maxS\":10000,\"defaultS\":0,\"allow_ops\":[\"ADD\",\"SET\"]},{\"pattern\":\"movements.*.direction\",\"scale\":1,\"minS\":-1,\"maxS\":1,\"defaultS\":1,\"allow_ops\":[\"SET\"]},{\"pattern\":\"igs.*.clout\",\"scale\":100,\"minS\":0,\"maxS\":10000,\"defaultS\":1111,\"allow_ops\":[\"ADD\",\"MUL\",\"SET\"],\"normalize_group\":\"igs.clout_sum_100\"}]") },
-                { "strings/es.json", Bytes("{}") },
-                { "templates/events.json", Bytes("{\"events\":[]}") }
-            };
-
-            if (includeMovements)
-            {
-                files.Add("core/movements.json", Bytes("{\"movements\":[{\"id\":\"mov_test\",\"name\":\"Test Movement\",\"tags\":[\"political.left\"]}]}"));
+                files.Remove("core/movements.json");
             }
 
             return RebuildManifest(files);
@@ -516,6 +607,30 @@ namespace VictoriantChile.Simulation.Tests.EditMode
         private static string Text(byte[] bytes)
         {
             return Encoding.UTF8.GetString(bytes);
+        }
+
+        private static Dictionary<string, byte[]> LoadRealFixture()
+        {
+            string root = ContentRoot();
+            Dictionary<string, byte[]> files = new Dictionary<string, byte[]>(StringComparer.Ordinal);
+            foreach (string relativePath in new[]
+            {
+                "core/regions.json",
+                "core/igs.json",
+                "core/movements.json",
+                "rules/target_config.json",
+                "rules/aggregation_config.json",
+                "rules/legislative_config.json",
+                "strings/es.json",
+                "templates/effects.json",
+                "templates/events.json",
+                "templates/reforms.json"
+            })
+            {
+                files.Add(relativePath, File.ReadAllBytes(Path.Combine(root, relativePath.Replace('/', Path.DirectorySeparatorChar))));
+            }
+
+            return files;
         }
 
         private class InMemoryContentFileSource : IContentFileSource

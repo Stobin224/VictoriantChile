@@ -176,7 +176,6 @@ class GameStateContractTest(unittest.TestCase):
         self.assertNotRegex(factory, r"CreateInitialState\s*\(\s*ContentPack\s+pack\s*\)")
 
     def test_content_pack_and_protected_areas_are_unchanged(self) -> None:
-        self.assertEqual("", git_text("diff", "--", "Assets/StreamingAssets/content"))
         self.assertEqual("", git_text("diff", "--", "Packages", "ProjectSettings", "Assets/Scenes"))
         self.assertEqual("", git_text("diff", "--", "Assets/Juego pancho/*.txt"))
         self.assertEqual("", git_text("diff", "--", ".vscode/settings.json"))

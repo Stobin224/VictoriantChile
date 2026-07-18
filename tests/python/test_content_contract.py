@@ -10,6 +10,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 CONTENT_DIR = ROOT / "Assets" / "StreamingAssets" / "content"
+EXPECTED_CONTENT_PACK_VERSION = 3
+EXPECTED_AGGREGATION_CONFIG_HASH = "sha256:7cdc82aea9ade235261a023f9955defe55c86e8a9ed8bae0e9c96e77a96e5b51"
+EXPECTED_MANIFEST_CANONICAL_HASH = "6c2ccc9e0ebfd86e14a00a1a992a993c079fce6a6efbd976e3c23e50a5ce50e7"
 
 sys.path.insert(0, str(ROOT))
 
@@ -53,6 +56,18 @@ class ContentFixtureTest(unittest.TestCase):
         self.assertEqual([], validate_content(CONTENT_DIR))
         code, message = smoke(CONTENT_DIR)
         self.assertEqual(0, code, message)
+
+    def test_manifest_version_and_hashes_match_current_frozen_loader_contract(self) -> None:
+        manifest = load_json(CONTENT_DIR / "manifest.json")
+        self.assertEqual(EXPECTED_CONTENT_PACK_VERSION, manifest["content_pack_version"])
+        self.assertEqual(
+            EXPECTED_AGGREGATION_CONFIG_HASH,
+            manifest["files"]["rules/aggregation_config.json"],
+        )
+        self.assertEqual(
+            EXPECTED_MANIFEST_CANONICAL_HASH,
+            canonical_json_sha256_file(CONTENT_DIR / "manifest.json"),
+        )
 
     def test_modified_hash_fails(self) -> None:
         target = self.content_dir / "strings" / "es.json"
@@ -290,6 +305,28 @@ class ContentFixtureTest(unittest.TestCase):
         data.pop("passes")
         write_json(path, data)
         self.assertValidationFailsWith("passes must be a non-empty list")
+
+    def test_social_tension_weights_match_frozen_contract(self) -> None:
+        path = self.content_dir / "rules" / "aggregation_config.json"
+        data = load_json(path)
+        metric = next(
+            metric
+            for agg_pass in data["passes"]
+            if agg_pass["type"] == "METRIC_AGGREGATION"
+            for metric in agg_pass["metrics"]
+            if metric["metric"] == "metrics.social_tension"
+        )
+        components = metric["components"]
+        self.assertEqual(
+            [
+                {"target": "internals.tension.cost_of_living", "weight_ppm": 350000},
+                {"target": "internals.tension.polarization", "weight_ppm": 250000},
+                {"target": "internals.tension.protest_activity", "weight_ppm": 250000},
+                {"target": "internals.tension.institutional_trust", "weight_ppm": -150000},
+            ],
+            components,
+        )
+        self.assertEqual(1000000, sum(abs(component["weight_ppm"]) for component in components))
 
     def test_smoke_exercises_passes(self) -> None:
         code, message = smoke(self.content_dir)

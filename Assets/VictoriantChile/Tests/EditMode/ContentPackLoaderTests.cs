@@ -25,6 +25,15 @@ namespace VictoriantChile.Simulation.Tests.EditMode
             Assert.That(result.Pack.Regions.Count, Is.EqualTo(16));
             Assert.That(result.Pack.InterestGroups.Count, Is.EqualTo(9));
             Assert.That(result.Pack.Movements.Count, Is.EqualTo(9));
+            Assert.That(result.Pack.Localization, Is.Not.Null);
+            Assert.That(result.Pack.Localization.Language, Is.EqualTo("es"));
+            Assert.That(result.Pack.Localization.ResolveRequired("ui.target.metrics.social_tension"), Is.EqualTo("Tensión social"));
+            Assert.That(result.Pack.AggregationConfig, Is.Not.Null);
+            Assert.That(result.Pack.AggregationConfig.Passes.Count, Is.EqualTo(4));
+            Assert.That(result.Pack.LegislativeConfig, Is.Not.Null);
+            Assert.That(result.Pack.LegislativeConfig.PlayerStrategiesById.ContainsKey("PUSH"), Is.True);
+            Assert.That(result.Pack.Effects.Count, Is.EqualTo(17));
+            Assert.That(result.Pack.EffectsById["eff_exceptional_route_cost_default"].Modifiers.Count, Is.EqualTo(2));
             Assert.That(result.Pack.TargetConfigCatalog.Resolve(TargetPath.Parse("metrics.legitimacy")).Pattern.ToString(), Is.EqualTo("metrics.legitimacy"));
             Assert.That(result.Pack.RegionsById["metropolitana"].Name, Is.EqualTo("Metropolitana"));
         }
@@ -245,17 +254,10 @@ namespace VictoriantChile.Simulation.Tests.EditMode
 
         private static Dictionary<string, byte[]> ValidFixture(bool includeMovements = true)
         {
-            Dictionary<string, byte[]> files = new Dictionary<string, byte[]>(StringComparer.Ordinal)
+            Dictionary<string, byte[]> files = LoadRealFixture();
+            if (!includeMovements)
             {
-                { "core/regions.json", Bytes("{\"regions\":[{\"id\":\"metropolitana\",\"name\":\"Metropolitana\",\"weight_ppm\":1000000,\"macrozone\":\"CENTER\"}]}") },
-                { "core/igs.json", Bytes("{\"igs\":[{\"id\":\"ig_test\",\"name\":\"Test IG\",\"tags\":[\"political.left\",\"labor.union\"]}]}") },
-                { "rules/target_config.json", Bytes("[{\"pattern\":\"metrics.*\",\"scale\":100,\"minS\":0,\"maxS\":10000,\"defaultS\":5000,\"allow_ops\":[\"ADD\",\"MUL\",\"SET\"]}]") },
-                { "strings/es.json", Bytes("{}") }
-            };
-
-            if (includeMovements)
-            {
-                files.Add("core/movements.json", Bytes("{\"movements\":[{\"id\":\"mov_test\",\"name\":\"Test Movement\",\"tags\":[\"political.left\"]}]}"));
+                files.Remove("core/movements.json");
             }
 
             return RebuildManifest(files);
@@ -308,6 +310,30 @@ namespace VictoriantChile.Simulation.Tests.EditMode
         private static string Text(byte[] bytes)
         {
             return Encoding.UTF8.GetString(bytes);
+        }
+
+        private static Dictionary<string, byte[]> LoadRealFixture()
+        {
+            string root = ContentRoot();
+            Dictionary<string, byte[]> files = new Dictionary<string, byte[]>(StringComparer.Ordinal);
+            foreach (string relativePath in new[]
+            {
+                "core/regions.json",
+                "core/igs.json",
+                "core/movements.json",
+                "rules/target_config.json",
+                "rules/aggregation_config.json",
+                "rules/legislative_config.json",
+                "strings/es.json",
+                "templates/effects.json",
+                "templates/events.json",
+                "templates/reforms.json"
+            })
+            {
+                files.Add(relativePath, File.ReadAllBytes(Path.Combine(root, relativePath.Replace('/', Path.DirectorySeparatorChar))));
+            }
+
+            return files;
         }
 
         private sealed class InMemoryContentFileSource : IContentFileSource

@@ -1,13 +1,13 @@
 {
   "content_pack_id": "base_chile_fictional",
-  "content_pack_version": 2,
+  "content_pack_version": 3,
   "content_schema_version": 1,
   "default_language": "es",
   "files": {
     "core/igs.json": "sha256:985c11e0a43da93b1607b1ec03b647d407bcce89a43893cdd41a603c97a4ca5f",
     "core/movements.json": "sha256:0927da8991f9b4787467806058ad2eeadc0079c9b6dbadbf403b6aa1c6cfbaa4",
     "core/regions.json": "sha256:0e769d6ec788442839afb3d49aa7cf84cb7879fdc89f56ddd09fd4d8fc695352",
-    "rules/aggregation_config.json": "sha256:0f7c01573e3981d469112828032b1615a26fcd841035303991e50e033225bb32",
+    "rules/aggregation_config.json": "sha256:7cdc82aea9ade235261a023f9955defe55c86e8a9ed8bae0e9c96e77a96e5b51",
     "rules/legislative_config.json": "sha256:10015e0188a20ba227ea1bfad7ebfa4d6ab949d7ba14d4c742e3515461e696dd",
     "rules/target_config.json": "sha256:c6e994714f2769cd02d8dc96070e70bc38847b9cfed564205fbdbaee7b581684",
     "strings/es.json": "sha256:f168adefbf9549af78af88b67a875564936b63d164bdc9c437e418fa16e6d0cb",
