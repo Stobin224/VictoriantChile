@@ -43,7 +43,7 @@ class AgentsDirectorySnapshot:
 
 def git_safe_directory_value(repo_root: Path) -> str:
     resolved = _canonical_repo_root(repo_root)
-    if os.name == "nt":
+    if _is_windows():
         return resolved.as_posix()
     return str(resolved)
 
@@ -219,6 +219,11 @@ def cleanup_agents_directory(
 
 
 def _canonical_repo_root(repo_root: Path) -> Path:
+    raw_text = os.fspath(repo_root)
+    if _is_windows():
+        normalized_raw = str(raw_text).replace("\\", "/")
+        if normalized_raw.startswith("//"):
+            raise ValueError("codex.invalid_git_config_environment: UNC repository paths are not supported")
     repo = Path(repo_root)
     if not repo:
         raise ValueError("codex.invalid_git_config_environment: repository path is empty")
@@ -228,10 +233,6 @@ def _canonical_repo_root(repo_root: Path) -> Path:
     text = str(resolved)
     if not text or text in {"\\", "/"} or resolved.parent == resolved:
         raise ValueError("codex.invalid_git_config_environment: repository path is too broad")
-    if os.name == "nt":
-        posix = resolved.as_posix()
-        if text.startswith("\\\\") or posix.startswith("//"):
-            raise ValueError("codex.invalid_git_config_environment: UNC repository paths are not supported")
     if not resolved.exists() or not resolved.is_dir():
         raise ValueError("codex.invalid_git_config_environment: repository path must exist")
     if not (resolved / ".git").exists():
@@ -257,11 +258,11 @@ def _parse_git_config_count(value: str) -> int:
 
 
 def _normalize_safe_directory(value: str) -> str:
-    return value.replace("\\", "/").rstrip("/").casefold() if os.name == "nt" else value.rstrip("/")
+    return value.replace("\\", "/").rstrip("/").casefold() if _is_windows() else value.rstrip("/")
 
 
 def _get_normalized_env(environment: dict[str, str], canonical_name: str) -> str | None:
-    if os.name != "nt":
+    if not _is_windows():
         return environment.get(canonical_name)
     matches = [key for key in environment if key.casefold() == canonical_name.casefold()]
     if len(matches) > 1:
@@ -274,3 +275,7 @@ def _get_normalized_env(environment: dict[str, str], canonical_name: str) -> str
         del environment[key]
         environment[canonical_name] = value
     return value
+
+
+def _is_windows() -> bool:
+    return os.name == "nt"

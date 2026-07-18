@@ -25,6 +25,11 @@ def repo_root(tmp: str) -> Path:
 
 
 class AgentLoopGitScopeTest(unittest.TestCase):
+    def test_platform_detection_defaults_to_host_os_name(self) -> None:
+        from scripts.agent_loop import git_scope
+
+        self.assertEqual(os.name == "nt", git_scope._is_windows())
+
     def test_build_git_scoped_environment_without_existing_count(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = repo_root(tmp)
@@ -119,10 +124,13 @@ class AgentLoopGitScopeTest(unittest.TestCase):
     def test_git_safe_directory_value_uses_forward_slashes_on_windows(self) -> None:
         with tempfile.TemporaryDirectory(prefix="Repo With Spaces ") as tmp:
             repo = repo_root(tmp)
-            value = git_safe_directory_value(repo)
-            if os.name == "nt":
-                self.assertIn("/", value)
-                self.assertNotIn("\\", value)
+            os_name_before = os.name
+            with mock.patch("scripts.agent_loop.git_scope._is_windows", return_value=True):
+                value = git_safe_directory_value(repo)
+            self.assertEqual(os_name_before, os.name)
+            self.assertIsInstance(repo, Path)
+            self.assertIn("/", value)
+            self.assertNotIn("\\", value)
             self.assertNotEqual("*", value)
 
     def test_metadata_is_redacted(self) -> None:
@@ -133,54 +141,61 @@ class AgentLoopGitScopeTest(unittest.TestCase):
             self.assertNotIn(str(repo), str(scoped.metadata()))
 
     def test_build_git_scoped_environment_windows_aliases_are_normalized_and_ambiguous_duplicates_fail(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp, mock.patch("scripts.agent_loop.git_scope.os.name", "nt"):
+        with tempfile.TemporaryDirectory() as tmp:
             repo = repo_root(tmp)
-            scoped = build_git_scoped_environment(
-                {
-                    "git_config_count": "1",
-                    "git_config_key_0": "core.fsmonitor",
-                    "git_config_value_0": "false",
-                },
-                repo,
-            )
-            self.assertNotIn("git_config_count", scoped.environment)
-            self.assertEqual("2", scoped.environment["GIT_CONFIG_COUNT"])
-            self.assertEqual("core.fsmonitor", scoped.environment["GIT_CONFIG_KEY_0"])
-            self.assertEqual("false", scoped.environment["GIT_CONFIG_VALUE_0"])
-            self.assertEqual("safe.directory", scoped.environment["GIT_CONFIG_KEY_1"])
+            os_name_before = os.name
+            with mock.patch("scripts.agent_loop.git_scope._is_windows", return_value=True):
+                self.assertEqual(os_name_before, os.name)
+                self.assertEqual(type(repo), type(Path(tmp)))
+                scoped = build_git_scoped_environment(
+                    {
+                        "git_config_count": "1",
+                        "git_config_key_0": "core.fsmonitor",
+                        "git_config_value_0": "false",
+                    },
+                    repo,
+                )
+                self.assertNotIn("git_config_count", scoped.environment)
+                self.assertEqual("2", scoped.environment["GIT_CONFIG_COUNT"])
+                self.assertEqual("core.fsmonitor", scoped.environment["GIT_CONFIG_KEY_0"])
+                self.assertEqual("false", scoped.environment["GIT_CONFIG_VALUE_0"])
+                self.assertEqual("safe.directory", scoped.environment["GIT_CONFIG_KEY_1"])
+                self.assertEqual(os_name_before, os.name)
 
-            with self.assertRaisesRegex(ValueError, "ambiguous environment entries for GIT_CONFIG_COUNT"):
-                build_git_scoped_environment({"GIT_CONFIG_COUNT": "0", "git_config_count": "0"}, repo)
-            with self.assertRaisesRegex(ValueError, "ambiguous environment entries for GIT_CONFIG_KEY_0"):
-                build_git_scoped_environment(
-                    {
-                        "GIT_CONFIG_COUNT": "1",
-                        "GIT_CONFIG_KEY_0": "core.fsmonitor",
-                        "git_config_key_0": "core.editor",
-                        "GIT_CONFIG_VALUE_0": "false",
-                    },
-                    repo,
-                )
-            with self.assertRaisesRegex(ValueError, "ambiguous environment entries for GIT_CONFIG_VALUE_0"):
-                build_git_scoped_environment(
-                    {
-                        "GIT_CONFIG_COUNT": "1",
-                        "GIT_CONFIG_KEY_0": "core.fsmonitor",
-                        "GIT_CONFIG_VALUE_0": "false",
-                        "git_config_value_0": "true",
-                    },
-                    repo,
-                )
+                with self.assertRaisesRegex(ValueError, "ambiguous environment entries for GIT_CONFIG_COUNT"):
+                    build_git_scoped_environment({"GIT_CONFIG_COUNT": "0", "git_config_count": "0"}, repo)
+                with self.assertRaisesRegex(ValueError, "ambiguous environment entries for GIT_CONFIG_KEY_0"):
+                    build_git_scoped_environment(
+                        {
+                            "GIT_CONFIG_COUNT": "1",
+                            "GIT_CONFIG_KEY_0": "core.fsmonitor",
+                            "git_config_key_0": "core.editor",
+                            "GIT_CONFIG_VALUE_0": "false",
+                        },
+                        repo,
+                    )
+                with self.assertRaisesRegex(ValueError, "ambiguous environment entries for GIT_CONFIG_VALUE_0"):
+                    build_git_scoped_environment(
+                        {
+                            "GIT_CONFIG_COUNT": "1",
+                            "GIT_CONFIG_KEY_0": "core.fsmonitor",
+                            "GIT_CONFIG_VALUE_0": "false",
+                            "git_config_value_0": "true",
+                        },
+                        repo,
+                    )
 
     def test_build_git_scoped_environment_rejects_git_config_parameters(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = repo_root(tmp)
             with self.assertRaisesRegex(ValueError, "GIT_CONFIG_PARAMETERS is not supported"):
                 build_git_scoped_environment({"GIT_CONFIG_PARAMETERS": "safe.directory=*"}, repo)
-        with tempfile.TemporaryDirectory() as tmp, mock.patch("scripts.agent_loop.git_scope.os.name", "nt"):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch("scripts.agent_loop.git_scope._is_windows", return_value=True):
             repo = repo_root(tmp)
+            os_name_before = os.name
             with self.assertRaisesRegex(ValueError, "GIT_CONFIG_PARAMETERS is not supported"):
                 build_git_scoped_environment({"git_config_parameters": "safe.directory=*"}, repo)
+            self.assertEqual(os_name_before, os.name)
 
     def test_initial_agents_runtime_and_inspect_absent(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -299,10 +314,12 @@ class AgentLoopGitScopeTest(unittest.TestCase):
             repo = Path(tmp).resolve()
             with self.assertRaisesRegex(ValueError, "Git repository"):
                 build_git_scoped_environment({}, repo)
-        with mock.patch("scripts.agent_loop.git_scope.os.name", "nt"):
-            unc = Path("//server/share/repo")
+        with mock.patch("scripts.agent_loop.git_scope._is_windows", return_value=True):
+            os_name_before = os.name
+            unc = "//server/share/repo"
             with self.assertRaisesRegex(ValueError, "UNC repository paths are not supported"):
                 build_git_scoped_environment({}, unc)
+            self.assertEqual(os_name_before, os.name)
 
 
 if __name__ == "__main__":
