@@ -112,15 +112,26 @@ def verify_candidate(path: str) -> tuple[int | None, str, str]:
 
 
 class CodexClient:
-    def __init__(self, executable: str, repo: Path, process_runner: ProcessRunner | None = None, evidence_dir: Path | None = None) -> None:
+    def __init__(
+        self,
+        executable: str,
+        repo: Path,
+        process_runner: ProcessRunner | None = None,
+        evidence_dir: Path | None = None,
+        *,
+        env: dict[str, str] | None = None,
+        git_env_metadata: dict[str, Any] | None = None,
+    ) -> None:
         self.executable = executable
         self.repo = repo
         self.process_runner = process_runner or ProcessRunner()
         self.evidence_dir = evidence_dir
         self.turn_index = 0
+        self.env = dict(env) if env is not None else None
+        self.git_env_metadata = dict(git_env_metadata or {})
 
     def login_status(self) -> ProcessResult:
-        return self.process_runner.run([self.executable, "login", "status"], self.repo, 30)
+        return self.process_runner.run([self.executable, "login", "status"], self.repo, 30, env=self.env)
 
     def exec(self, prompt: str, *, sandbox: str, output_schema: Path | None, timeout_seconds: int) -> CodexTurnResult:
         argv = [self.executable, "exec", "--json", "--sandbox", sandbox, "--cd", str(self.repo)]
@@ -144,6 +155,7 @@ class CodexClient:
             timeout_seconds,
             max_stdout_bytes=MAX_CODEX_STDOUT_BYTES,
             max_stderr_bytes=MAX_CODEX_STDERR_BYTES,
+            env=self.env,
         )
         self._write_raw_evidence(result, self.turn_index)
         parsed = parse_jsonl_bytes(result.stdout)
@@ -193,6 +205,7 @@ class CodexClient:
                 "stderr_limited": result.stderr_limited,
                 "stdout_file": stdout_name,
                 "stderr_file": stderr_name,
+                **self.git_env_metadata,
             },
         )
 

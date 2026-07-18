@@ -30,6 +30,7 @@ def state_to_json(state: LoopState, *, elapsed_seconds: int, resume_command: str
         "fingerprint": state.fingerprint,
         "errors": list(state.errors),
         "pr_url": state.pr_url,
+        "agents_runtime": dict(state.agents_runtime),
         "resume_command": resume_command,
     }
 

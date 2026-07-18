@@ -173,3 +173,4 @@ class LoopState:
     changed_files: list[str] = field(default_factory=list)
     fingerprint: str | None = None
     pr_url: str | None = None
+    agents_runtime: dict[str, Any] = field(default_factory=dict)

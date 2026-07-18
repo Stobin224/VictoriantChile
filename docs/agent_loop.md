@@ -111,6 +111,10 @@ The reviewer is a separate read-only turn with structured output. Reviewer promp
 
 The supervisor treats Git as the source of truth. A writer's final response may claim changed paths, but the supervisor compares those claims against the actual working tree. If a writer exits successfully without working-tree progress, the next correction prompt receives the failed checks, the real changed path list, and an explicit no-progress diagnostic. Repeated no-progress with the same failure is stopped by the existing budgets.
 
+On Windows with Codex sandbox `unelevated`, Git may reject host-created repositories as dubious ownership because the restricted token sees `Administrators` as deny-only. The supervisor injects an exact process-scoped `safe.directory` entry for the current repo into the Codex process environment by extending `GIT_CONFIG_COUNT/GIT_CONFIG_KEY_n/GIT_CONFIG_VALUE_n`. This applies only to the Codex process tree, preserves pre-existing valid `GIT_CONFIG_*` entries, never uses `safe.directory=*`, and never modifies `.git/config` or Git global/system configuration. Git may still consult the user's normal configuration files; the supervisor only guarantees that it does not edit them. `GIT_CONFIG_PARAMETERS` is treated as unauditable ambient override state and fails closed before Codex launches.
+
+Codex may also create an empty `.agents/` directory inside the task repository as runtime infrastructure before any tool work. The supervisor snapshots `<repo>/.agents` before the first writer turn, allows it only while it remains the exact empty ordinary directory created during the run, and removes it at terminal cleanup only with a single `os.rmdir(<repo>/.agents)` if it still exists, is empty, and is not a symlink or reparse point. Any non-empty or unsafe `.agents` becomes a fail-closed runtime artifact violation.
+
 ## States
 
 Terminal states:

@@ -199,7 +199,7 @@ class AgentLoopJsonlStreamTest(unittest.TestCase):
         evidence_dir = ROOT / ".agent-loop" / "runs" / run_id
 
         class FakeRunner:
-            def run_bytes(self, argv, cwd, timeout_seconds, *, max_stdout_bytes, max_stderr_bytes):
+            def run_bytes(self, argv, cwd, timeout_seconds, *, max_stdout_bytes, max_stderr_bytes, env=None):
                 return RawProcessResult(tuple(argv), 0, event_stream(), b"warning on stderr\n")
 
         try:
@@ -223,7 +223,7 @@ class AgentLoopJsonlStreamTest(unittest.TestCase):
 
     def test_stdout_and_stderr_limits_are_reported_by_client(self) -> None:
         class FakeRunner:
-            def run_bytes(self, argv, cwd, timeout_seconds, *, max_stdout_bytes, max_stderr_bytes):
+            def run_bytes(self, argv, cwd, timeout_seconds, *, max_stdout_bytes, max_stderr_bytes, env=None):
                 return RawProcessResult(tuple(argv), None, b"{", b"err", stdout_limited=True, stderr_limited=True)
 
         result = CodexClient("codex", ROOT, FakeRunner()).exec("prompt", sandbox="read-only", output_schema=None, timeout_seconds=1)
@@ -233,7 +233,7 @@ class AgentLoopJsonlStreamTest(unittest.TestCase):
 
     def test_process_exit_nonzero_with_valid_stream_preserves_specific_result(self) -> None:
         class FakeRunner:
-            def run_bytes(self, argv, cwd, timeout_seconds, *, max_stdout_bytes, max_stderr_bytes):
+            def run_bytes(self, argv, cwd, timeout_seconds, *, max_stdout_bytes, max_stderr_bytes, env=None):
                 return RawProcessResult(tuple(argv), 9, event_stream(), b"")
 
         result = CodexClient("codex", ROOT, FakeRunner()).exec("prompt", sandbox="read-only", output_schema=None, timeout_seconds=1)

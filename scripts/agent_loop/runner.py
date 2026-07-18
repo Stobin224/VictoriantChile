@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import time
 import uuid
 from pathlib import Path
@@ -9,6 +10,7 @@ from typing import Any
 from .codex_client import CodexClient, discover_codex
 from .evidence import EvidenceStore
 from .git_guard import audit_scope, create_branch, current_branch, ensure_clean, fingerprint_worktree, rev_parse
+from .git_scope import build_git_scoped_environment, cleanup_agents_directory, initial_agents_runtime, inspect_agents_directory, reconcile_agents_runtime
 from .io_utils import atomic_write_json
 from .models import CheckResult, Finding, LoopState, TaskSpec
 from .process_runner import ProcessRunner
@@ -50,8 +52,16 @@ class LoopRunner:
         self.codex_executable = codex_executable
         self.run_id = run_id or uuid.uuid4().hex
         self.clock = clock
+        self.codex_environment: dict[str, str] | None = None
+        self.codex_git_env_metadata: dict[str, Any] = {}
 
     def validate_preflight(self) -> tuple[str, str]:
+        try:
+            git_environment = build_git_scoped_environment(os.environ, self.repo)
+        except ValueError as exc:
+            raise RuntimeError(str(exc)) from exc
+        self.codex_environment = git_environment.environment
+        self.codex_git_env_metadata = git_environment.metadata()
         ensure_clean(self.repo)
         base_sha = rev_parse(self.repo, self.spec.base_ref)
         if current_branch(self.repo) in {"main", "master"}:
@@ -59,7 +69,13 @@ class LoopRunner:
         discovery = discover_codex(self.codex_executable)
         if not discovery.ok or not discovery.executable:
             raise RuntimeError("Codex CLI discovery failed: " + "; ".join(discovery.errors))
-        client = CodexClient(discovery.executable, self.repo, self.process_runner)
+        client = CodexClient(
+            discovery.executable,
+            self.repo,
+            self.process_runner,
+            env=self.codex_environment,
+            git_env_metadata=self.codex_git_env_metadata,
+        )
         login = client.login_status()
         if login.exit_code != 0 or "ChatGPT" not in (login.stdout + login.stderr):
             raise RuntimeError("Codex login status did not confirm ChatGPT authentication")
@@ -70,13 +86,27 @@ class LoopRunner:
         base_sha, executable = self.validate_preflight()
         create_branch(self.repo, self.spec.branch, base_sha)
         state = LoopState(self.run_id, self.spec.task_id, self.task_hash, self.spec.base_ref, base_sha, self.spec.branch, "branch_ready")
+        state.agents_runtime = initial_agents_runtime(self.repo)
         evidence = EvidenceStore(self.repo, self.run_id, self.clock)
         evidence.write_state(state, start_time=start)
-        client = CodexClient(executable, self.repo, self.process_runner, evidence.run_dir)
+        client = CodexClient(
+            executable,
+            self.repo,
+            self.process_runner,
+            evidence.run_dir,
+            env=self.codex_environment,
+            git_env_metadata=self.codex_git_env_metadata,
+        )
         return self._continue(state, client, evidence, start, base_sha, publish=publish, resume_first=False)
 
     def resume(self, state: LoopState, *, publish: bool = False) -> LoopState:
         start = self.clock()
+        try:
+            git_environment = build_git_scoped_environment(os.environ, self.repo)
+        except ValueError as exc:
+            raise RuntimeError(str(exc)) from exc
+        self.codex_environment = git_environment.environment
+        self.codex_git_env_metadata = git_environment.metadata()
         base_sha = rev_parse(self.repo, self.spec.base_ref)
         if base_sha != state.base_sha:
             raise RuntimeError("base SHA changed")
@@ -85,12 +115,27 @@ class LoopRunner:
         discovery = discover_codex(self.codex_executable)
         if not discovery.ok or not discovery.executable:
             raise RuntimeError("Codex CLI discovery failed: " + "; ".join(discovery.errors))
-        login_client = CodexClient(discovery.executable, self.repo, self.process_runner)
+        login_client = CodexClient(
+            discovery.executable,
+            self.repo,
+            self.process_runner,
+            env=self.codex_environment,
+            git_env_metadata=self.codex_git_env_metadata,
+        )
         login = login_client.login_status()
         if login.exit_code != 0 or "ChatGPT" not in (login.stdout + login.stderr):
             raise RuntimeError("Codex login status did not confirm ChatGPT authentication")
         evidence = EvidenceStore(self.repo, self.run_id, self.clock)
-        client = CodexClient(discovery.executable, self.repo, self.process_runner, evidence.run_dir)
+        if not state.agents_runtime:
+            state.agents_runtime = initial_agents_runtime(self.repo)
+        client = CodexClient(
+            discovery.executable,
+            self.repo,
+            self.process_runner,
+            evidence.run_dir,
+            env=self.codex_environment,
+            git_env_metadata=self.codex_git_env_metadata,
+        )
         return self._continue(state, client, evidence, start, base_sha, publish=publish, resume_first=bool(state.writer_session_id))
 
     def _continue(
@@ -111,132 +156,155 @@ class LoopRunner:
         last_signature: str | None = None
         repeat_count = 0
 
-        while True:
-            if state.iteration >= self.spec.budgets.max_iterations:
-                state.status = "budget_exhausted"
-                state.errors.append("max_iterations reached")
-                break
-            if state.codex_turns >= self.spec.budgets.max_codex_turns:
-                state.status = "budget_exhausted"
-                state.errors.append("max_codex_turns reached")
-                break
-            if self.clock() - start > self.spec.budgets.max_wall_minutes * 60:
-                state.status = "budget_exhausted"
-                state.errors.append("max_wall_minutes reached")
-                break
-            state.iteration += 1
-            state.status = "implementing"
-            evidence.write_state(state, start_time=start)
-            before_fingerprint = fingerprint_worktree(self.repo, base_sha=base_sha)
-            prompt = self.writer_prompt(state)
-            turn_index = state.codex_turns + 1
-            resumed = bool(state.writer_session_id)
-            if resumed:
-                turn = client.resume(state.writer_session_id, prompt, sandbox="workspace-write", output_schema=writer_schema, timeout_seconds=600)
-                resume_first = False
-            else:
-                turn = client.exec(prompt, sandbox="workspace-write", output_schema=writer_schema, timeout_seconds=600)
-            state.codex_turns += 1
-            state.usage.add(turn.usage.to_json())
-            if turn.session_id:
-                state.writer_session_id = turn.session_id
-            writer_result = parse_writer_result(turn.final_message)
-            if not turn.ok:
-                state.status = classify_codex_error(turn.errors)
-                state.errors.extend(turn.errors)
-                break
-            audit = audit_scope(self.repo, self.spec, base_sha=base_sha, expected_branch=self.spec.branch)
-            state.changed_files = list(audit.changed_files)
-            state.fingerprint = audit.fingerprint
-            progress = before_fingerprint != audit.fingerprint
-            claimed_paths = writer_result["changed_paths_claimed"]
-            tool_failures = list(turn.tool_failures)
-            evidence.write_turn_evidence(
-                turn_index,
-                "writer",
-                {
-                    "sandbox": "workspace-write",
-                    "cwd": "<repo>",
-                    "resumed": resumed,
-                    "exit_code": turn.exit_code,
-                    "event_counts": turn.event_counts or {},
-                    "item_type_counts": turn.item_type_counts or {},
-                    "changed_paths_real": list(audit.changed_files),
-                    "changed_paths_claimed": claimed_paths,
-                    "tool_failures": tool_failures,
-                    "progress": progress,
-                    "fingerprint_before": before_fingerprint,
-                    "fingerprint_after": audit.fingerprint,
-                    "claim_discrepancy": bool(claimed_paths and not audit.changed_files),
-                    "needs_input": writer_result["needs_input"],
-                    "blocker": writer_result["blocker"],
-                    "failed_checks_delivered": [check_summary(check) for check in state.checks if check.status != "PASS"],
-                },
-            )
-            if tool_failures and not progress:
-                for failure in tool_failures[:5]:
-                    state.errors.append(f"writer_tool_failure: {format_tool_failure(failure)}")
-            if writer_result["needs_input"]:
-                state.status = "needs_input"
-                state.errors.append(writer_result["blocker"] or "writer requested human input")
-                break
-            if not audit.ok:
-                state.status = "scope_violation"
-                state.errors.extend(audit.violations)
-                break
-            state.status = "checking"
-            evidence.write_state(state, start_time=start)
-            state.checks = self.run_checks()
-            audit = audit_scope(self.repo, self.spec, base_sha=base_sha, expected_branch=self.spec.branch)
-            state.changed_files = list(audit.changed_files)
-            state.fingerprint = audit.fingerprint
-            if not audit.ok:
-                state.status = "scope_violation"
-                state.errors.extend(audit.violations)
-                break
-            failed = [check for check in state.checks if check.status != "PASS"]
-            signature = self.failure_signature(state, failed)
-            if failed:
-                if not progress:
-                    state.errors.append(f"writer_no_changes: iteration {state.iteration} produced no working-tree changes")
-                if signature == last_signature:
-                    repeat_count += 1
+        try:
+            while True:
+                if state.iteration >= self.spec.budgets.max_iterations:
+                    state.status = "budget_exhausted"
+                    state.errors.append("max_iterations reached")
+                    break
+                if state.codex_turns >= self.spec.budgets.max_codex_turns:
+                    state.status = "budget_exhausted"
+                    state.errors.append("max_codex_turns reached")
+                    break
+                if self.clock() - start > self.spec.budgets.max_wall_minutes * 60:
+                    state.status = "budget_exhausted"
+                    state.errors.append("max_wall_minutes reached")
+                    break
+                state.iteration += 1
+                state.status = "implementing"
+                evidence.write_state(state, start_time=start)
+                before_fingerprint = fingerprint_worktree(self.repo, base_sha=base_sha)
+                prompt = self.writer_prompt(state)
+                turn_index = state.codex_turns + 1
+                resumed = bool(state.writer_session_id)
+                if resumed:
+                    turn = client.resume(state.writer_session_id, prompt, sandbox="workspace-write", output_schema=writer_schema, timeout_seconds=600)
+                    resume_first = False
                 else:
-                    repeat_count = 1
-                    last_signature = signature
-                if repeat_count >= self.spec.budgets.max_repeated_failure:
-                    state.status = "budget_exhausted"
-                    state.errors.append("same failure repeated without progress")
+                    turn = client.exec(prompt, sandbox="workspace-write", output_schema=writer_schema, timeout_seconds=600)
+                state.codex_turns += 1
+                state.usage.add(turn.usage.to_json())
+                if turn.session_id:
+                    state.writer_session_id = turn.session_id
+                writer_result = parse_writer_result(turn.final_message)
+                state.agents_runtime, agents_error = reconcile_agents_runtime(state.agents_runtime, inspect_agents_directory(self.repo))
+                if not turn.ok:
+                    state.status = classify_codex_error(turn.errors)
+                    state.errors.extend(turn.errors)
                     break
-                continue
-            if self.spec.review.enabled:
-                if state.review_turns >= self.spec.budgets.max_review_turns:
-                    state.status = "budget_exhausted"
-                    state.errors.append("max_review_turns reached")
+                if agents_error:
+                    state.status = "scope_violation"
+                    state.errors.append(f"runtime_artifact_violation: {agents_error}")
                     break
-                try:
-                    state.status = "reviewing"
-                    evidence.write_state(state, start_time=start)
-                    findings, _review_session = review_diff(client, self.spec, base_sha, reviewer_schema, 600)
-                    state.review_turns += 1
-                    state.findings = findings
-                except ReviewError as exc:
-                    state.status = "tool_failure"
-                    state.errors.append(str(exc))
-                    break
-                if any(not finding.in_scope for finding in findings):
+                audit = audit_scope(self.repo, self.spec, base_sha=base_sha, expected_branch=self.spec.branch)
+                state.changed_files = list(audit.changed_files)
+                state.fingerprint = audit.fingerprint
+                progress = before_fingerprint != audit.fingerprint
+                claimed_paths = writer_result["changed_paths_claimed"]
+                tool_failures = list(turn.tool_failures)
+                evidence.write_turn_evidence(
+                    turn_index,
+                    "writer",
+                    {
+                        "sandbox": "workspace-write",
+                        "cwd": "<repo>",
+                        "resumed": resumed,
+                        "exit_code": turn.exit_code,
+                        "event_counts": turn.event_counts or {},
+                        "item_type_counts": turn.item_type_counts or {},
+                        "changed_paths_real": list(audit.changed_files),
+                        "changed_paths_claimed": claimed_paths,
+                        "tool_failures": tool_failures,
+                        "progress": progress,
+                        "fingerprint_before": before_fingerprint,
+                        "fingerprint_after": audit.fingerprint,
+                        "claim_discrepancy": bool(claimed_paths and not audit.changed_files),
+                        "needs_input": writer_result["needs_input"],
+                        "blocker": writer_result["blocker"],
+                        "failed_checks_delivered": [check_summary(check) for check in state.checks if check.status != "PASS"],
+                        "agents_runtime": dict(state.agents_runtime),
+                    },
+                )
+                if tool_failures and not progress:
+                    for failure in tool_failures[:5]:
+                        state.errors.append(f"writer_tool_failure: {format_tool_failure(failure)}")
+                if writer_result["needs_input"]:
                     state.status = "needs_input"
-                    state.errors.append("review finding is outside scope")
+                    state.errors.append(writer_result["blocker"] or "writer requested human input")
                     break
-                blockers = [finding for finding in findings if finding.severity in self.spec.review.blocking_severities]
-                if blockers:
+                if not audit.ok:
+                    state.status = "scope_violation"
+                    state.errors.extend(audit.violations)
+                    break
+                state.status = "checking"
+                evidence.write_state(state, start_time=start)
+                state.checks = self.run_checks()
+                audit = audit_scope(self.repo, self.spec, base_sha=base_sha, expected_branch=self.spec.branch)
+                state.changed_files = list(audit.changed_files)
+                state.fingerprint = audit.fingerprint
+                state.agents_runtime, agents_error = reconcile_agents_runtime(state.agents_runtime, inspect_agents_directory(self.repo))
+                if agents_error:
+                    state.status = "scope_violation"
+                    state.errors.append(f"runtime_artifact_violation: {agents_error}")
+                    break
+                if not audit.ok:
+                    state.status = "scope_violation"
+                    state.errors.extend(audit.violations)
+                    break
+                failed = [check for check in state.checks if check.status != "PASS"]
+                signature = self.failure_signature(state, failed)
+                if failed:
+                    if not progress:
+                        state.errors.append(f"writer_no_changes: iteration {state.iteration} produced no working-tree changes")
+                    if signature == last_signature:
+                        repeat_count += 1
+                    else:
+                        repeat_count = 1
+                        last_signature = signature
+                    if repeat_count >= self.spec.budgets.max_repeated_failure:
+                        state.status = "budget_exhausted"
+                        state.errors.append("same failure repeated without progress")
+                        break
                     continue
-            if not state.changed_files:
-                state.status = "needs_input"
-                state.errors.append("writer produced no changes; human confirmation is required before treating task as already satisfied")
+                if self.spec.review.enabled:
+                    if state.review_turns >= self.spec.budgets.max_review_turns:
+                        state.status = "budget_exhausted"
+                        state.errors.append("max_review_turns reached")
+                        break
+                    try:
+                        state.status = "reviewing"
+                        evidence.write_state(state, start_time=start)
+                        findings, _review_session = review_diff(client, self.spec, base_sha, reviewer_schema, 600)
+                        state.review_turns += 1
+                        state.findings = findings
+                    except ReviewError as exc:
+                        state.status = "tool_failure"
+                        state.errors.append(str(exc))
+                        break
+                    state.agents_runtime, agents_error = reconcile_agents_runtime(state.agents_runtime, inspect_agents_directory(self.repo))
+                    if agents_error:
+                        state.status = "scope_violation"
+                        state.errors.append(f"runtime_artifact_violation: {agents_error}")
+                        break
+                    if any(not finding.in_scope for finding in findings):
+                        state.status = "needs_input"
+                        state.errors.append("review finding is outside scope")
+                        break
+                    blockers = [finding for finding in findings if finding.severity in self.spec.review.blocking_severities]
+                    if blockers:
+                        continue
+                if not state.changed_files:
+                    state.status = "needs_input"
+                    state.errors.append("writer produced no changes; human confirmation is required before treating task as already satisfied")
+                    break
+                state.status = "passed"
                 break
-            state.status = "passed"
-            break
+        finally:
+            state.agents_runtime, cleanup_error = cleanup_agents_directory(state.agents_runtime, self.repo)
+            if cleanup_error:
+                state.errors.append(cleanup_error)
+                if state.status == "passed":
+                    state.status = "tool_failure"
 
         if state.status == "passed" and publish:
             try:

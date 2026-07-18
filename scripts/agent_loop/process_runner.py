@@ -18,7 +18,7 @@ def truncate(text: str, limit: int = 20000) -> str:
 
 
 class ProcessRunner:
-    def run(self, argv: list[str], cwd: Path, timeout_seconds: int) -> ProcessResult:
+    def run(self, argv: list[str], cwd: Path, timeout_seconds: int, *, env: dict[str, str] | None = None) -> ProcessResult:
         if timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")
         popen_kwargs = {
@@ -28,6 +28,8 @@ class ProcessRunner:
             "text": True,
             "shell": False,
         }
+        if env is not None:
+            popen_kwargs["env"] = env
         if sys.platform.startswith("win"):
             popen_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
         else:
@@ -57,6 +59,7 @@ class ProcessRunner:
         *,
         max_stdout_bytes: int,
         max_stderr_bytes: int,
+        env: dict[str, str] | None = None,
     ) -> RawProcessResult:
         if timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")
@@ -68,6 +71,8 @@ class ProcessRunner:
             "stderr": subprocess.PIPE,
             "shell": False,
         }
+        if env is not None:
+            popen_kwargs["env"] = env
         if sys.platform.startswith("win"):
             popen_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
         else:
