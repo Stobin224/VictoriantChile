@@ -221,6 +221,8 @@ namespace VictoriantChile.Content.Loading
         private const string AggregationConfigPath = "rules/aggregation_config.json";
         private const string LegislativeConfigPath = "rules/legislative_config.json";
         private const string EffectsPath = "templates/effects.json";
+        private const string EventsPath = "templates/events.json";
+        private const string ReformsPath = "templates/reforms.json";
         private const int DefaultStaticRegionS = 5000;
 
         private readonly List<ContentDiagnostic> _diagnostics = new List<ContentDiagnostic>();
@@ -248,6 +250,8 @@ namespace VictoriantChile.Content.Loading
                 VerifyRequiredManifestEntry(manifest, AggregationConfigPath);
                 VerifyRequiredManifestEntry(manifest, LegislativeConfigPath);
                 VerifyRequiredManifestEntry(manifest, EffectsPath);
+                VerifyRequiredManifestEntry(manifest, EventsPath);
+                VerifyRequiredManifestEntry(manifest, ReformsPath);
                 VerifyRequiredManifestEntry(manifest, $"strings/{manifest.DefaultLanguage}.json");
             }
 
@@ -259,6 +263,8 @@ namespace VictoriantChile.Content.Loading
             AggregationConfig aggregationConfig = null;
             LegislativeConfig legislativeConfig = null;
             List<EffectTemplate> effects = null;
+            List<EventTemplate> events = null;
+            List<ReformTemplate> reforms = null;
             TargetConfigCatalog targetCatalog = null;
 
             if (manifest != null && verifiedFiles.TryGetValue(TargetConfigPath, out byte[] targetConfigBytes))
@@ -305,12 +311,32 @@ namespace VictoriantChile.Content.Loading
                 effects = LoadEffects(ParseObject(EffectsPath, effectBytes), targetCatalog, localization);
             }
 
+            if (targetCatalog != null
+                && localization != null
+                && movements != null
+                && effects != null
+                && verifiedFiles.TryGetValue(EventsPath, out byte[] eventBytes))
+            {
+                events = LoadEvents(ParseObject(EventsPath, eventBytes), targetCatalog, localization, movements, effects);
+            }
+
+            if (targetCatalog != null
+                && localization != null
+                && interestGroups != null
+                && movements != null
+                && legislativeConfig != null
+                && effects != null
+                && verifiedFiles.TryGetValue(ReformsPath, out byte[] reformBytes))
+            {
+                reforms = LoadReforms(ParseObject(ReformsPath, reformBytes), targetCatalog, localization, interestGroups, movements, legislativeConfig, effects);
+            }
+
             if (HasErrors())
             {
                 return new ContentLoadResult(null, _diagnostics);
             }
 
-            ContentPack pack = new ContentPack(manifest, targetConfigs, regions, interestGroups, movements, localization, aggregationConfig, legislativeConfig, effects);
+            ContentPack pack = new ContentPack(manifest, targetConfigs, regions, interestGroups, movements, localization, aggregationConfig, legislativeConfig, effects, events, reforms);
             return new ContentLoadResult(pack, _diagnostics);
         }
 
@@ -1667,6 +1693,1388 @@ namespace VictoriantChile.Content.Loading
             return tags;
         }
 
+        private List<EventTemplate> LoadEvents(
+            JObject root,
+            TargetConfigCatalog catalog,
+            ContentLocalizationTable localization,
+            IEnumerable<MovementDefinition> movements,
+            IEnumerable<EffectTemplate> effects)
+        {
+            if (root == null)
+            {
+                return null;
+            }
+
+            ValidateUnknownProperties(EventsPath, root, "$", new[] { "schema_version", "events" });
+            int? schemaVersion = RequiredInt(EventsPath, root, "schema_version", "$.schema_version");
+            if (schemaVersion.HasValue && schemaVersion.Value != 1)
+            {
+                Add(ContentDiagnosticCode.UnsupportedSchemaVersion, EventsPath, "$.schema_version", "Unsupported schema version " + schemaVersion.Value + "; expected 1.");
+            }
+
+            JArray eventArray = RequiredArray(EventsPath, root, "events", "$.events");
+            if (eventArray != null && eventArray.Count == 0)
+            {
+                Add(ContentDiagnosticCode.InvalidValue, EventsPath, "$.events", "events must not be empty.");
+            }
+
+            HashSet<string> movementIds = CollectMovementIds(movements);
+            HashSet<string> allowedThemeTags = CollectAllowedEventThemeTags(movements);
+            HashSet<string> effectIds = CollectEffectIds(effects);
+            List<EventTemplate> result = new List<EventTemplate>();
+            HashSet<string> ids = new HashSet<string>(StringComparer.Ordinal);
+
+            for (int i = 0; eventArray != null && i < eventArray.Count; i++)
+            {
+                string rowPath = "$.events[" + i + "]";
+                JObject row = eventArray[i] as JObject;
+                if (row == null)
+                {
+                    Add(ContentDiagnosticCode.InvalidPropertyType, EventsPath, rowPath, "Event row must be an object.");
+                    continue;
+                }
+
+                ValidateUnknownProperties(EventsPath, row, rowPath, new[]
+                {
+                    "id",
+                    "loc_title",
+                    "kind",
+                    "scope",
+                    "blocking",
+                    "base_priority",
+                    "weight",
+                    "cooldown_weeks",
+                    "max_per_campaign",
+                    "tags",
+                    "vars",
+                    "conditions",
+                    "options",
+                    "auto_option_id"
+                });
+
+                string id = RequiredString(EventsPath, row, "id", rowPath + ".id", nonEmpty: true);
+                string locTitle = RequiredString(EventsPath, row, "loc_title", rowPath + ".loc_title", nonEmpty: true);
+                string kindText = RequiredString(EventsPath, row, "kind", rowPath + ".kind", nonEmpty: true);
+                string scopeText = RequiredString(EventsPath, row, "scope", rowPath + ".scope", nonEmpty: true);
+                bool? blocking = RequiredBool(EventsPath, row, "blocking", rowPath + ".blocking");
+                int? basePriority = RequiredInt(EventsPath, row, "base_priority", rowPath + ".base_priority");
+                int? weight = RequiredInt(EventsPath, row, "weight", rowPath + ".weight");
+                int? cooldownWeeks = RequiredInt(EventsPath, row, "cooldown_weeks", rowPath + ".cooldown_weeks");
+                int? maxPerCampaign = RequiredInt(EventsPath, row, "max_per_campaign", rowPath + ".max_per_campaign");
+                JArray tagsArray = RequiredArray(EventsPath, row, "tags", rowPath + ".tags");
+                JObject varsObject = RequiredObject(EventsPath, row, "vars", rowPath + ".vars");
+                JObject conditionsObject = RequiredObject(EventsPath, row, "conditions", rowPath + ".conditions");
+                JArray optionsArray = RequiredArray(EventsPath, row, "options", rowPath + ".options");
+                string autoOptionId = OptionalNullableString(EventsPath, row, "auto_option_id", rowPath + ".auto_option_id");
+
+                if (id != null)
+                {
+                    if (!IsAsciiLowerSnake(id) || !id.StartsWith("evt_", StringComparison.Ordinal))
+                    {
+                        Add(ContentDiagnosticCode.InvalidId, EventsPath, rowPath + ".id", "Event id must be ASCII lowercase snake_case with prefix evt_.");
+                    }
+                    else if (!ids.Add(id))
+                    {
+                        Add(ContentDiagnosticCode.DuplicateId, EventsPath, rowPath + ".id", "Duplicate event id " + id + ".");
+                    }
+                }
+
+                if (basePriority.HasValue == true && basePriority.Value < 0)
+                {
+                    Add(ContentDiagnosticCode.InvalidRange, EventsPath, rowPath + ".base_priority", "base_priority must be non-negative.");
+                }
+
+                if (weight.HasValue == true && weight.Value < 0)
+                {
+                    Add(ContentDiagnosticCode.InvalidRange, EventsPath, rowPath + ".weight", "weight must be non-negative.");
+                }
+
+                if (cooldownWeeks.HasValue == true && cooldownWeeks.Value < 0)
+                {
+                    Add(ContentDiagnosticCode.InvalidRange, EventsPath, rowPath + ".cooldown_weeks", "cooldown_weeks must be non-negative.");
+                }
+
+                ValidatePositive(EventsPath, rowPath + ".max_per_campaign", maxPerCampaign, "max_per_campaign");
+
+                if (localization != null && locTitle != null && !localization.TryResolve(locTitle, out _))
+                {
+                    Add(ContentDiagnosticCode.MissingLocalizationKey, EventsPath, rowPath + ".loc_title", "Missing localization key " + locTitle + ".");
+                }
+
+                EventKind kind;
+                if (!TryMapEventKind(kindText, out kind))
+                {
+                    Add(ContentDiagnosticCode.InvalidEnum, EventsPath, rowPath + ".kind", "kind must be AUTO, CHOICE, or CRISIS.");
+                }
+
+                EventScope scope;
+                if (!TryMapEventScope(scopeText, out scope))
+                {
+                    Add(ContentDiagnosticCode.InvalidEnum, EventsPath, rowPath + ".scope", "scope must be NATIONAL or REGION.");
+                }
+
+                List<string> tags = LoadTags(EventsPath, tagsArray, rowPath + ".tags");
+                ValidateThemeTags(tags, allowedThemeTags, EventsPath, rowPath + ".tags");
+                List<EventVariableBinding> variables = LoadEventVariables(varsObject, rowPath + ".vars", catalog);
+                EventConditionNode conditions = LoadEventConditionNode(conditionsObject, rowPath + ".conditions", catalog, movementIds);
+                List<EventOption> options = LoadEventOptions(optionsArray, rowPath + ".options", catalog, movementIds, localization, effectIds);
+
+                if (scope == EventScope.Region && !ContainsRegionBinding(variables))
+                {
+                    Add(ContentDiagnosticCode.InvalidReference, EventsPath, rowPath + ".vars", "REGION events must declare at least one pick_region binding.");
+                }
+
+                if (kind == EventKind.Crisis && blocking.HasValue && !blocking.Value)
+                {
+                    Add(ContentDiagnosticCode.InvalidValue, EventsPath, rowPath + ".blocking", "CRISIS events must set blocking to true.");
+                }
+
+                if ((kind == EventKind.Auto || kind == EventKind.Choice) && blocking.HasValue && blocking.Value)
+                {
+                    Add(ContentDiagnosticCode.InvalidValue, EventsPath, rowPath + ".blocking", "Only CRISIS events may set blocking to true.");
+                }
+
+                if (kind == EventKind.Auto)
+                {
+                    if (options.Count != 1)
+                    {
+                        Add(ContentDiagnosticCode.InvalidValue, EventsPath, rowPath + ".options", "AUTO events must declare exactly one option.");
+                    }
+
+                    if (string.IsNullOrEmpty(autoOptionId))
+                    {
+                        Add(ContentDiagnosticCode.InvalidReference, EventsPath, rowPath + ".auto_option_id", "AUTO events must declare auto_option_id.");
+                    }
+                    else if (options.Count == 1 && !string.Equals(options[0].Id, autoOptionId, StringComparison.Ordinal))
+                    {
+                        Add(ContentDiagnosticCode.InvalidReference, EventsPath, rowPath + ".auto_option_id", "AUTO event auto_option_id must match the only option.");
+                    }
+                }
+                else if (autoOptionId != null)
+                {
+                    Add(ContentDiagnosticCode.InvalidValue, EventsPath, rowPath + ".auto_option_id", "Only AUTO events may declare auto_option_id.");
+                }
+
+                if (HasErrorsForRow(rowPath)
+                    || id == null
+                    || locTitle == null
+                    || !basePriority.HasValue
+                    || !weight.HasValue
+                    || !cooldownWeeks.HasValue
+                    || !maxPerCampaign.HasValue
+                    || !blocking.HasValue)
+                {
+                    continue;
+                }
+
+                EventTemplate template = new EventTemplate(
+                    id,
+                    locTitle,
+                    kind,
+                    scope,
+                    blocking.Value,
+                    basePriority.Value,
+                    weight.Value,
+                    cooldownWeeks.Value,
+                    maxPerCampaign.Value,
+                    tags,
+                    variables,
+                    conditions,
+                    options,
+                    autoOptionId);
+                result.Add(template);
+            }
+
+            ValidateEventCrossReferences(result);
+            return HasErrors() ? null : result;
+        }
+
+        private List<ReformTemplate> LoadReforms(
+            JObject root,
+            TargetConfigCatalog catalog,
+            ContentLocalizationTable localization,
+            IReadOnlyList<InterestGroupDefinition> interestGroups,
+            IEnumerable<MovementDefinition> movements,
+            LegislativeConfig legislativeConfig,
+            IEnumerable<EffectTemplate> effects)
+        {
+            if (root == null)
+            {
+                return null;
+            }
+
+            ValidateUnknownProperties(ReformsPath, root, "$", new[] { "reforms" });
+            JArray reformArray = RequiredArray(ReformsPath, root, "reforms", "$.reforms");
+            if (reformArray != null && reformArray.Count == 0)
+            {
+                Add(ContentDiagnosticCode.InvalidValue, ReformsPath, "$.reforms", "reforms must not be empty.");
+            }
+
+            HashSet<string> effectIds = CollectEffectIds(effects);
+            HashSet<string> movementTagVocabulary = CollectMovementTagVocabulary(movements);
+            HashSet<string> interestGroupIds = CollectInterestGroupIds(interestGroups);
+            List<ReformTemplate> result = new List<ReformTemplate>();
+            HashSet<string> ids = new HashSet<string>(StringComparer.Ordinal);
+
+            for (int i = 0; reformArray != null && i < reformArray.Count; i++)
+            {
+                string rowPath = "$.reforms[" + i + "]";
+                JObject row = reformArray[i] as JObject;
+                if (row == null)
+                {
+                    Add(ContentDiagnosticCode.InvalidPropertyType, ReformsPath, rowPath, "Reform row must be an object.");
+                    continue;
+                }
+
+                ValidateUnknownProperties(ReformsPath, row, rowPath, new[]
+                {
+                    "id",
+                    "loc_title",
+                    "loc_desc",
+                    "area",
+                    "kind",
+                    "cooldown_weeks",
+                    "max_per_campaign",
+                    "movement_tags",
+                    "policy_tags",
+                    "igs_stance",
+                    "prereqs",
+                    "base_difficultyS",
+                    "stages",
+                    "on_pass_effects"
+                });
+
+                string id = RequiredString(ReformsPath, row, "id", rowPath + ".id", nonEmpty: true);
+                string locTitle = RequiredString(ReformsPath, row, "loc_title", rowPath + ".loc_title", nonEmpty: true);
+                string locDesc = RequiredString(ReformsPath, row, "loc_desc", rowPath + ".loc_desc", nonEmpty: true);
+                string area = RequiredString(ReformsPath, row, "area", rowPath + ".area", nonEmpty: true);
+                string kindText = RequiredString(ReformsPath, row, "kind", rowPath + ".kind", nonEmpty: true);
+                int? cooldownWeeks = RequiredInt(ReformsPath, row, "cooldown_weeks", rowPath + ".cooldown_weeks");
+                int? maxPerCampaign = RequiredInt(ReformsPath, row, "max_per_campaign", rowPath + ".max_per_campaign");
+                JArray movementTagsArray = RequiredArray(ReformsPath, row, "movement_tags", rowPath + ".movement_tags");
+                JArray policyTagsArray = RequiredArray(ReformsPath, row, "policy_tags", rowPath + ".policy_tags");
+                JObject explicitStancesObject = RequiredObject(ReformsPath, row, "igs_stance", rowPath + ".igs_stance");
+                JArray prereqArray = RequiredArray(ReformsPath, row, "prereqs", rowPath + ".prereqs");
+                int? baseDifficultyS = RequiredInt(ReformsPath, row, "base_difficultyS", rowPath + ".base_difficultyS");
+                JArray stagesArray = RequiredArray(ReformsPath, row, "stages", rowPath + ".stages");
+                JArray onPassEffectsArray = RequiredArray(ReformsPath, row, "on_pass_effects", rowPath + ".on_pass_effects");
+
+                if (id != null)
+                {
+                    if (!IsAsciiLowerSnake(id) || !id.StartsWith("ref_", StringComparison.Ordinal))
+                    {
+                        Add(ContentDiagnosticCode.InvalidId, ReformsPath, rowPath + ".id", "Reform id must be ASCII lowercase snake_case with prefix ref_.");
+                    }
+                    else if (!ids.Add(id))
+                    {
+                        Add(ContentDiagnosticCode.DuplicateId, ReformsPath, rowPath + ".id", "Duplicate reform id " + id + ".");
+                    }
+                }
+
+                if (localization != null && locTitle != null && !localization.TryResolve(locTitle, out _))
+                {
+                    Add(ContentDiagnosticCode.MissingLocalizationKey, ReformsPath, rowPath + ".loc_title", "Missing localization key " + locTitle + ".");
+                }
+
+                if (localization != null && locDesc != null && !localization.TryResolve(locDesc, out _))
+                {
+                    Add(ContentDiagnosticCode.MissingLocalizationKey, ReformsPath, rowPath + ".loc_desc", "Missing localization key " + locDesc + ".");
+                }
+
+                if (area != null && !Contains(AllowedReformAreas, area))
+                {
+                    Add(ContentDiagnosticCode.InvalidEnum, ReformsPath, rowPath + ".area", "area is outside the supported reform vocabulary.");
+                }
+
+                ReformKind kind;
+                if (!TryMapReformKind(kindText, out kind))
+                {
+                    Add(ContentDiagnosticCode.InvalidEnum, ReformsPath, rowPath + ".kind", "kind must be NORMAL or SPECIAL_CONSTITUTIONAL.");
+                }
+
+                if (cooldownWeeks.HasValue && cooldownWeeks.Value < 0)
+                {
+                    Add(ContentDiagnosticCode.InvalidRange, ReformsPath, rowPath + ".cooldown_weeks", "cooldown_weeks must be non-negative.");
+                }
+
+                ValidatePositive(ReformsPath, rowPath + ".max_per_campaign", maxPerCampaign, "max_per_campaign");
+                ValidatePositive(ReformsPath, rowPath + ".base_difficultyS", baseDifficultyS, "base_difficultyS");
+
+                List<string> movementTags = LoadTags(ReformsPath, movementTagsArray, rowPath + ".movement_tags");
+                ValidateAllowedTags(movementTags, movementTagVocabulary, ReformsPath, rowPath + ".movement_tags", "movement tag");
+                List<string> policyTags = LoadTags(ReformsPath, policyTagsArray, rowPath + ".policy_tags");
+                ValidateAllowedTags(policyTags, ReformContentCompiler.PolicyTags, ReformsPath, rowPath + ".policy_tags", "policy tag");
+                List<ReformInterestGroupStance> explicitStances = LoadExplicitInterestGroupStances(explicitStancesObject, rowPath + ".igs_stance", interestGroupIds);
+                List<ReformPrerequisite> prerequisites = LoadReformPrerequisites(prereqArray, rowPath + ".prereqs", catalog);
+                List<ReformStage> stages = LoadReformStages(stagesArray, rowPath + ".stages", legislativeConfig);
+                List<EffectTemplateInvocation> onPassEffects = LoadEffectInvocations(onPassEffectsArray, rowPath + ".on_pass_effects", effectIds, requirePositiveDuration: true, allowEmpty: true, file: ReformsPath);
+                List<ReformInterestGroupStance> effectiveStances = ReformContentCompiler.TryCompileEffectiveStances(
+                    interestGroups,
+                    explicitStances,
+                    policyTags,
+                    out string compilerError);
+
+                if (compilerError != null)
+                {
+                    Add(ContentDiagnosticCode.InvalidReference, ReformsPath, rowPath + ".policy_tags", compilerError);
+                }
+
+                if (HasErrorsForRow(rowPath)
+                    || id == null
+                    || locTitle == null
+                    || locDesc == null
+                    || area == null
+                    || !cooldownWeeks.HasValue
+                    || !maxPerCampaign.HasValue
+                    || !baseDifficultyS.HasValue
+                    || effectiveStances == null)
+                {
+                    continue;
+                }
+
+                result.Add(new ReformTemplate(
+                    id,
+                    locTitle,
+                    locDesc,
+                    area,
+                    kind,
+                    cooldownWeeks.Value,
+                    maxPerCampaign.Value,
+                    movementTags,
+                    policyTags,
+                    explicitStances,
+                    effectiveStances,
+                    prerequisites,
+                    baseDifficultyS.Value,
+                    stages,
+                    onPassEffects));
+            }
+
+            return HasErrors() ? null : result;
+        }
+
+        private List<EventVariableBinding> LoadEventVariables(JObject varsObject, string jsonPath, TargetConfigCatalog catalog)
+        {
+            List<EventVariableBinding> variables = new List<EventVariableBinding>();
+            if (varsObject == null)
+            {
+                return variables;
+            }
+
+            foreach (JProperty property in varsObject.Properties())
+            {
+                string bindingPath = jsonPath + "." + property.Name;
+                if (!IsAsciiLowerSnake(property.Name))
+                {
+                    Add(ContentDiagnosticCode.InvalidId, EventsPath, bindingPath, "Variable name must be ASCII lowercase snake_case.");
+                }
+
+                JObject bindingObject = property.Value as JObject;
+                if (bindingObject == null)
+                {
+                    Add(ContentDiagnosticCode.InvalidPropertyType, EventsPath, bindingPath, "Variable binding must be an object.");
+                    continue;
+                }
+
+                string bindText = RequiredString(EventsPath, bindingObject, "bind", bindingPath + ".bind", nonEmpty: true);
+                if (bindText == "pick_region")
+                {
+                    ValidateUnknownProperties(EventsPath, bindingObject, bindingPath, new[] { "bind", "mode", "target" });
+                    string modeText = RequiredString(EventsPath, bindingObject, "mode", bindingPath + ".mode", nonEmpty: true);
+                    EventSelectorMode mode;
+                    if (!TryMapSelectorMode(modeText, out mode))
+                    {
+                        Add(ContentDiagnosticCode.InvalidEnum, EventsPath, bindingPath + ".mode", "mode must be ARGMAX or WEIGHTED.");
+                    }
+
+                    TargetPattern? pattern = RequiredTargetPattern(EventsPath, bindingObject, "target", bindingPath + ".target", catalog, allowStaticRegionalReadOnly: true);
+                    if (pattern.HasValue && !pattern.Value.ToString().StartsWith("regions.*.", StringComparison.Ordinal))
+                    {
+                        Add(ContentDiagnosticCode.InvalidReference, EventsPath, bindingPath + ".target", "pick_region bindings must target regions.* selectors.");
+                    }
+
+                    if (HasErrorsForRow(bindingPath) || !pattern.HasValue)
+                    {
+                        continue;
+                    }
+
+                    variables.Add(new EventRegionBinding(property.Name, mode, pattern.Value));
+                }
+                else if (bindText == "pick_ig")
+                {
+                    ValidateUnknownProperties(EventsPath, bindingObject, bindingPath, new[] { "bind", "mode", "target" });
+                    string modeText = RequiredString(EventsPath, bindingObject, "mode", bindingPath + ".mode", nonEmpty: true);
+                    EventSelectorMode mode;
+                    if (!TryMapSelectorMode(modeText, out mode))
+                    {
+                        Add(ContentDiagnosticCode.InvalidEnum, EventsPath, bindingPath + ".mode", "mode must be ARGMAX or WEIGHTED.");
+                    }
+
+                    TargetPattern? pattern = RequiredTargetPattern(EventsPath, bindingObject, "target", bindingPath + ".target", catalog, allowStaticRegionalReadOnly: true);
+                    if (pattern.HasValue && !pattern.Value.ToString().StartsWith("igs.*.", StringComparison.Ordinal))
+                    {
+                        Add(ContentDiagnosticCode.InvalidReference, EventsPath, bindingPath + ".target", "pick_ig bindings must target igs.* selectors.");
+                    }
+
+                    if (HasErrorsForRow(bindingPath) || !pattern.HasValue)
+                    {
+                        continue;
+                    }
+
+                    variables.Add(new EventInterestGroupBinding(property.Name, mode, pattern.Value));
+                }
+                else if (bindText == "severity_from")
+                {
+                    ValidateUnknownProperties(EventsPath, bindingObject, bindingPath, new[] { "bind", "target", "bands" });
+                    TargetPath? target = RequiredTargetPath(EventsPath, bindingObject, "target", bindingPath + ".target", catalog, allowMutation: false, requiredOperation: null);
+                    if (target.HasValue && !target.Value.ToString().StartsWith("metrics.", StringComparison.Ordinal))
+                    {
+                        Add(ContentDiagnosticCode.InvalidReference, EventsPath, bindingPath + ".target", "severity_from bindings must target concrete metrics.* values.");
+                    }
+
+                    JArray bandsArray = RequiredArray(EventsPath, bindingObject, "bands", bindingPath + ".bands");
+                    List<EventSeverityBand> bands = LoadSeverityBands(bandsArray, bindingPath + ".bands");
+                    if (HasErrorsForRow(bindingPath) || !target.HasValue)
+                    {
+                        continue;
+                    }
+
+                    variables.Add(new EventSeverityBinding(property.Name, target.Value, bands));
+                }
+                else
+                {
+                    ValidateUnknownProperties(EventsPath, bindingObject, bindingPath, new[] { "bind", "mode", "target", "bands" });
+                    Add(ContentDiagnosticCode.InvalidEnum, EventsPath, bindingPath + ".bind", "bind must be pick_region, pick_ig, or severity_from.");
+                }
+            }
+
+            return variables;
+        }
+
+        private List<EventSeverityBand> LoadSeverityBands(JArray bandsArray, string jsonPath)
+        {
+            List<EventSeverityBand> result = new List<EventSeverityBand>();
+            if (bandsArray == null)
+            {
+                return result;
+            }
+
+            if (bandsArray.Count == 0)
+            {
+                Add(ContentDiagnosticCode.InvalidValue, EventsPath, jsonPath, "bands must not be empty.");
+                return result;
+            }
+
+            int? previousMax = null;
+            for (int i = 0; i < bandsArray.Count; i++)
+            {
+                string bandPath = jsonPath + "[" + i + "]";
+                JArray bandArray = bandsArray[i] as JArray;
+                if (bandArray == null)
+                {
+                    Add(ContentDiagnosticCode.InvalidPropertyType, EventsPath, bandPath, "Band must be an array.");
+                    continue;
+                }
+
+                if (bandArray.Count != 3)
+                {
+                    Add(ContentDiagnosticCode.InvalidValue, EventsPath, bandPath, "Band must contain exactly three integers.");
+                    continue;
+                }
+
+                int? minValueS = ReadInt(EventsPath, bandArray[0], bandPath + "[0]");
+                int? maxValueS = ReadInt(EventsPath, bandArray[1], bandPath + "[1]");
+                int? severity = ReadInt(EventsPath, bandArray[2], bandPath + "[2]");
+                if (minValueS.HasValue && maxValueS.HasValue)
+                {
+                    if (minValueS.Value > maxValueS.Value)
+                    {
+                        Add(ContentDiagnosticCode.InvalidRange, EventsPath, bandPath, "Band minimum must be less than or equal to maximum.");
+                    }
+
+                    if (previousMax.HasValue && minValueS.Value <= previousMax.Value)
+                    {
+                        Add(ContentDiagnosticCode.InvalidRange, EventsPath, bandPath, "Bands must be strictly ordered and must not overlap.");
+                    }
+                }
+
+                if (severity.HasValue && severity.Value <= 0)
+                {
+                    Add(ContentDiagnosticCode.InvalidRange, EventsPath, bandPath + "[2]", "Band severity must be positive.");
+                }
+
+                if (!minValueS.HasValue || !maxValueS.HasValue || !severity.HasValue || HasErrorsForRow(bandPath))
+                {
+                    continue;
+                }
+
+                previousMax = maxValueS.Value;
+                result.Add(new EventSeverityBand(minValueS.Value, maxValueS.Value, severity.Value));
+            }
+
+            return result;
+        }
+
+        private EventConditionNode LoadEventConditionNode(JObject node, string jsonPath, TargetConfigCatalog catalog, HashSet<string> movementIds)
+        {
+            if (node == null)
+            {
+                return new EventConditionAllNode(Array.Empty<EventConditionNode>());
+            }
+
+            int propertyCount = 0;
+            string propertyName = null;
+            foreach (JProperty property in node.Properties())
+            {
+                propertyCount++;
+                propertyName = property.Name;
+            }
+
+            if (propertyCount != 1 || propertyName == null)
+            {
+                Add(ContentDiagnosticCode.InvalidConditionShape, EventsPath, jsonPath, "Condition node must contain exactly one variant.");
+                return new EventConditionAllNode(Array.Empty<EventConditionNode>());
+            }
+
+            if (propertyName == "all")
+            {
+                JArray childArray = node[propertyName] as JArray;
+                if (childArray == null)
+                {
+                    Add(ContentDiagnosticCode.InvalidPropertyType, EventsPath, jsonPath + ".all", "all must be an array.");
+                    return new EventConditionAllNode(Array.Empty<EventConditionNode>());
+                }
+
+                List<EventConditionNode> children = new List<EventConditionNode>();
+                for (int i = 0; i < childArray.Count; i++)
+                {
+                    string childPath = jsonPath + ".all[" + i + "]";
+                    JObject childObject = childArray[i] as JObject;
+                    if (childObject == null)
+                    {
+                        Add(ContentDiagnosticCode.InvalidPropertyType, EventsPath, childPath, "Condition child must be an object.");
+                        continue;
+                    }
+
+                    children.Add(LoadEventConditionNode(childObject, childPath, catalog, movementIds));
+                }
+
+                return new EventConditionAllNode(children);
+            }
+
+            if (propertyName == "cmp")
+            {
+                JObject cmpObject = node[propertyName] as JObject;
+                if (cmpObject == null)
+                {
+                    Add(ContentDiagnosticCode.InvalidPropertyType, EventsPath, jsonPath + ".cmp", "cmp must be an object.");
+                    return new EventConditionAllNode(Array.Empty<EventConditionNode>());
+                }
+
+                ValidateUnknownProperties(EventsPath, cmpObject, jsonPath + ".cmp", new[] { "target", "op", "value" });
+                TargetPath? target = RequiredTargetPath(EventsPath, cmpObject, "target", jsonPath + ".cmp.target", catalog, allowMutation: false, requiredOperation: null);
+                string opText = RequiredString(EventsPath, cmpObject, "op", jsonPath + ".cmp.op", nonEmpty: true);
+                int? value = RequiredInt(EventsPath, cmpObject, "value", jsonPath + ".cmp.value");
+                EventComparator comparator;
+                if (!TryMapComparator(opText, out comparator))
+                {
+                    Add(ContentDiagnosticCode.InvalidEnum, EventsPath, jsonPath + ".cmp.op", "Comparator is not supported.");
+                }
+
+                return target.HasValue && value.HasValue && !HasErrorsForRow(jsonPath + ".cmp")
+                    ? new EventConditionCompareTargetNode(target.Value, comparator, value.Value)
+                    : new EventConditionAllNode(Array.Empty<EventConditionNode>());
+            }
+
+            if (propertyName == "movement_cmp")
+            {
+                JObject cmpObject = node[propertyName] as JObject;
+                if (cmpObject == null)
+                {
+                    Add(ContentDiagnosticCode.InvalidPropertyType, EventsPath, jsonPath + ".movement_cmp", "movement_cmp must be an object.");
+                    return new EventConditionAllNode(Array.Empty<EventConditionNode>());
+                }
+
+                ValidateUnknownProperties(EventsPath, cmpObject, jsonPath + ".movement_cmp", new[] { "movement_id", "op", "value" });
+                string movementId = RequiredString(EventsPath, cmpObject, "movement_id", jsonPath + ".movement_cmp.movement_id", nonEmpty: true);
+                string opText = RequiredString(EventsPath, cmpObject, "op", jsonPath + ".movement_cmp.op", nonEmpty: true);
+                int? value = RequiredInt(EventsPath, cmpObject, "value", jsonPath + ".movement_cmp.value");
+                if (movementId != null && !movementIds.Contains(movementId))
+                {
+                    Add(ContentDiagnosticCode.InvalidReference, EventsPath, jsonPath + ".movement_cmp.movement_id", "Unknown movement id " + movementId + ".");
+                }
+
+                EventComparator comparator;
+                if (!TryMapComparator(opText, out comparator))
+                {
+                    Add(ContentDiagnosticCode.InvalidEnum, EventsPath, jsonPath + ".movement_cmp.op", "Comparator is not supported.");
+                }
+
+                return movementId != null && value.HasValue && !HasErrorsForRow(jsonPath + ".movement_cmp")
+                    ? new EventConditionCompareMovementNode(movementId, comparator, value.Value)
+                    : new EventConditionAllNode(Array.Empty<EventConditionNode>());
+            }
+
+            if (propertyName == "flag_is_set")
+            {
+                string flagId = node[propertyName]?.Type == JTokenType.String ? node[propertyName].Value<string>() : null;
+                if (flagId == null)
+                {
+                    Add(ContentDiagnosticCode.InvalidPropertyType, EventsPath, jsonPath + ".flag_is_set", "flag_is_set must be a string.");
+                    return new EventConditionAllNode(Array.Empty<EventConditionNode>());
+                }
+
+                ValidateFlagId(flagId, jsonPath + ".flag_is_set");
+                return new EventConditionFlagIsSetNode(flagId);
+            }
+
+            if (propertyName == "cooldown_ready")
+            {
+                if (node[propertyName].Type != JTokenType.Boolean || !node[propertyName].Value<bool>())
+                {
+                    Add(ContentDiagnosticCode.InvalidConditionShape, EventsPath, jsonPath + ".cooldown_ready", "cooldown_ready must be the literal boolean true.");
+                }
+
+                return new EventConditionCooldownReadyNode();
+            }
+
+            if (propertyName == "max_count_not_reached")
+            {
+                if (node[propertyName].Type != JTokenType.Boolean || !node[propertyName].Value<bool>())
+                {
+                    Add(ContentDiagnosticCode.InvalidConditionShape, EventsPath, jsonPath + ".max_count_not_reached", "max_count_not_reached must be the literal boolean true.");
+                }
+
+                return new EventConditionMaxCountNotReachedNode();
+            }
+
+            Add(ContentDiagnosticCode.InvalidConditionShape, EventsPath, jsonPath, "Unsupported condition variant " + propertyName + ".");
+            return new EventConditionAllNode(Array.Empty<EventConditionNode>());
+        }
+
+        private List<EventOption> LoadEventOptions(
+            JArray optionsArray,
+            string jsonPath,
+            TargetConfigCatalog catalog,
+            HashSet<string> movementIds,
+            ContentLocalizationTable localization,
+            HashSet<string> effectIds)
+        {
+            List<EventOption> result = new List<EventOption>();
+            HashSet<string> optionIds = new HashSet<string>(StringComparer.Ordinal);
+            if (optionsArray == null)
+            {
+                return result;
+            }
+
+            if (optionsArray.Count == 0)
+            {
+                Add(ContentDiagnosticCode.InvalidValue, EventsPath, jsonPath, "options must not be empty.");
+            }
+
+            for (int i = 0; i < optionsArray.Count; i++)
+            {
+                string optionPath = jsonPath + "[" + i + "]";
+                JObject optionObject = optionsArray[i] as JObject;
+                if (optionObject == null)
+                {
+                    Add(ContentDiagnosticCode.InvalidPropertyType, EventsPath, optionPath, "Option must be an object.");
+                    continue;
+                }
+
+                ValidateUnknownProperties(EventsPath, optionObject, optionPath, new[] { "id", "loc_label", "requirements", "effects", "memory", "followups" });
+                string id = RequiredString(EventsPath, optionObject, "id", optionPath + ".id", nonEmpty: true);
+                string locLabel = RequiredString(EventsPath, optionObject, "loc_label", optionPath + ".loc_label", nonEmpty: true);
+                JObject requirementsObject = RequiredObject(EventsPath, optionObject, "requirements", optionPath + ".requirements");
+                JArray effectsArray = RequiredArray(EventsPath, optionObject, "effects", optionPath + ".effects");
+                JObject memoryObject = RequiredObject(EventsPath, optionObject, "memory", optionPath + ".memory");
+                JArray followupsArray = OptionalArray(EventsPath, optionObject, "followups", optionPath + ".followups");
+
+                if (id != null)
+                {
+                    if (!IsAsciiLowerSnake(id))
+                    {
+                        Add(ContentDiagnosticCode.InvalidId, EventsPath, optionPath + ".id", "Option id must be ASCII lowercase snake_case.");
+                    }
+                    else if (!optionIds.Add(id))
+                    {
+                        Add(ContentDiagnosticCode.DuplicateId, EventsPath, optionPath + ".id", "Duplicate option id " + id + ".");
+                    }
+                }
+
+                if (localization != null && locLabel != null && !localization.TryResolve(locLabel, out _))
+                {
+                    Add(ContentDiagnosticCode.MissingLocalizationKey, EventsPath, optionPath + ".loc_label", "Missing localization key " + locLabel + ".");
+                }
+
+                EventConditionNode requirements = LoadEventConditionNode(requirementsObject, optionPath + ".requirements", catalog, movementIds);
+                List<EffectTemplateInvocation> effects = LoadEffectInvocations(effectsArray, optionPath + ".effects", effectIds, requirePositiveDuration: true, allowEmpty: false, file: EventsPath);
+                EventMemoryMutation memory = LoadEventMemoryMutation(memoryObject, optionPath + ".memory");
+                List<EventFollowup> followups = LoadEventFollowups(followupsArray, optionPath + ".followups");
+                if (HasErrorsForRow(optionPath) || id == null || locLabel == null || memory == null)
+                {
+                    continue;
+                }
+
+                result.Add(new EventOption(id, locLabel, requirements, effects, memory, followups));
+            }
+
+            return result;
+        }
+
+        private EventMemoryMutation LoadEventMemoryMutation(JObject memoryObject, string jsonPath)
+        {
+            if (memoryObject == null)
+            {
+                return null;
+            }
+
+            ValidateUnknownProperties(EventsPath, memoryObject, jsonPath, new[] { "set_flag", "clear_flag", "set_cooldown" });
+            JArray setFlagArray = OptionalArray(EventsPath, memoryObject, "set_flag", jsonPath + ".set_flag");
+            JArray clearFlagArray = OptionalArray(EventsPath, memoryObject, "clear_flag", jsonPath + ".clear_flag");
+            bool setCooldown = OptionalBool(memoryObject, "set_cooldown", jsonPath + ".set_cooldown", EventsPath) ?? false;
+            List<string> setFlags = LoadFlagArray(setFlagArray, jsonPath + ".set_flag");
+            List<string> clearFlags = LoadFlagArray(clearFlagArray, jsonPath + ".clear_flag");
+            HashSet<string> conflicts = new HashSet<string>(setFlags, StringComparer.Ordinal);
+            conflicts.IntersectWith(clearFlags);
+            foreach (string conflict in conflicts)
+            {
+                Add(ContentDiagnosticCode.InvalidValue, EventsPath, jsonPath, "Flag " + conflict + " cannot be both set and cleared in the same option.");
+            }
+
+            return new EventMemoryMutation(setFlags, clearFlags, setCooldown);
+        }
+
+        private List<EventFollowup> LoadEventFollowups(JArray followupsArray, string jsonPath)
+        {
+            List<EventFollowup> result = new List<EventFollowup>();
+            if (followupsArray == null)
+            {
+                return result;
+            }
+
+            for (int i = 0; i < followupsArray.Count; i++)
+            {
+                string followupPath = jsonPath + "[" + i + "]";
+                JObject followupObject = followupsArray[i] as JObject;
+                if (followupObject == null)
+                {
+                    Add(ContentDiagnosticCode.InvalidPropertyType, EventsPath, followupPath, "Followup must be an object.");
+                    continue;
+                }
+
+                ValidateUnknownProperties(EventsPath, followupObject, followupPath, new[] { "after_weeks", "event_id" });
+                int? afterWeeks = RequiredInt(EventsPath, followupObject, "after_weeks", followupPath + ".after_weeks");
+                string eventId = RequiredString(EventsPath, followupObject, "event_id", followupPath + ".event_id", nonEmpty: true);
+                ValidatePositive(EventsPath, followupPath + ".after_weeks", afterWeeks, "after_weeks");
+                if (HasErrorsForRow(followupPath) || !afterWeeks.HasValue || eventId == null)
+                {
+                    continue;
+                }
+
+                result.Add(new EventFollowup(afterWeeks.Value, eventId));
+            }
+
+            return result;
+        }
+
+        private List<ReformInterestGroupStance> LoadExplicitInterestGroupStances(JObject stancesObject, string jsonPath, HashSet<string> interestGroupIds)
+        {
+            List<ReformInterestGroupStance> result = new List<ReformInterestGroupStance>();
+            if (stancesObject == null)
+            {
+                return result;
+            }
+
+            foreach (JProperty property in stancesObject.Properties())
+            {
+                string stancePath = jsonPath + "." + property.Name;
+                int? stance = ReadInt(ReformsPath, property.Value, stancePath);
+                if (!interestGroupIds.Contains(property.Name))
+                {
+                    Add(ContentDiagnosticCode.InvalidReference, ReformsPath, stancePath, "Unknown interest group id " + property.Name + ".");
+                }
+
+                if (stance.HasValue && (stance.Value < -100 || stance.Value > 100))
+                {
+                    Add(ContentDiagnosticCode.InvalidRange, ReformsPath, stancePath, "Stance must be in [-100, 100].");
+                }
+
+                if (!stance.HasValue)
+                {
+                    continue;
+                }
+
+                result.Add(new ReformInterestGroupStance(property.Name, stance.Value));
+            }
+
+            return result;
+        }
+
+        private List<ReformPrerequisite> LoadReformPrerequisites(JArray prereqArray, string jsonPath, TargetConfigCatalog catalog)
+        {
+            List<ReformPrerequisite> result = new List<ReformPrerequisite>();
+            if (prereqArray == null)
+            {
+                return result;
+            }
+
+            for (int i = 0; i < prereqArray.Count; i++)
+            {
+                string prereqPath = jsonPath + "[" + i + "]";
+                JObject prereqObject = prereqArray[i] as JObject;
+                if (prereqObject == null)
+                {
+                    Add(ContentDiagnosticCode.InvalidPropertyType, ReformsPath, prereqPath, "Prerequisite must be an object.");
+                    continue;
+                }
+
+                ValidateUnknownProperties(ReformsPath, prereqObject, prereqPath, new[] { "type", "target", "op", "valueS" });
+                string typeText = RequiredString(ReformsPath, prereqObject, "type", prereqPath + ".type", nonEmpty: true);
+                string opText = RequiredString(ReformsPath, prereqObject, "op", prereqPath + ".op", nonEmpty: true);
+                TargetPath? target = RequiredTargetPath(ReformsPath, prereqObject, "target", prereqPath + ".target", catalog, allowMutation: false, requiredOperation: null);
+                int? valueS = RequiredInt(ReformsPath, prereqObject, "valueS", prereqPath + ".valueS");
+                ReformPrerequisiteType type;
+                if (!TryMapReformPrerequisiteType(typeText, out type))
+                {
+                    Add(ContentDiagnosticCode.InvalidEnum, ReformsPath, prereqPath + ".type", "Prerequisite type must be METRIC.");
+                }
+
+                EventComparator comparator;
+                if (!TryMapComparator(opText, out comparator))
+                {
+                    Add(ContentDiagnosticCode.InvalidEnum, ReformsPath, prereqPath + ".op", "Comparator is not supported.");
+                }
+
+                if (HasErrorsForRow(prereqPath) || !target.HasValue || !valueS.HasValue)
+                {
+                    continue;
+                }
+
+                result.Add(new ReformPrerequisite(type, target.Value, comparator, valueS.Value));
+            }
+
+            return result;
+        }
+
+        private List<ReformStage> LoadReformStages(JArray stagesArray, string jsonPath, LegislativeConfig legislativeConfig)
+        {
+            List<ReformStage> result = new List<ReformStage>();
+            HashSet<string> ids = new HashSet<string>(StringComparer.Ordinal);
+            if (stagesArray == null)
+            {
+                return result;
+            }
+
+            if (stagesArray.Count == 0)
+            {
+                Add(ContentDiagnosticCode.InvalidValue, ReformsPath, jsonPath, "stages must not be empty.");
+                return result;
+            }
+
+            if (legislativeConfig != null && stagesArray.Count > legislativeConfig.Limits.MaxStages)
+            {
+                Add(ContentDiagnosticCode.InvalidRange, ReformsPath, jsonPath, "Stage count exceeds legislative_config.limits.max_stages.");
+            }
+
+            for (int i = 0; i < stagesArray.Count; i++)
+            {
+                string stagePath = jsonPath + "[" + i + "]";
+                JObject stageObject = stagesArray[i] as JObject;
+                if (stageObject == null)
+                {
+                    Add(ContentDiagnosticCode.InvalidPropertyType, ReformsPath, stagePath, "Stage must be an object.");
+                    continue;
+                }
+
+                ValidateUnknownProperties(ReformsPath, stageObject, stagePath, new[] { "id", "kind", "chamber", "weightS" });
+                string id = RequiredString(ReformsPath, stageObject, "id", stagePath + ".id", nonEmpty: true);
+                string kindText = RequiredString(ReformsPath, stageObject, "kind", stagePath + ".kind", nonEmpty: true);
+                string chamberText = RequiredString(ReformsPath, stageObject, "chamber", stagePath + ".chamber", nonEmpty: true);
+                int? weightS = RequiredInt(ReformsPath, stageObject, "weightS", stagePath + ".weightS");
+                ReformStageKind kind;
+                if (!TryMapReformStageKind(kindText, out kind))
+                {
+                    Add(ContentDiagnosticCode.InvalidEnum, ReformsPath, stagePath + ".kind", "Stage kind must be WORK or VOTE.");
+                }
+
+                ReformStageChamber chamber;
+                if (!TryMapReformStageChamber(chamberText, out chamber))
+                {
+                    Add(ContentDiagnosticCode.InvalidEnum, ReformsPath, stagePath + ".chamber", "Stage chamber must be NONE, LOWER, UPPER, or BOTH.");
+                }
+
+                if (id != null)
+                {
+                    if (!IsAsciiLowerSnake(id))
+                    {
+                        Add(ContentDiagnosticCode.InvalidId, ReformsPath, stagePath + ".id", "Stage id must be ASCII lowercase snake_case.");
+                    }
+                    else if (!ids.Add(id))
+                    {
+                        Add(ContentDiagnosticCode.DuplicateId, ReformsPath, stagePath + ".id", "Duplicate stage id " + id + ".");
+                    }
+                }
+
+                ValidatePositive(ReformsPath, stagePath + ".weightS", weightS, "weightS");
+                if (kind == ReformStageKind.Vote && chamber == ReformStageChamber.None)
+                {
+                    Add(ContentDiagnosticCode.InvalidValue, ReformsPath, stagePath + ".chamber", "VOTE stages cannot use chamber NONE.");
+                }
+
+                if (HasErrorsForRow(stagePath) || id == null || !weightS.HasValue)
+                {
+                    continue;
+                }
+
+                result.Add(new ReformStage(id, kind, chamber, weightS.Value));
+            }
+
+            return result;
+        }
+
+        private List<EffectTemplateInvocation> LoadEffectInvocations(JArray effectsArray, string jsonPath, HashSet<string> effectIds, bool requirePositiveDuration, bool allowEmpty, string file)
+        {
+            List<EffectTemplateInvocation> result = new List<EffectTemplateInvocation>();
+            if (effectsArray == null)
+            {
+                return result;
+            }
+
+            if (!allowEmpty && effectsArray.Count == 0)
+            {
+                Add(ContentDiagnosticCode.InvalidValue, file, jsonPath, "effects must not be empty.");
+            }
+
+            for (int i = 0; i < effectsArray.Count; i++)
+            {
+                string effectPath = jsonPath + "[" + i + "]";
+                JObject effectObject = effectsArray[i] as JObject;
+                if (effectObject == null)
+                {
+                    Add(ContentDiagnosticCode.InvalidPropertyType, file, effectPath, "Effect invocation must be an object.");
+                    continue;
+                }
+
+                ValidateUnknownProperties(file, effectObject, effectPath, new[] { "type", "template_id", "duration_weeks" });
+                string typeText = RequiredString(file, effectObject, "type", effectPath + ".type", nonEmpty: true);
+                string templateId = RequiredString(file, effectObject, "template_id", effectPath + ".template_id", nonEmpty: true);
+                int? durationWeeks = RequiredInt(file, effectObject, "duration_weeks", effectPath + ".duration_weeks");
+                EffectInvocationType type;
+                if (!TryMapEffectInvocationType(typeText, out type))
+                {
+                    Add(ContentDiagnosticCode.InvalidEnum, file, effectPath + ".type", "Effect invocation type must be MODIFIER.");
+                }
+
+                if (templateId != null && !effectIds.Contains(templateId))
+                {
+                    Add(ContentDiagnosticCode.InvalidReference, file, effectPath + ".template_id", "Unknown effect template id " + templateId + ".");
+                }
+
+                if (requirePositiveDuration)
+                {
+                    ValidatePositive(file, effectPath + ".duration_weeks", durationWeeks, "duration_weeks");
+                }
+
+                if (HasErrorsForRow(effectPath) || templateId == null || !durationWeeks.HasValue)
+                {
+                    continue;
+                }
+
+                result.Add(new EffectTemplateInvocation(type, templateId, durationWeeks.Value));
+            }
+
+            return result;
+        }
+
+        private void ValidateEventCrossReferences(IReadOnlyList<EventTemplate> events)
+        {
+            HashSet<string> ids = new HashSet<string>(StringComparer.Ordinal);
+            foreach (EventTemplate template in events)
+            {
+                ids.Add(template.Id);
+            }
+
+            for (int i = 0; i < events.Count; i++)
+            {
+                EventTemplate template = events[i];
+                string rowPath = "$.events[" + i + "]";
+                if (template.AutoOptionId != null && !template.OptionsById.ContainsKey(template.AutoOptionId))
+                {
+                    Add(ContentDiagnosticCode.InvalidReference, EventsPath, rowPath + ".auto_option_id", "auto_option_id does not exist within options.");
+                }
+
+                for (int optionIndex = 0; optionIndex < template.Options.Count; optionIndex++)
+                {
+                    EventOption option = template.Options[optionIndex];
+                    for (int followupIndex = 0; followupIndex < option.Followups.Count; followupIndex++)
+                    {
+                        EventFollowup followup = option.Followups[followupIndex];
+                        if (!ids.Contains(followup.EventId))
+                        {
+                            Add(ContentDiagnosticCode.InvalidReference, EventsPath, rowPath + ".options[" + optionIndex + "].followups[" + followupIndex + "].event_id", "Unknown followup event id " + followup.EventId + ".");
+                        }
+                    }
+                }
+            }
+        }
+
+        private void ValidateThemeTags(IEnumerable<string> tags, HashSet<string> allowedThemeTags, string file, string jsonPath)
+        {
+            int index = 0;
+            foreach (string tag in tags)
+            {
+                if (!allowedThemeTags.Contains(tag))
+                {
+                    Add(ContentDiagnosticCode.InvalidReference, file, jsonPath + "[" + index + "]", "Unknown theme tag " + tag + ".");
+                }
+
+                index++;
+            }
+        }
+
+        private void ValidateAllowedTags(IEnumerable<string> tags, IEnumerable<string> vocabulary, string file, string jsonPath, string label)
+        {
+            int index = 0;
+            foreach (string tag in tags)
+            {
+                if (!Contains(vocabulary, tag))
+                {
+                    Add(ContentDiagnosticCode.InvalidReference, file, jsonPath + "[" + index + "]", "Unknown " + label + " " + tag + ".");
+                }
+
+                index++;
+            }
+        }
+
+        private List<string> LoadFlagArray(JArray flagsArray, string jsonPath)
+        {
+            List<string> flags = new List<string>();
+            if (flagsArray == null)
+            {
+                return flags;
+            }
+
+            HashSet<string> seen = new HashSet<string>(StringComparer.Ordinal);
+            for (int i = 0; i < flagsArray.Count; i++)
+            {
+                string flagPath = jsonPath + "[" + i + "]";
+                if (flagsArray[i].Type != JTokenType.String)
+                {
+                    Add(ContentDiagnosticCode.InvalidPropertyType, EventsPath, flagPath, "Flag must be a string.");
+                    continue;
+                }
+
+                string flagId = flagsArray[i].Value<string>();
+                ValidateFlagId(flagId, flagPath);
+                if (!seen.Add(flagId))
+                {
+                    Add(ContentDiagnosticCode.InvalidValue, EventsPath, flagPath, "Duplicate flag " + flagId + ".");
+                    continue;
+                }
+
+                flags.Add(flagId);
+            }
+
+            return flags;
+        }
+
+        private void ValidateFlagId(string flagId, string jsonPath)
+        {
+            if (string.IsNullOrEmpty(flagId) || !IsDottedLowercase(flagId))
+            {
+                Add(ContentDiagnosticCode.InvalidFlagFormat, EventsPath, jsonPath, "Flag ids must use ASCII lowercase dotted format namespace.value.");
+            }
+        }
+
+        private bool ContainsRegionBinding(IEnumerable<EventVariableBinding> bindings)
+        {
+            foreach (EventVariableBinding binding in bindings)
+            {
+                if (binding is EventRegionBinding)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static HashSet<string> CollectMovementIds(IEnumerable<MovementDefinition> movements)
+        {
+            HashSet<string> ids = new HashSet<string>(StringComparer.Ordinal);
+            foreach (MovementDefinition movement in movements)
+            {
+                ids.Add(movement.Id);
+            }
+
+            return ids;
+        }
+
+        private static HashSet<string> CollectInterestGroupIds(IEnumerable<InterestGroupDefinition> interestGroups)
+        {
+            HashSet<string> ids = new HashSet<string>(StringComparer.Ordinal);
+            foreach (InterestGroupDefinition interestGroup in interestGroups)
+            {
+                ids.Add(interestGroup.Id);
+            }
+
+            return ids;
+        }
+
+        private static HashSet<string> CollectEffectIds(IEnumerable<EffectTemplate> effects)
+        {
+            HashSet<string> ids = new HashSet<string>(StringComparer.Ordinal);
+            foreach (EffectTemplate effect in effects)
+            {
+                ids.Add(effect.Id);
+            }
+
+            return ids;
+        }
+
+        private static HashSet<string> CollectMovementTagVocabulary(IEnumerable<MovementDefinition> movements)
+        {
+            HashSet<string> tags = new HashSet<string>(StringComparer.Ordinal);
+            foreach (MovementDefinition movement in movements)
+            {
+                foreach (string tag in movement.Tags)
+                {
+                    tags.Add(tag);
+                }
+            }
+
+            return tags;
+        }
+
+        private static HashSet<string> CollectAllowedEventThemeTags(IEnumerable<MovementDefinition> movements)
+        {
+            HashSet<string> tags = CollectMovementTagVocabulary(movements);
+            tags.Add("theme.economia");
+            return tags;
+        }
+
+        private static readonly string[] AllowedReformAreas =
+        {
+            "constitucional",
+            "educacion",
+            "institucional",
+            "pensiones",
+            "salud",
+            "seguridad",
+            "trabajo"
+        };
+
+        private JArray OptionalArray(string file, JObject obj, string propertyName, string jsonPath)
+        {
+            if (!obj.TryGetValue(propertyName, out JToken token) || token.Type == JTokenType.Null)
+            {
+                return null;
+            }
+
+            JArray result = token as JArray;
+            if (result == null)
+            {
+                Add(ContentDiagnosticCode.InvalidPropertyType, file, jsonPath, "Expected array.");
+            }
+
+            return result;
+        }
+
+        private bool? OptionalBool(JObject obj, string propertyName, string jsonPath, string file)
+        {
+            if (!obj.TryGetValue(propertyName, out JToken token) || token.Type == JTokenType.Null)
+            {
+                return null;
+            }
+
+            if (token.Type != JTokenType.Boolean)
+            {
+                Add(ContentDiagnosticCode.InvalidPropertyType, file, jsonPath, "Expected boolean.");
+                return null;
+            }
+
+            return token.Value<bool>();
+        }
+
+        private static class ReformContentCompiler
+        {
+            private static readonly string[] OrderedPolicyTagsArray =
+            {
+                "policy.tax_cut",
+                "policy.tax_increase",
+                "policy.spending_increase",
+                "policy.spending_cut",
+                "policy.deregulation",
+                "policy.regulation_increase",
+                "policy.labor_rights_up",
+                "policy.labor_flexibility",
+                "policy.security_crackdown",
+                "policy.police_accountability",
+                "policy.environment_protection",
+                "policy.extractive_promotion",
+                "policy.decentralization",
+                "policy.centralization",
+                "policy.social_traditional",
+                "policy.social_progressive",
+                "policy.anti_corruption",
+                "policy.institutional_reform",
+                "policy.indigenous_recognition"
+            };
+
+            private static readonly string[] OrderedIdeologyTagsArray =
+            {
+                "ideol.market",
+                "ideol.fiscal_austerity",
+                "ideol.public_spending",
+                "ideol.labor",
+                "ideol.extractive_growth",
+                "ideol.statist",
+                "ideol.green",
+                "ideol.security_hardline",
+                "ideol.social_traditional",
+                "ideol.civil_liberties",
+                "ideol.social_progressive",
+                "ideol.indigenous_rights",
+                "ideol.decentralization",
+                "ideol.centralization",
+                "ideol.institutionalism",
+                "ideol.anti_corruption"
+            };
+
+            private static readonly IReadOnlyDictionary<string, IReadOnlyDictionary<string, int>> PolicyScoreTable = BuildPolicyScoreTable();
+            private static readonly HashSet<string> IdeologyTagsSet = new HashSet<string>(OrderedIdeologyTagsArray, StringComparer.Ordinal);
+
+            internal static IReadOnlyCollection<string> PolicyTags => OrderedPolicyTagsArray;
+
+            internal static List<ReformInterestGroupStance> TryCompileEffectiveStances(
+                IReadOnlyList<InterestGroupDefinition> interestGroups,
+                IReadOnlyList<ReformInterestGroupStance> explicitStances,
+                IReadOnlyList<string> policyTags,
+                out string error)
+            {
+                if (interestGroups == null)
+                {
+                    throw new ArgumentNullException(nameof(interestGroups));
+                }
+
+                if (explicitStances == null)
+                {
+                    throw new ArgumentNullException(nameof(explicitStances));
+                }
+
+                if (policyTags == null)
+                {
+                    throw new ArgumentNullException(nameof(policyTags));
+                }
+
+                Dictionary<string, int> explicitById = new Dictionary<string, int>(StringComparer.Ordinal);
+                foreach (ReformInterestGroupStance explicitStance in explicitStances)
+                {
+                    explicitById[explicitStance.InterestGroupId] = explicitStance.Stance;
+                }
+
+                List<ReformInterestGroupStance> result = new List<ReformInterestGroupStance>(interestGroups.Count);
+                foreach (InterestGroupDefinition interestGroup in interestGroups)
+                {
+                    if (explicitById.TryGetValue(interestGroup.Id, out int explicitValue))
+                    {
+                        result.Add(new ReformInterestGroupStance(interestGroup.Id, explicitValue));
+                        continue;
+                    }
+
+                    long stance = 0;
+                    foreach (string policyTag in policyTags)
+                    {
+                        if (!PolicyScoreTable.TryGetValue(policyTag, out IReadOnlyDictionary<string, int> scores))
+                        {
+                            error = "Unknown policy tag " + policyTag + " in stance compiler.";
+                            return null;
+                        }
+
+                        foreach (string ideologicalTag in interestGroup.Tags)
+                        {
+                            if (!IdeologyTagsSet.Contains(ideologicalTag))
+                            {
+                                error = "Unknown ideological tag " + ideologicalTag + " in interest group " + interestGroup.Id + ".";
+                                return null;
+                            }
+
+                            if (scores.TryGetValue(ideologicalTag, out int delta))
+                            {
+                                stance += delta;
+                            }
+                        }
+                    }
+
+                    result.Add(new ReformInterestGroupStance(interestGroup.Id, ClampStance(stance)));
+                }
+
+                if (result.Count != interestGroups.Count)
+                {
+                    error = "Compiled reform stance mapping did not cover every declared interest group.";
+                    return null;
+                }
+
+                error = null;
+                return result;
+            }
+
+            private static int ClampStance(long value)
+            {
+                if (value < -100)
+                {
+                    return -100;
+                }
+
+                if (value > 100)
+                {
+                    return 100;
+                }
+
+                return (int)value;
+            }
+
+            private static IReadOnlyDictionary<string, IReadOnlyDictionary<string, int>> BuildPolicyScoreTable()
+            {
+                Dictionary<string, IReadOnlyDictionary<string, int>> table = new Dictionary<string, IReadOnlyDictionary<string, int>>(StringComparer.Ordinal)
+                {
+                    { "policy.tax_cut", Scores(("ideol.market", 25), ("ideol.fiscal_austerity", 15), ("ideol.public_spending", -15), ("ideol.labor", -10)) },
+                    { "policy.tax_increase", Scores(("ideol.public_spending", 15), ("ideol.labor", 10), ("ideol.market", -20), ("ideol.fiscal_austerity", -10)) },
+                    { "policy.spending_increase", Scores(("ideol.public_spending", 25), ("ideol.statist", 10), ("ideol.fiscal_austerity", -20), ("ideol.market", -10)) },
+                    { "policy.spending_cut", Scores(("ideol.fiscal_austerity", 25), ("ideol.market", 10), ("ideol.public_spending", -20), ("ideol.statist", -10)) },
+                    { "policy.deregulation", Scores(("ideol.market", 25), ("ideol.extractive_growth", 10), ("ideol.statist", -15), ("ideol.green", -10)) },
+                    { "policy.regulation_increase", Scores(("ideol.statist", 15), ("ideol.green", 10), ("ideol.market", -20), ("ideol.extractive_growth", -10)) },
+                    { "policy.labor_rights_up", Scores(("ideol.labor", 30), ("ideol.public_spending", 5), ("ideol.market", -25)) },
+                    { "policy.labor_flexibility", Scores(("ideol.market", 20), ("ideol.labor", -30)) },
+                    { "policy.security_crackdown", Scores(("ideol.security_hardline", 30), ("ideol.social_traditional", 10), ("ideol.civil_liberties", -25), ("ideol.social_progressive", -10)) },
+                    { "policy.police_accountability", Scores(("ideol.civil_liberties", 25), ("ideol.social_progressive", 15), ("ideol.security_hardline", -25)) },
+                    { "policy.environment_protection", Scores(("ideol.green", 30), ("ideol.indigenous_rights", 10), ("ideol.extractive_growth", -25), ("ideol.market", -5)) },
+                    { "policy.extractive_promotion", Scores(("ideol.extractive_growth", 30), ("ideol.market", 10), ("ideol.green", -25), ("ideol.indigenous_rights", -10)) },
+                    { "policy.decentralization", Scores(("ideol.decentralization", 30), ("ideol.indigenous_rights", 10), ("ideol.centralization", -25)) },
+                    { "policy.centralization", Scores(("ideol.centralization", 30), ("ideol.institutionalism", 5), ("ideol.decentralization", -25)) },
+                    { "policy.social_traditional", Scores(("ideol.social_traditional", 30), ("ideol.social_progressive", -25)) },
+                    { "policy.social_progressive", Scores(("ideol.social_progressive", 30), ("ideol.civil_liberties", 10), ("ideol.social_traditional", -25)) },
+                    { "policy.anti_corruption", Scores(("ideol.anti_corruption", 30), ("ideol.institutionalism", 10)) },
+                    { "policy.institutional_reform", Scores(("ideol.institutionalism", 25), ("ideol.anti_corruption", 10), ("ideol.statist", 5)) },
+                    { "policy.indigenous_recognition", Scores(("ideol.indigenous_rights", 30), ("ideol.decentralization", 10), ("ideol.centralization", -10), ("ideol.social_traditional", -5)) }
+                };
+
+                return new ReadOnlyDictionary<string, IReadOnlyDictionary<string, int>>(table);
+            }
+
+            private static IReadOnlyDictionary<string, int> Scores(params (string tag, int value)[] values)
+            {
+                Dictionary<string, int> result = new Dictionary<string, int>(StringComparer.Ordinal);
+                for (int i = 0; i < values.Length; i++)
+                {
+                    result.Add(values[i].tag, values[i].value);
+                }
+
+                return new ReadOnlyDictionary<string, int>(result);
+            }
+        }
+
         private byte[] ReadRequired(IContentFileSource source, string path, ContentDiagnosticCode missingCode)
         {
             ContentFileReadResult read = source.TryReadAllBytes(path);
@@ -2085,7 +3493,7 @@ namespace VictoriantChile.Content.Loading
             return target;
         }
 
-        private TargetPattern? RequiredTargetPattern(string file, JObject obj, string propertyName, string jsonPath, TargetConfigCatalog catalog)
+        private TargetPattern? RequiredTargetPattern(string file, JObject obj, string propertyName, string jsonPath, TargetConfigCatalog catalog, bool allowStaticRegionalReadOnly = false)
         {
             JToken token = RequiredToken(file, obj, propertyName, jsonPath);
             if (token == null)
@@ -2106,10 +3514,15 @@ namespace VictoriantChile.Content.Loading
                 return null;
             }
 
-            if (IsStaticRegionalPattern(patternText))
+            if (!allowStaticRegionalReadOnly && IsStaticRegionalPattern(patternText))
             {
                 Add(ContentDiagnosticCode.InvalidTargetPattern, file, jsonPath, "Static regional resources are read-only and cannot be targeted by runtime patterns.");
                 return null;
+            }
+
+            if (allowStaticRegionalReadOnly && IsStaticRegionalPattern(patternText))
+            {
+                return pattern;
             }
 
             if (!IsPatternCoveredByCatalog(pattern, catalog))
@@ -2299,6 +3712,192 @@ namespace VictoriantChile.Content.Loading
             }
 
             operation = default;
+            return false;
+        }
+
+        private static bool TryMapEventKind(string text, out EventKind kind)
+        {
+            if (text == "AUTO")
+            {
+                kind = EventKind.Auto;
+                return true;
+            }
+
+            if (text == "CHOICE")
+            {
+                kind = EventKind.Choice;
+                return true;
+            }
+
+            if (text == "CRISIS")
+            {
+                kind = EventKind.Crisis;
+                return true;
+            }
+
+            kind = default;
+            return false;
+        }
+
+        private static bool TryMapEventScope(string text, out EventScope scope)
+        {
+            if (text == "NATIONAL")
+            {
+                scope = EventScope.National;
+                return true;
+            }
+
+            if (text == "REGION")
+            {
+                scope = EventScope.Region;
+                return true;
+            }
+
+            scope = default;
+            return false;
+        }
+
+        private static bool TryMapSelectorMode(string text, out EventSelectorMode mode)
+        {
+            if (text == "ARGMAX")
+            {
+                mode = EventSelectorMode.ArgMax;
+                return true;
+            }
+
+            if (text == "WEIGHTED")
+            {
+                mode = EventSelectorMode.Weighted;
+                return true;
+            }
+
+            mode = default;
+            return false;
+        }
+
+        private static bool TryMapComparator(string text, out EventComparator comparator)
+        {
+            if (text == "<")
+            {
+                comparator = EventComparator.LessThan;
+                return true;
+            }
+
+            if (text == "<=")
+            {
+                comparator = EventComparator.LessThanOrEqual;
+                return true;
+            }
+
+            if (text == "==")
+            {
+                comparator = EventComparator.Equal;
+                return true;
+            }
+
+            if (text == ">=")
+            {
+                comparator = EventComparator.GreaterThanOrEqual;
+                return true;
+            }
+
+            if (text == ">")
+            {
+                comparator = EventComparator.GreaterThan;
+                return true;
+            }
+
+            comparator = default;
+            return false;
+        }
+
+        private static bool TryMapEffectInvocationType(string text, out EffectInvocationType type)
+        {
+            if (text == "MODIFIER")
+            {
+                type = EffectInvocationType.Modifier;
+                return true;
+            }
+
+            type = default;
+            return false;
+        }
+
+        private static bool TryMapReformKind(string text, out ReformKind kind)
+        {
+            if (text == "NORMAL")
+            {
+                kind = ReformKind.Normal;
+                return true;
+            }
+
+            if (text == "SPECIAL_CONSTITUTIONAL")
+            {
+                kind = ReformKind.SpecialConstitutional;
+                return true;
+            }
+
+            kind = default;
+            return false;
+        }
+
+        private static bool TryMapReformPrerequisiteType(string text, out ReformPrerequisiteType type)
+        {
+            if (text == "METRIC")
+            {
+                type = ReformPrerequisiteType.Metric;
+                return true;
+            }
+
+            type = default;
+            return false;
+        }
+
+        private static bool TryMapReformStageKind(string text, out ReformStageKind kind)
+        {
+            if (text == "WORK")
+            {
+                kind = ReformStageKind.Work;
+                return true;
+            }
+
+            if (text == "VOTE")
+            {
+                kind = ReformStageKind.Vote;
+                return true;
+            }
+
+            kind = default;
+            return false;
+        }
+
+        private static bool TryMapReformStageChamber(string text, out ReformStageChamber chamber)
+        {
+            if (text == "NONE")
+            {
+                chamber = ReformStageChamber.None;
+                return true;
+            }
+
+            if (text == "LOWER")
+            {
+                chamber = ReformStageChamber.Lower;
+                return true;
+            }
+
+            if (text == "UPPER")
+            {
+                chamber = ReformStageChamber.Upper;
+                return true;
+            }
+
+            if (text == "BOTH")
+            {
+                chamber = ReformStageChamber.Both;
+                return true;
+            }
+
+            chamber = default;
             return false;
         }
 
