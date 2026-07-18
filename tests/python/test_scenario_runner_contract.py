@@ -19,7 +19,7 @@ sys.path.insert(0, str(ROOT))
 import scripts.run_scenario as run_scenario
 from scripts.find_unity import UnityResolution
 
-EXPECTED_STATE_HASH = "sha256:7b302a8d323c47913ce8618315285a65d93ed040752245ec9252034694eb494c"
+EXPECTED_STATE_HASH = "sha256:1f39c5fdfb920f31532e52646c3ceca468a667aa485e49202ff2f0c357fe6aef"
 
 
 def re_unfiltered_catch_exception(text: str) -> bool:
@@ -350,6 +350,7 @@ class ScenarioRunnerScriptTest(unittest.TestCase):
                 "regions",
                 "interest_groups",
                 "movements",
+                "active_effects",
             ],
             list(state.keys()),
         )
@@ -379,6 +380,7 @@ class ScenarioRunnerScriptTest(unittest.TestCase):
         self.assert_sorted_by(state["movements"], "id")
         for item in state["movements"]:
             self.assertEqual(["id", "intensity_s", "direction"], list(item.keys()))
+        self.assertEqual([], state["active_effects"])
 
     def assert_sorted_by(self, values: list[dict], key: str) -> None:
         ids = [item[key] for item in values]

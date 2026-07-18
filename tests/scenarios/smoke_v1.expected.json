@@ -118,9 +118,9 @@
       "diagnostics": []
     }
   ],
-  "state_hash": "sha256:7b302a8d323c47913ce8618315285a65d93ed040752245ec9252034694eb494c",
+  "state_hash": "sha256:1f39c5fdfb920f31532e52646c3ceca468a667aa485e49202ff2f0c357fe6aef",
   "state": {
-    "state_schema_version": 1,
+    "state_schema_version": 2,
     "tick": 0,
     "rng_seed": 424242,
     "content": {
@@ -624,7 +624,8 @@
         "intensity_s": 0,
         "direction": 1
       }
-    ]
+    ],
+    "active_effects": []
   },
   "diagnostics": []
 }

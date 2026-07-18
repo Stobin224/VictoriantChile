@@ -1,0 +1,29 @@
+{
+  "state_hash": "sha256:d475a992f54504583fadd9ed862e1b9f55a5ce0992afe3b0467a44813d99e134",
+  "active_effect_ids": ["inst_add", "inst_clout", "inst_mul", "inst_set", "inst_start"],
+  "changed_targets": [
+    {"target":"igs.ig_ambiental_regionalista.clout","delta_s":-102,"contributions":[{"cause":"SYSTEM:IG_CLOUT_NORMALIZE","delta_s":-102}]},
+    {"target":"igs.ig_conservadores_civicos.clout","delta_s":-101,"contributions":[{"cause":"SYSTEM:IG_CLOUT_NORMALIZE","delta_s":-101}]},
+    {"target":"igs.ig_empresariado_finanzas.clout","delta_s":-101,"contributions":[{"cause":"SYSTEM:IG_CLOUT_NORMALIZE","delta_s":-101}]},
+    {"target":"igs.ig_orden_seguridad.clout","delta_s":-101,"contributions":[{"cause":"SYSTEM:IG_CLOUT_NORMALIZE","delta_s":-101}]},
+    {"target":"igs.ig_profesionales_clase_media.clout","delta_s":-101,"contributions":[{"cause":"SYSTEM:IG_CLOUT_NORMALIZE","delta_s":-101}]},
+    {"target":"igs.ig_progresistas_urbanos.clout","delta_s":-101,"contributions":[{"cause":"SYSTEM:IG_CLOUT_NORMALIZE","delta_s":-101}]},
+    {"target":"igs.ig_sector_publico_burocracia.clout","delta_s":-101,"contributions":[{"cause":"SYSTEM:IG_CLOUT_NORMALIZE","delta_s":-101}]},
+    {"target":"igs.ig_sindicatos_trabajo.clout","delta_s":809,"contributions":[{"cause":"MODIFIER:eff_clout_up|parent=DECISION:decision_clout","delta_s":1000},{"cause":"SYSTEM:IG_CLOUT_NORMALIZE","delta_s":-191}]},
+    {"target":"igs.ig_territorio_productivo.clout","delta_s":-101,"contributions":[{"cause":"SYSTEM:IG_CLOUT_NORMALIZE","delta_s":-101}]},
+    {"target":"metrics.legitimacy","delta_s":2001,"contributions":[{"cause":"MODIFIER:eff_start_legitimacy|parent=DECISION:decision_start","delta_s":2000},{"cause":"SYSTEM:ROUNDING","delta_s":1}]},
+    {"target":"metrics.social_tension","delta_s":5000,"contributions":[{"cause":"MODIFIER:eff_set_tension|parent=REFORM:reform_set","delta_s":7000},{"cause":"SYSTEM:CLAMP","delta_s":-2000}]}
+  ],
+  "top_n": [
+    {"target":"metrics.social_tension","delta_s":5000,"other_delta_s":0,"top_causes":[{"cause":"MODIFIER:eff_set_tension|parent=REFORM:reform_set","delta_s":7000},{"cause":"SYSTEM:CLAMP","delta_s":-2000}]},
+    {"target":"metrics.legitimacy","delta_s":2001,"other_delta_s":0,"top_causes":[{"cause":"MODIFIER:eff_start_legitimacy|parent=DECISION:decision_start","delta_s":2000},{"cause":"SYSTEM:ROUNDING","delta_s":1}]},
+    {"target":"igs.ig_sindicatos_trabajo.clout","delta_s":809,"other_delta_s":0,"top_causes":[{"cause":"MODIFIER:eff_clout_up|parent=DECISION:decision_clout","delta_s":1000},{"cause":"SYSTEM:IG_CLOUT_NORMALIZE","delta_s":-191}]},
+    {"target":"igs.ig_ambiental_regionalista.clout","delta_s":-102,"other_delta_s":0,"top_causes":[{"cause":"SYSTEM:IG_CLOUT_NORMALIZE","delta_s":-102}]},
+    {"target":"igs.ig_conservadores_civicos.clout","delta_s":-101,"other_delta_s":0,"top_causes":[{"cause":"SYSTEM:IG_CLOUT_NORMALIZE","delta_s":-101}]},
+    {"target":"igs.ig_empresariado_finanzas.clout","delta_s":-101,"other_delta_s":0,"top_causes":[{"cause":"SYSTEM:IG_CLOUT_NORMALIZE","delta_s":-101}]},
+    {"target":"igs.ig_orden_seguridad.clout","delta_s":-101,"other_delta_s":0,"top_causes":[{"cause":"SYSTEM:IG_CLOUT_NORMALIZE","delta_s":-101}]},
+    {"target":"igs.ig_profesionales_clase_media.clout","delta_s":-101,"other_delta_s":0,"top_causes":[{"cause":"SYSTEM:IG_CLOUT_NORMALIZE","delta_s":-101}]},
+    {"target":"igs.ig_progresistas_urbanos.clout","delta_s":-101,"other_delta_s":0,"top_causes":[{"cause":"SYSTEM:IG_CLOUT_NORMALIZE","delta_s":-101}]},
+    {"target":"igs.ig_sector_publico_burocracia.clout","delta_s":-101,"other_delta_s":0,"top_causes":[{"cause":"SYSTEM:IG_CLOUT_NORMALIZE","delta_s":-101}]}
+  ]
+}

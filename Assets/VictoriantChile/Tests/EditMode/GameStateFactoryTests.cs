@@ -18,7 +18,7 @@ namespace VictoriantChile.Simulation.Tests.EditMode
         {
             GameState state = CreateRealState(12345);
 
-            Assert.That(state.StateSchemaVersion, Is.EqualTo(1));
+            Assert.That(state.StateSchemaVersion, Is.EqualTo(2));
             Assert.That(state.Tick, Is.EqualTo(0));
             Assert.That(state.RngSeed, Is.EqualTo(12345));
             Assert.That(state.Metrics.Count, Is.EqualTo(10));
@@ -26,6 +26,7 @@ namespace VictoriantChile.Simulation.Tests.EditMode
             Assert.That(state.Regions.Count, Is.EqualTo(16));
             Assert.That(state.InterestGroups.Count, Is.EqualTo(9));
             Assert.That(state.Movements.Count, Is.EqualTo(9));
+            Assert.That(state.ActiveEffects, Is.Empty);
             AssertAllMetrics(state, 5000);
             AssertAllRegions(state, 5000);
             AssertAllInternals(state, 5000);
@@ -139,6 +140,7 @@ namespace VictoriantChile.Simulation.Tests.EditMode
             Assert.That(state.Internals.Count, Is.EqualTo(1));
             Assert.That(state.Internals[0].Components.Count, Is.EqualTo(1));
             Assert.That(state.ContentMetadata.Files.Count, Is.EqualTo(1));
+            Assert.That(state.ActiveEffects.Count, Is.EqualTo(0));
 
             AssertReadOnlyList(state.Metrics, new MetricState("gamma", 3));
             AssertReadOnlyDictionary(state.MetricsById, "gamma", new MetricState("gamma", 3));
@@ -152,6 +154,16 @@ namespace VictoriantChile.Simulation.Tests.EditMode
             AssertReadOnlyDictionary(state.InterestGroupsById, "gamma", new InterestGroupState("gamma", 1, 1));
             AssertReadOnlyList(state.Movements, new MovementState("gamma", 1, 1));
             AssertReadOnlyDictionary(state.MovementsById, "gamma", new MovementState("gamma", 1, 1));
+            AssertReadOnlyList(state.ActiveEffects, new VictoriantChile.Simulation.Core.Effects.EffectInstance(
+                "gamma",
+                "eff_gamma",
+                new VictoriantChile.Simulation.Core.Causality.CauseRef(VictoriantChile.Simulation.Core.Causality.CauseCategory.Decision, "decision_gamma"),
+                0,
+                1,
+                "gamma.k",
+                VictoriantChile.Simulation.Core.Effects.EffectStackMode.Stack,
+                null,
+                0));
             AssertReadOnlyList(state.ContentMetadata.Files, new ContentFileIdentity("gamma.json", "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"));
         }
 

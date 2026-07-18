@@ -1,7 +1,10 @@
+using System;
 using System.Globalization;
 using System.IO;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using VictoriantChile.Simulation.Core.Causality;
+using VictoriantChile.Simulation.Core.Effects;
 using VictoriantChile.Simulation.Core.State;
 
 namespace VictoriantChile.Simulation.Runner
@@ -20,7 +23,8 @@ namespace VictoriantChile.Simulation.Runner
                 ["internals"] = BuildInternals(state),
                 ["regions"] = BuildRegions(state),
                 ["interest_groups"] = BuildInterestGroups(state),
-                ["movements"] = BuildMovements(state)
+                ["movements"] = BuildMovements(state),
+                ["active_effects"] = BuildActiveEffects(state)
             };
             return root;
         }
@@ -152,6 +156,69 @@ namespace VictoriantChile.Simulation.Runner
             }
 
             return values;
+        }
+
+        private static JArray BuildActiveEffects(GameState state)
+        {
+            JArray values = new JArray();
+            for (int i = 0; i < state.ActiveEffects.Count; i++)
+            {
+                EffectInstance instance = state.ActiveEffects[i];
+                JObject item = new JObject
+                {
+                    ["id"] = instance.Id,
+                    ["template_id"] = instance.TemplateId,
+                    ["origin"] = BuildCause(instance.Origin),
+                    ["start_tick"] = instance.StartTick,
+                    ["end_tick_exclusive"] = instance.EndTickExclusive.HasValue ? (JToken)instance.EndTickExclusive.Value : JValue.CreateNull(),
+                    ["stack_key"] = instance.StackKey,
+                    ["stack_mode"] = FormatStackMode(instance.StackMode),
+                    ["stack_limit_n"] = instance.StackLimitN.HasValue ? (JToken)instance.StackLimitN.Value : JValue.CreateNull(),
+                    ["priority"] = instance.Priority,
+                    ["start_instant_applied"] = instance.StartInstantApplied
+                };
+                values.Add(item);
+            }
+
+            return values;
+        }
+
+        private static JObject BuildCause(CauseRef cause)
+        {
+            JObject item = new JObject
+            {
+                ["category"] = FormatCauseCategory(cause.Category),
+                ["id"] = cause.Id,
+                ["parent"] = cause.Parent == null ? JValue.CreateNull() : BuildCause(cause.Parent)
+            };
+            return item;
+        }
+
+        private static string FormatCauseCategory(CauseCategory category)
+        {
+            switch (category)
+            {
+                case CauseCategory.Decision: return "DECISION";
+                case CauseCategory.Event: return "EVENT";
+                case CauseCategory.Reform: return "REFORM";
+                case CauseCategory.Movement: return "MOVEMENT";
+                case CauseCategory.Modifier: return "MODIFIER";
+                case CauseCategory.System: return "SYSTEM";
+                default: throw new InvalidOperationException("Unsupported cause category.");
+            }
+        }
+
+        private static string FormatStackMode(EffectStackMode stackMode)
+        {
+            switch (stackMode)
+            {
+                case EffectStackMode.Stack: return "STACK";
+                case EffectStackMode.Replace: return "REPLACE";
+                case EffectStackMode.Refresh: return "REFRESH";
+                case EffectStackMode.Max: return "MAX";
+                case EffectStackMode.StackLimitN: return "STACK_LIMIT_N";
+                default: throw new InvalidOperationException("Unsupported effect stack mode.");
+            }
         }
 
         public static string Write(JToken token, Formatting formatting)

@@ -1,11 +1,12 @@
 using System;
 using System.Collections.Generic;
+using VictoriantChile.Simulation.Core.Effects;
 
 namespace VictoriantChile.Simulation.Core.State
 {
     public sealed class GameState
     {
-        public const int CurrentStateSchemaVersion = 1;
+        public const int CurrentStateSchemaVersion = 2;
 
         public GameState(
             int rngSeed,
@@ -15,8 +16,28 @@ namespace VictoriantChile.Simulation.Core.State
             IEnumerable<RegionState> regions,
             IEnumerable<InterestGroupState> interestGroups,
             IEnumerable<MovementState> movements)
+            : this(rngSeed, contentMetadata, metrics, internals, regions, interestGroups, movements, null, 0)
+        {
+        }
+
+        public GameState(
+            int rngSeed,
+            GameStateContentMetadata contentMetadata,
+            IEnumerable<MetricState> metrics,
+            IEnumerable<InternalDomainState> internals,
+            IEnumerable<RegionState> regions,
+            IEnumerable<InterestGroupState> interestGroups,
+            IEnumerable<MovementState> movements,
+            IEnumerable<EffectInstance> activeEffects,
+            int tick = 0)
         {
             ContentMetadata = contentMetadata ?? throw new ArgumentNullException(nameof(contentMetadata));
+            if (tick < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(tick), "Tick cannot be negative.");
+            }
+
+            Tick = tick;
             RngSeed = rngSeed;
             Metrics = StateCollection.SnapshotSorted(metrics, item => item.MetricId, nameof(metrics));
             MetricsById = StateCollection.MapById(Metrics, item => item.MetricId);
@@ -28,11 +49,13 @@ namespace VictoriantChile.Simulation.Core.State
             InterestGroupsById = StateCollection.MapById(InterestGroups, item => item.InterestGroupId);
             Movements = StateCollection.SnapshotSorted(movements, item => item.MovementId, nameof(movements));
             MovementsById = StateCollection.MapById(Movements, item => item.MovementId);
+            ActiveEffects = StateCollection.SnapshotSorted(activeEffects ?? Array.Empty<EffectInstance>(), item => item.Id, nameof(activeEffects));
+            ActiveEffectsById = StateCollection.MapById(ActiveEffects, item => item.Id);
         }
 
         public int StateSchemaVersion => CurrentStateSchemaVersion;
 
-        public int Tick => 0;
+        public int Tick { get; }
 
         public int RngSeed { get; }
 
@@ -57,5 +80,9 @@ namespace VictoriantChile.Simulation.Core.State
         public IReadOnlyList<MovementState> Movements { get; }
 
         public IReadOnlyDictionary<string, MovementState> MovementsById { get; }
+
+        public IReadOnlyList<EffectInstance> ActiveEffects { get; }
+
+        public IReadOnlyDictionary<string, EffectInstance> ActiveEffectsById { get; }
     }
 }
