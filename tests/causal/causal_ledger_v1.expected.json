@@ -1,0 +1,137 @@
+{
+  "tick_start": 1,
+  "tick_end": 2,
+  "ticks_n": 2,
+  "targets": [
+    {
+      "target": "igs.ig_ambiental_regionalista.clout",
+      "initial_valueS": 1111,
+      "final_valueS": 1200,
+      "delta_totalS": 89,
+      "contributions": [
+        {
+          "cause_key": "SYSTEM:IG_CLOUT_NORMALIZE",
+          "deltaS": 89
+        }
+      ]
+    },
+    {
+      "target": "igs.ig_empresariado_finanzas.clout",
+      "initial_valueS": 1111,
+      "final_valueS": 1000,
+      "delta_totalS": -111,
+      "contributions": [
+        {
+          "cause_key": "SYSTEM:IG_CLOUT_NORMALIZE",
+          "deltaS": -111
+        }
+      ]
+    },
+    {
+      "target": "metrics.legitimacy",
+      "initial_valueS": 9000,
+      "final_valueS": 8851,
+      "delta_totalS": -149,
+      "contributions": [
+        {
+          "cause_key": "DECISION:dec_tax_relief",
+          "deltaS": 2000
+        },
+        {
+          "cause_key": "EVENT:ev_security_flashpoint",
+          "deltaS": -1500
+        },
+        {
+          "cause_key": "REFORM:ref_constitutional_route_a",
+          "deltaS": 250
+        },
+        {
+          "cause_key": "MODIFIER:eff_route_a_momentum|parent=REFORM:ref_constitutional_route_a",
+          "deltaS": 100
+        },
+        {
+          "cause_key": "SYSTEM:CLAMP",
+          "deltaS": -1000
+        },
+        {
+          "cause_key": "SYSTEM:ROUNDING",
+          "deltaS": 1
+        }
+      ]
+    },
+    {
+      "target": "metrics.security",
+      "initial_valueS": 5000,
+      "final_valueS": 4500,
+      "delta_totalS": -500,
+      "contributions": [
+        {
+          "cause_key": "EVENT:ev_security_flashpoint",
+          "deltaS": -500
+        }
+      ]
+    }
+  ],
+  "top_n": [
+    {
+      "target": "metrics.security",
+      "initial_valueS": 5000,
+      "final_valueS": 4500,
+      "delta_totalS": -500,
+      "top_causes": [
+        {
+          "cause_key": "EVENT:ev_security_flashpoint",
+          "deltaS": -500
+        }
+      ],
+      "other_deltaS": 0
+    },
+    {
+      "target": "metrics.legitimacy",
+      "initial_valueS": 9000,
+      "final_valueS": 8851,
+      "delta_totalS": -149,
+      "top_causes": [
+        {
+          "cause_key": "DECISION:dec_tax_relief",
+          "deltaS": 2000
+        },
+        {
+          "cause_key": "EVENT:ev_security_flashpoint",
+          "deltaS": -1500
+        },
+        {
+          "cause_key": "SYSTEM:CLAMP",
+          "deltaS": -1000
+        }
+      ],
+      "other_deltaS": 351
+    },
+    {
+      "target": "igs.ig_empresariado_finanzas.clout",
+      "initial_valueS": 1111,
+      "final_valueS": 1000,
+      "delta_totalS": -111,
+      "top_causes": [
+        {
+          "cause_key": "SYSTEM:IG_CLOUT_NORMALIZE",
+          "deltaS": -111
+        }
+      ],
+      "other_deltaS": 0
+    },
+    {
+      "target": "igs.ig_ambiental_regionalista.clout",
+      "initial_valueS": 1111,
+      "final_valueS": 1200,
+      "delta_totalS": 89,
+      "top_causes": [
+        {
+          "cause_key": "SYSTEM:IG_CLOUT_NORMALIZE",
+          "deltaS": 89
+        }
+      ],
+      "other_deltaS": 0
+    }
+  ]
+}
