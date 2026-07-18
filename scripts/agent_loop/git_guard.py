@@ -52,7 +52,7 @@ def changed_files(repo: Path, *, base_sha: str | None = None) -> list[str]:
                 if path == ".agent-loop" or path.startswith(".agent-loop/"):
                     continue
                 names.add(path.replace("\\", "/"))
-    porcelain = git(repo, "status", "--porcelain=v1", "-z").stdout
+    porcelain = git(repo, "status", "--porcelain=v1", "--untracked-files=all", "-z").stdout
     if porcelain:
         records = porcelain.split("\0")
         index = 0

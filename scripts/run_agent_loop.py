@@ -19,7 +19,7 @@ from scripts.agent_loop.evidence import state_to_json  # noqa: E402
 from scripts.agent_loop.git_guard import current_branch, ensure_clean, fingerprint_worktree, rev_parse  # noqa: E402
 from scripts.agent_loop.git_scope import build_git_scoped_environment  # noqa: E402
 from scripts.agent_loop.io_utils import atomic_write_json  # noqa: E402
-from scripts.agent_loop.models import EXIT_CODES, LoopState, RESUMABLE_STATUSES, Usage  # noqa: E402
+from scripts.agent_loop.models import CheckResult, EXIT_CODES, Finding, LoopState, RESUMABLE_STATUSES, Usage  # noqa: E402
 from scripts.agent_loop.runner import LoopRunner  # noqa: E402
 from scripts.agent_loop.task_spec import TaskSpecError, load_task_spec  # noqa: E402
 
@@ -177,6 +177,34 @@ def loop_state_from_json(data: dict) -> LoopState:
     state.changed_files = list(data.get("changed_files") or [])
     state.errors = list(data.get("errors") or [])
     state.agents_runtime = dict(data.get("agents_runtime") or {})
+    state.runtime_temp = dict(data.get("runtime_temp") or {})
+    state.budget_observations = dict(data.get("budget_observations") or {})
+    state.checks = [
+        CheckResult(
+            str(item.get("id") or ""),
+            tuple(item.get("argv") or ()),
+            str(item.get("status") or ""),
+            item.get("exit_code") if type(item.get("exit_code")) is int else None,
+            str(item.get("stdout") or ""),
+            str(item.get("stderr") or ""),
+        )
+        for item in data.get("checks") or []
+        if isinstance(item, dict)
+    ]
+    state.findings = [
+        Finding(
+            str(item.get("id") or ""),
+            str(item.get("severity") or ""),
+            str(item.get("title") or ""),
+            str(item.get("evidence") or ""),
+            item.get("path") if isinstance(item.get("path"), str) else None,
+            item.get("line") if type(item.get("line")) is int else None,
+            bool(item.get("in_scope", True)),
+            item.get("suggested_fix") if isinstance(item.get("suggested_fix"), str) else None,
+        )
+        for item in data.get("findings") or []
+        if isinstance(item, dict)
+    ]
     return state
 
 

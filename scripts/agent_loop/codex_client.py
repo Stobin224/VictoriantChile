@@ -270,11 +270,11 @@ def parse_jsonl_bytes(stdout: bytes) -> dict[str, Any]:
         if event_type.endswith("turn.failed") or event_type == "turn.failed":
             saw_turn_terminal = True
             errors.append(raw)
+        if event_type == "error":
+            errors.append(raw)
         value = extract_message_text(event)
         if value is not None:
             final_message = value
-        if "usage limit" in raw.lower() or "rate limit" in raw.lower() or "auth" in raw.lower():
-            errors.append(raw)
     if events and not saw_thread_started:
         errors.append("codex JSONL missing thread.started")
     if events and session_id is None:

@@ -45,6 +45,8 @@ class Budgets:
     max_review_turns: int
     max_wall_minutes: int
     max_repeated_failure: int
+    max_input_tokens: int | None = None
+    max_output_tokens: int | None = None
 
 
 @dataclass(frozen=True)
@@ -174,3 +176,5 @@ class LoopState:
     fingerprint: str | None = None
     pr_url: str | None = None
     agents_runtime: dict[str, Any] = field(default_factory=dict)
+    runtime_temp: dict[str, Any] = field(default_factory=dict)
+    budget_observations: dict[str, Any] = field(default_factory=dict)

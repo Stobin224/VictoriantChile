@@ -10,9 +10,12 @@ from scripts.agent_loop.git_scope import (
     AGENTS_DIR_NAME,
     AgentsDirectorySnapshot,
     build_git_scoped_environment,
+    build_runtime_temp_environment,
     cleanup_agents_directory,
+    cleanup_runtime_temp_directory,
     git_safe_directory_value,
     initial_agents_runtime,
+    initial_runtime_temp_state,
     inspect_agents_directory,
     reconcile_agents_runtime,
 )
@@ -196,6 +199,105 @@ class AgentLoopGitScopeTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "GIT_CONFIG_PARAMETERS is not supported"):
                 build_git_scoped_environment({"git_config_parameters": "safe.directory=*"}, repo)
             self.assertEqual(os_name_before, os.name)
+
+    def test_runtime_temp_environment_injects_temp_tmp_tmpdir_without_mutating_inputs(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="Repo With Spaces ") as tmp:
+            repo = repo_root(tmp)
+            run_dir = repo / ".agent-loop" / "runs" / "run with spaces"
+            run_dir.mkdir(parents=True)
+            base = {"PATH": "x", "TEMP": "old", "TMP": "old2", "TMPDIR": "old3"}
+            before_environ = dict(os.environ)
+            git_scoped = build_git_scoped_environment(base, repo)
+            runtime = build_runtime_temp_environment(git_scoped.environment, repo, run_dir)
+            expected = str((run_dir / "runtime-tmp").resolve())
+            self.assertEqual({"PATH": "x", "TEMP": "old", "TMP": "old2", "TMPDIR": "old3"}, base)
+            self.assertEqual(before_environ, dict(os.environ))
+            for key in ("TEMP", "TMP", "TMPDIR"):
+                self.assertEqual(expected, runtime.environment[key])
+            self.assertEqual("1", runtime.environment["GIT_CONFIG_COUNT"])
+            self.assertEqual("safe.directory", runtime.environment["GIT_CONFIG_KEY_0"])
+            self.assertEqual(git_safe_directory_value(repo), runtime.environment["GIT_CONFIG_VALUE_0"])
+            self.assertTrue(runtime.runtime_state["created_by_run"])
+            self.assertEqual("ephemeral_runtime_temp", runtime.runtime_state["classification"])
+
+    def test_runtime_temp_environment_windows_aliases_are_normalized(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, mock.patch("scripts.agent_loop.git_scope._is_windows", return_value=True):
+            repo = repo_root(tmp)
+            run_dir = repo / ".agent-loop" / "runs" / "runtime"
+            run_dir.mkdir(parents=True)
+            runtime = build_runtime_temp_environment({"temp": "x", "Tmp": "y", "tmpdir": "z"}, repo, run_dir)
+            self.assertNotIn("temp", runtime.environment)
+            self.assertNotIn("Tmp", runtime.environment)
+            self.assertNotIn("tmpdir", runtime.environment)
+            self.assertIn("TEMP", runtime.environment)
+            self.assertIn("TMP", runtime.environment)
+            self.assertIn("TMPDIR", runtime.environment)
+            self.assertEqual(runtime.environment["TEMP"], runtime.environment["TMP"])
+            self.assertEqual(runtime.environment["TEMP"], runtime.environment["TMPDIR"])
+
+    def test_runtime_temp_cleanup_removes_only_new_empty_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = repo_root(tmp)
+            run_dir = repo / ".agent-loop" / "runs" / "cleanup"
+            run_dir.mkdir(parents=True)
+            runtime = build_runtime_temp_environment({}, repo, run_dir)
+            state, error = cleanup_runtime_temp_directory(runtime.runtime_state, repo, run_dir)
+            self.assertIsNone(error)
+            self.assertFalse((run_dir / "runtime-tmp").exists())
+            self.assertTrue(state["removed"])
+
+    def test_runtime_temp_preexisting_or_nonempty_is_preserved(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = repo_root(tmp)
+            run_dir = repo / ".agent-loop" / "runs" / "preexisting"
+            temp_dir = run_dir / "runtime-tmp"
+            temp_dir.mkdir(parents=True)
+            runtime = build_runtime_temp_environment({}, repo, run_dir)
+            state, error = cleanup_runtime_temp_directory(runtime.runtime_state, repo, run_dir)
+            self.assertIsNone(error)
+            self.assertTrue(temp_dir.exists())
+            self.assertFalse(state["removed"])
+            self.assertEqual("preexisting", state["classification"])
+
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = repo_root(tmp)
+            run_dir = repo / ".agent-loop" / "runs" / "nonempty"
+            run_dir.mkdir(parents=True)
+            runtime = build_runtime_temp_environment({}, repo, run_dir)
+            temp_dir = run_dir / "runtime-tmp"
+            (temp_dir / "leftover.txt").write_text("x", encoding="utf-8")
+            state, error = cleanup_runtime_temp_directory(runtime.runtime_state, repo, run_dir)
+            self.assertIn("contains entries", error or "")
+            self.assertTrue(temp_dir.exists())
+            self.assertTrue(state["cleanup_pending"])
+
+    def test_runtime_temp_resume_keeps_created_by_run_classification(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = repo_root(tmp)
+            run_dir = repo / ".agent-loop" / "runs" / "resume"
+            run_dir.mkdir(parents=True)
+            runtime = build_runtime_temp_environment({}, repo, run_dir)
+            resumed = build_runtime_temp_environment({}, repo, run_dir, runtime.runtime_state)
+            self.assertTrue(resumed.runtime_state["created_by_run"])
+            self.assertFalse(resumed.runtime_state["existed_before_run"])
+            self.assertEqual("ephemeral_runtime_temp", resumed.runtime_state["classification"])
+
+    def test_runtime_temp_environment_rejects_unsafe_types_and_outside_run_root(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = repo_root(tmp)
+            run_dir = repo / ".agent-loop" / "runs" / "unsafe"
+            run_dir.mkdir(parents=True)
+            temp_path = run_dir / "runtime-tmp"
+            temp_path.write_text("x", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "runtime temp must be an ordinary directory"):
+                build_runtime_temp_environment({}, repo, run_dir)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = repo_root(tmp)
+            outside = repo / "not-runs"
+            outside.mkdir()
+            with self.assertRaisesRegex(ValueError, "must stay under .agent-loop/runs"):
+                build_runtime_temp_environment({}, repo, outside)
 
     def test_initial_agents_runtime_and_inspect_absent(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

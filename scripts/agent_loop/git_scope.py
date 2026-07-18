@@ -4,12 +4,13 @@ import os
 import stat
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping
+from typing import Any, Mapping
 
 
 MAX_GIT_CONFIG_COUNT = 128
 MAX_GIT_CONFIG_COUNT_DIGITS = len(str(MAX_GIT_CONFIG_COUNT))
 AGENTS_DIR_NAME = ".agents"
+RUNTIME_TEMP_DIR_NAME = "runtime-tmp"
 
 
 @dataclass(frozen=True)
@@ -28,6 +29,23 @@ class GitScopedEnvironment:
 
 
 @dataclass(frozen=True)
+class RuntimeTempEnvironment:
+    environment: dict[str, str]
+    runtime_state: dict[str, Any]
+
+    def metadata(self) -> dict[str, Any]:
+        state = self.runtime_state
+        return {
+            "runtime_temp_active": True,
+            "runtime_temp_path": "<run-runtime-tmp>",
+            "runtime_temp_preexisting": bool(state.get("existed_before_run")),
+            "runtime_temp_created_by_run": bool(state.get("created_by_run")),
+            "runtime_temp_cleanup_pending": bool(state.get("cleanup_pending")),
+            "runtime_temp_classification": str(state.get("classification") or ""),
+        }
+
+
+@dataclass(frozen=True)
 class AgentsDirectorySnapshot:
     path: Path
     exists: bool
@@ -39,6 +57,16 @@ class AgentsDirectorySnapshot:
     @property
     def is_ordinary_empty_directory(self) -> bool:
         return self.exists and self.is_directory and not self.is_symlink and not self.is_reparse_point and self.entry_count == 0
+
+
+@dataclass(frozen=True)
+class RuntimeTempSnapshot:
+    path: Path
+    exists: bool
+    is_directory: bool
+    is_symlink: bool
+    is_reparse_point: bool
+    entry_count: int
 
 
 def git_safe_directory_value(repo_root: Path) -> str:
@@ -82,6 +110,78 @@ def build_git_scoped_environment(base_env: Mapping[str, str], repo_root: Path) -
     environment[f"GIT_CONFIG_KEY_{count}"] = "safe.directory"
     environment[f"GIT_CONFIG_VALUE_{count}"] = safe_directory
     return GitScopedEnvironment(environment, safe_directory, count, True)
+
+
+def build_runtime_temp_environment(
+    base_env: Mapping[str, str],
+    repo_root: Path,
+    run_dir: Path,
+    runtime_state: Mapping[str, Any] | None = None,
+) -> RuntimeTempEnvironment:
+    environment = dict(base_env)
+    state = dict(runtime_state or initial_runtime_temp_state(run_dir))
+    run_root = _canonical_run_dir(repo_root, run_dir)
+    temp_path = run_root / RUNTIME_TEMP_DIR_NAME
+    existed_before_run = bool(state.get("existed_before_run"))
+    created_by_run = bool(state.get("created_by_run"))
+    if temp_path.exists():
+        snapshot = inspect_runtime_temp_directory(repo_root, run_dir)
+        _validate_runtime_temp_snapshot(snapshot)
+        if created_by_run and not existed_before_run:
+            state.update(
+                {
+                    "existed_before_run": False,
+                    "created_by_run": True,
+                    "cleanup_pending": True,
+                    "classification": "ephemeral_runtime_temp_nonempty" if snapshot.entry_count else "ephemeral_runtime_temp",
+                    "exists_now": True,
+                    "entry_count": snapshot.entry_count,
+                    "is_directory": snapshot.is_directory,
+                    "is_symlink": snapshot.is_symlink,
+                    "is_reparse_point": snapshot.is_reparse_point,
+                    "removed": False,
+                }
+            )
+        else:
+            state.update(
+                {
+                    "existed_before_run": True,
+                    "created_by_run": False,
+                    "cleanup_pending": False,
+                    "classification": "preexisting",
+                    "exists_now": True,
+                    "entry_count": snapshot.entry_count,
+                    "is_directory": snapshot.is_directory,
+                    "is_symlink": snapshot.is_symlink,
+                    "is_reparse_point": snapshot.is_reparse_point,
+                    "removed": False,
+                }
+            )
+    else:
+        temp_path.mkdir()
+        created_by_run = True
+        snapshot = inspect_runtime_temp_directory(repo_root, run_dir)
+        _validate_runtime_temp_snapshot(snapshot)
+        state.update(
+            {
+                "existed_before_run": False,
+                "created_by_run": True,
+                "cleanup_pending": True,
+                "classification": "ephemeral_runtime_temp",
+                "exists_now": True,
+                "entry_count": snapshot.entry_count,
+                "is_directory": snapshot.is_directory,
+                "is_symlink": snapshot.is_symlink,
+                "is_reparse_point": snapshot.is_reparse_point,
+                "removed": False,
+            }
+        )
+    canonical_temp = snapshot.path
+    for name in ("TEMP", "TMP", "TMPDIR"):
+        _overwrite_normalized_env(environment, name, str(canonical_temp))
+    if created_by_run:
+        state["classification"] = "ephemeral_runtime_temp"
+    return RuntimeTempEnvironment(environment, state)
 
 
 def inspect_agents_directory(repo_root: Path) -> AgentsDirectorySnapshot:
@@ -218,6 +318,90 @@ def cleanup_agents_directory(
     return state, None
 
 
+def inspect_runtime_temp_directory(repo_root: Path, run_dir: Path) -> RuntimeTempSnapshot:
+    run_root = _canonical_run_dir(repo_root, run_dir)
+    path = run_root / RUNTIME_TEMP_DIR_NAME
+    return _inspect_directory_snapshot(path, allow_missing=True, label="runtime temp")
+
+
+def initial_runtime_temp_state(run_dir: Path) -> dict[str, bool | int | str]:
+    path = Path(run_dir) / RUNTIME_TEMP_DIR_NAME
+    return {
+        "path": RUNTIME_TEMP_DIR_NAME,
+        "existed_before_run": False,
+        "created_by_run": False,
+        "cleanup_pending": False,
+        "classification": "absent",
+        "exists_now": False,
+        "entry_count": 0,
+        "is_directory": False,
+        "is_symlink": False,
+        "is_reparse_point": False,
+        "removed": False,
+    }
+
+
+def cleanup_runtime_temp_directory(
+    runtime_state: Mapping[str, Any] | None,
+    repo_root: Path,
+    run_dir: Path,
+) -> tuple[dict[str, Any], str | None]:
+    state = dict(runtime_state or initial_runtime_temp_state(run_dir))
+    snapshot = inspect_runtime_temp_directory(repo_root, run_dir)
+    state.update(
+        {
+            "path": RUNTIME_TEMP_DIR_NAME,
+            "exists_now": snapshot.exists,
+            "entry_count": snapshot.entry_count,
+            "is_directory": snapshot.is_directory,
+            "is_symlink": snapshot.is_symlink,
+            "is_reparse_point": snapshot.is_reparse_point,
+            "removed": False,
+        }
+    )
+    if not bool(state.get("created_by_run")):
+        state["cleanup_pending"] = False
+        state["classification"] = "preexisting" if snapshot.exists else "absent"
+        return state, None
+    if not snapshot.exists:
+        state["cleanup_pending"] = False
+        state["removed"] = True
+        state["classification"] = "ephemeral_runtime_temp_removed"
+        return state, None
+    if snapshot.is_symlink or snapshot.is_reparse_point or not snapshot.is_directory:
+        state["classification"] = "unsafe_type"
+        state["cleanup_pending"] = True
+        return state, "runtime_temp_cleanup_failed: runtime temp is not an ordinary directory"
+    if snapshot.entry_count != 0:
+        state["classification"] = "ephemeral_runtime_temp_nonempty"
+        state["cleanup_pending"] = True
+        return state, "runtime_temp_cleanup_preserved: runtime temp contains entries"
+    final_snapshot = inspect_runtime_temp_directory(repo_root, run_dir)
+    if (
+        not final_snapshot.exists
+        or final_snapshot.is_symlink
+        or final_snapshot.is_reparse_point
+        or not final_snapshot.is_directory
+        or final_snapshot.entry_count != 0
+        or final_snapshot.path != snapshot.path
+    ):
+        state["classification"] = "runtime_temp_cleanup_failed"
+        state["cleanup_pending"] = True
+        return state, "runtime_temp_cleanup_failed: runtime temp changed before removal"
+    try:
+        os.rmdir(final_snapshot.path)
+    except OSError as exc:
+        state["classification"] = "runtime_temp_cleanup_failed"
+        state["cleanup_pending"] = True
+        return state, f"runtime_temp_cleanup_failed: {exc}"
+    state["classification"] = "ephemeral_runtime_temp_removed"
+    state["cleanup_pending"] = False
+    state["removed"] = True
+    state["exists_now"] = False
+    state["entry_count"] = 0
+    return state, None
+
+
 def _canonical_repo_root(repo_root: Path) -> Path:
     raw_text = os.fspath(repo_root)
     if _is_windows():
@@ -239,6 +423,20 @@ def _canonical_repo_root(repo_root: Path) -> Path:
         raise ValueError("codex.invalid_git_config_environment: repository path must point to a Git repository")
     if "*" in text:
         raise ValueError("codex.invalid_git_config_environment: wildcard repository path is not allowed")
+    return resolved
+
+
+def _canonical_run_dir(repo_root: Path, run_dir: Path) -> Path:
+    repo = _canonical_repo_root(repo_root)
+    run_path = Path(run_dir)
+    if not run_path.is_absolute():
+        raise ValueError("codex.invalid_runtime_temp_environment: run directory must be absolute")
+    resolved = run_path.resolve(strict=False)
+    if not resolved.exists() or not resolved.is_dir():
+        raise ValueError("codex.invalid_runtime_temp_environment: run directory must exist")
+    runs_root = (repo / ".agent-loop" / "runs").resolve(strict=False)
+    if not _is_relative_to(resolved, runs_root):
+        raise ValueError("codex.invalid_runtime_temp_environment: run directory must stay under .agent-loop/runs")
     return resolved
 
 
@@ -275,6 +473,49 @@ def _get_normalized_env(environment: dict[str, str], canonical_name: str) -> str
         del environment[key]
         environment[canonical_name] = value
     return value
+
+
+def _overwrite_normalized_env(environment: dict[str, str], canonical_name: str, value: str) -> None:
+    if not _is_windows():
+        environment[canonical_name] = value
+        return
+    for key in [existing for existing in environment if existing.casefold() == canonical_name.casefold()]:
+        del environment[key]
+    environment[canonical_name] = value
+
+
+def _inspect_directory_snapshot(path: Path, *, allow_missing: bool, label: str) -> RuntimeTempSnapshot:
+    try:
+        stat_result = os.lstat(path)
+    except FileNotFoundError:
+        if allow_missing:
+            return RuntimeTempSnapshot(path, False, False, False, False, 0)
+        raise ValueError(f"codex.invalid_runtime_temp_environment: {label} path is missing")
+    is_symlink = path.is_symlink()
+    file_attributes = getattr(stat_result, "st_file_attributes", 0)
+    is_reparse_point = bool(file_attributes & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0))
+    is_directory = path.is_dir()
+    entry_count = 0
+    if is_directory and not is_symlink and not is_reparse_point:
+        with os.scandir(path) as entries:
+            for _entry in entries:
+                entry_count += 1
+    return RuntimeTempSnapshot(path.resolve(strict=False), True, is_directory, is_symlink, is_reparse_point, entry_count)
+
+
+def _validate_runtime_temp_snapshot(snapshot: RuntimeTempSnapshot) -> None:
+    if not snapshot.exists:
+        raise ValueError("codex.invalid_runtime_temp_environment: runtime temp path is missing")
+    if snapshot.is_symlink or snapshot.is_reparse_point or not snapshot.is_directory:
+        raise ValueError("codex.invalid_runtime_temp_environment: runtime temp must be an ordinary directory")
+
+
+def _is_relative_to(path: Path, parent: Path) -> bool:
+    try:
+        path.relative_to(parent)
+        return True
+    except ValueError:
+        return False
 
 
 def _is_windows() -> bool:
