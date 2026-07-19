@@ -182,6 +182,12 @@ EXPECTED_DOCUMENT = {
             "resolution": {
                 "algorithm": "pcg32-xsh-rr",
                 "contract_version": "pcg32-v1",
+                "multiplier_u64_decimal": "6364136223846793005",
+                "state_width_bits": 64,
+                "output_width_bits": 32,
+                "arithmetic": "wrapping_modulo_2pow64_only_where_required_by_pcg32",
+                "warmup_draws": 0,
+                "byte_order": "little_endian",
                 "serialized_fields": [
                     {"name": "state_u64", "format": "hex_lowercase_16"},
                     {
@@ -197,6 +203,54 @@ EXPECTED_DOCUMENT = {
                     "implicit_global_rng",
                 ],
                 "consumption_rule": "sequential_only_in_closed_order_systems",
+                "sequential_seed_initialization": {
+                    "seed_type": "int64_signed",
+                    "seed_encoding": "twos_complement_little_endian",
+                    "preimage": {
+                        "domain_tag": "VictoriantChile/pcg32-v1/init",
+                        "separator_byte_hex": "00",
+                        "field_order": [
+                            "domain_tag_ascii",
+                            "separator_byte",
+                            "seed_i64_le",
+                        ],
+                    },
+                    "derivation": "sha-256",
+                    "digest_extraction": {
+                        "state_u64": {
+                            "offset_bytes": [0, 7],
+                            "byte_order": "little_endian",
+                        },
+                        "stream_u64_pre_oddify": {
+                            "offset_bytes": [8, 15],
+                            "byte_order": "little_endian",
+                        },
+                        "stream_u64_post_process": "bitwise_or_1",
+                    },
+                    "draw_count_u64_initial_hex": "0000000000000000",
+                },
+                "draw_transition": {
+                    "old_state_source": "state_u64",
+                    "new_state_formula": "old_state * multiplier + stream_u64 modulo 2^64",
+                    "xorshifted_formula": "uint32((((old_state >> 18) xor old_state) >> 27))",
+                    "rotation_formula": "uint32(old_state >> 59)",
+                    "output_formula": "rotate_right_32(xorshifted, rotation)",
+                    "post_success": [
+                        "state_u64 = new_state",
+                        "draw_count_u64 += 1",
+                    ],
+                },
+                "counter_exhaustion": {
+                    "when": "draw_count_u64 == uint64_max before draw",
+                    "behavior": "fail_closed_without_state_stream_or_counter_change",
+                },
+                "bounded_draw": {
+                    "bound_must_be_positive": True,
+                    "algorithm": "rejection_sampling_without_modulo_bias",
+                    "threshold_formula": "(2^32 - bound) mod bound",
+                    "rejected_raw_draws_increment_counter": True,
+                    "invalid_bound_consumes_rng": False,
+                },
                 "event_selector_keying": {
                     "enabled": True,
                     "encoding": "utf-8",
@@ -207,13 +261,61 @@ EXPECTED_DOCUMENT = {
                         "template",
                         "slot",
                     ],
+                    "field_types": {
+                        "seed": "int64_signed",
+                        "tick": "uint64",
+                        "system": "ascii_identifier",
+                        "template": "ascii_identifier",
+                        "slot": "uint64",
+                    },
+                    "string_validation": {
+                        "pattern": "[a-z0-9][a-z0-9._-]*",
+                        "forbid": [
+                            "empty",
+                            "whitespace",
+                            "control_chars",
+                            "newlines",
+                            "unicode",
+                            "nul_bytes",
+                        ],
+                    },
+                    "framing": {
+                        "domain_tag": "VictoriantChile/pcg32-v1/event-selector",
+                        "separator_byte_hex": "00",
+                        "length_unit": "utf8_bytes",
+                        "integer_byte_order": "little_endian",
+                        "field_order": [
+                            "domain_tag_ascii",
+                            "separator_byte",
+                            "seed_i64_le",
+                            "tick_u64_le",
+                            "system_len_u32_le",
+                            "system_utf8",
+                            "template_len_u32_le",
+                            "template_utf8",
+                            "slot_u64_le",
+                        ],
+                    },
                     "derivation": "sha-256",
-                    "byte_order": "documented_explicitly",
+                    "digest_extraction": {
+                        "keyed_state_u64": {
+                            "offset_bytes": [0, 7],
+                            "byte_order": "little_endian",
+                        },
+                        "keyed_stream_u64_pre_oddify": {
+                            "offset_bytes": [8, 15],
+                            "byte_order": "little_endian",
+                        },
+                        "keyed_stream_u64_post_process": "bitwise_or_1",
+                    },
+                    "keyed_draw": "first_pcg32_output_from_derived_state",
+                    "global_state_consumption": False,
+                    "warmup_draws": 0,
                     "final_tie_break": "id_ordinal_asc",
                     "determinism_rule": "same_state_and_actions_same_draws_and_hashes",
                 },
             },
-            "rationale": "The RNG contract is frozen now so later runtime work can be deterministic by construction.",
+            "rationale": "A human-approved PR 13 amendment completes pcg32-v1 byte-for-byte without creating pcg32-v2.",
         },
         {
             "id": "MVP-006-vertical-slice-duration",
@@ -597,17 +699,82 @@ class MvpContractDecisionsTest(unittest.TestCase):
         resolution = read_json_document()["decisions"][4]["resolution"]
         self.assertEqual(resolution["algorithm"], "pcg32-xsh-rr")
         self.assertEqual(resolution["contract_version"], "pcg32-v1")
+        self.assertEqual(resolution["multiplier_u64_decimal"], "6364136223846793005")
+        self.assertEqual(resolution["state_width_bits"], 64)
+        self.assertEqual(resolution["output_width_bits"], 32)
+        self.assertEqual(resolution["warmup_draws"], 0)
+        self.assertEqual(resolution["byte_order"], "little_endian")
         self.assertEqual(
             [field["name"] for field in resolution["serialized_fields"]],
             ["state_u64", "stream_u64", "draw_count_u64"],
         )
         self.assertTrue(resolution["serialized_fields"][1]["must_be_odd"])
         self.assertEqual(
+            resolution["sequential_seed_initialization"]["preimage"],
+            {
+                "domain_tag": "VictoriantChile/pcg32-v1/init",
+                "separator_byte_hex": "00",
+                "field_order": [
+                    "domain_tag_ascii",
+                    "separator_byte",
+                    "seed_i64_le",
+                ],
+            },
+        )
+        self.assertEqual(
+            resolution["sequential_seed_initialization"]["digest_extraction"],
+            {
+                "state_u64": {"offset_bytes": [0, 7], "byte_order": "little_endian"},
+                "stream_u64_pre_oddify": {"offset_bytes": [8, 15], "byte_order": "little_endian"},
+                "stream_u64_post_process": "bitwise_or_1",
+            },
+        )
+        self.assertEqual(
+            resolution["counter_exhaustion"],
+            {
+                "when": "draw_count_u64 == uint64_max before draw",
+                "behavior": "fail_closed_without_state_stream_or_counter_change",
+            },
+        )
+        self.assertEqual(
+            resolution["bounded_draw"],
+            {
+                "bound_must_be_positive": True,
+                "algorithm": "rejection_sampling_without_modulo_bias",
+                "threshold_formula": "(2^32 - bound) mod bound",
+                "rejected_raw_draws_increment_counter": True,
+                "invalid_bound_consumes_rng": False,
+            },
+        )
+        self.assertEqual(
             resolution["event_selector_keying"]["key_parts"],
             ["seed", "tick", "system", "template", "slot"],
         )
         self.assertEqual(resolution["event_selector_keying"]["encoding"], "utf-8")
         self.assertEqual(resolution["event_selector_keying"]["derivation"], "sha-256")
+        self.assertEqual(
+            resolution["event_selector_keying"]["framing"]["field_order"],
+            [
+                "domain_tag_ascii",
+                "separator_byte",
+                "seed_i64_le",
+                "tick_u64_le",
+                "system_len_u32_le",
+                "system_utf8",
+                "template_len_u32_le",
+                "template_utf8",
+                "slot_u64_le",
+            ],
+        )
+        self.assertEqual(
+            resolution["event_selector_keying"]["digest_extraction"],
+            {
+                "keyed_state_u64": {"offset_bytes": [0, 7], "byte_order": "little_endian"},
+                "keyed_stream_u64_pre_oddify": {"offset_bytes": [8, 15], "byte_order": "little_endian"},
+                "keyed_stream_u64_post_process": "bitwise_or_1",
+            },
+        )
+        self.assertFalse(resolution["event_selector_keying"]["global_state_consumption"])
 
     def test_mvp_006_007_008_009_010_are_exact(self) -> None:
         decisions = read_json_document()["decisions"]

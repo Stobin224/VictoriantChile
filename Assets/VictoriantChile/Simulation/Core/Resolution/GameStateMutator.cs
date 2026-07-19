@@ -203,7 +203,10 @@ namespace VictoriantChile.Simulation.Core.Resolution
                 BuildInterestGroups(state, target, valueS),
                 BuildMovements(state, target, valueS),
                 state.ActiveEffects,
-                state.Tick);
+                state.Tick,
+                state.RngState,
+                state.ScheduledActions,
+                state.BlockingDecision);
         }
 
         private static GameState ApplyCloutMutation(GameState state, string interestGroupId, int valueS)
@@ -238,7 +241,10 @@ namespace VictoriantChile.Simulation.Core.Resolution
                 groups,
                 state.Movements,
                 state.ActiveEffects,
-                state.Tick);
+                state.Tick,
+                state.RngState,
+                state.ScheduledActions,
+                state.BlockingDecision);
         }
 
         private static List<MetricState> BuildMetrics(GameState state, TargetPath target, int valueS)

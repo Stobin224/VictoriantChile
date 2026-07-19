@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using VictoriantChile.Simulation.Core.Causality;
 using VictoriantChile.Simulation.Core.Resolution;
+using VictoriantChile.Simulation.Core.Scheduling;
 using VictoriantChile.Simulation.Core.Targets;
 
 namespace VictoriantChile.Simulation.Runner
@@ -8,7 +10,8 @@ namespace VictoriantChile.Simulation.Runner
     public enum ScenarioCommandType
     {
         Read,
-        Mutate
+        Mutate,
+        Advance
     }
 
     public sealed class ScenarioDefinition
@@ -29,13 +32,14 @@ namespace VictoriantChile.Simulation.Runner
 
     public sealed class ScenarioCommand
     {
-        public ScenarioCommand(string id, ScenarioCommandType type, TargetPath target, TargetOperation operation, int valueS)
+        public ScenarioCommand(string id, ScenarioCommandType type, TargetPath target, TargetOperation operation, int valueS, int weeks = 0)
         {
             Id = id ?? throw new ArgumentNullException(nameof(id));
             Type = type;
             Target = target;
             Operation = operation;
             ValueS = valueS;
+            Weeks = weeks;
         }
 
         public string Id { get; }
@@ -47,6 +51,8 @@ namespace VictoriantChile.Simulation.Runner
         public TargetOperation Operation { get; }
 
         public int ValueS { get; }
+
+        public int Weeks { get; }
     }
 
     public sealed class ScenarioRunnerResult
@@ -104,5 +110,10 @@ namespace VictoriantChile.Simulation.Runner
         public bool Clamped { get; set; }
         public string NormalizeGroup { get; set; }
         public IReadOnlyList<StateDiagnostic> Diagnostics { get; set; }
+        public int? WeeksRequested { get; set; }
+        public int? TicksCompleted { get; set; }
+        public BlockingDecision BlockingDecision { get; set; }
+        public IReadOnlyList<string> TickStateHashes { get; set; }
+        public IReadOnlyList<TickCausalSnapshot> CausalTicks { get; set; }
     }
 }

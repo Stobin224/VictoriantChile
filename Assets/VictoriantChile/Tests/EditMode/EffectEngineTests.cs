@@ -5,6 +5,7 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using NUnit.Framework;
+using UnityEngine;
 using VictoriantChile.Content.Loading;
 using VictoriantChile.Content.Models;
 using VictoriantChile.Content.State;
@@ -18,7 +19,7 @@ namespace VictoriantChile.Simulation.Tests.EditMode
 {
     public sealed class EffectEngineTests
     {
-        private const string GoldenHash = "sha256:b7d2b922d3c63bb50f62101b86869c44e2fa9eb1a57181582f843d0926e14cfe";
+        private const string GoldenHash = "sha256:d95ab9cf098dd92efec8f01a2605d794653d29b3e677b208aeaa324b40e35060";
 
         [Test]
         public void EffectInstanceValidatesOriginAndBuildsModifierCause()
@@ -434,11 +435,13 @@ namespace VictoriantChile.Simulation.Tests.EditMode
             string hashA = new GameStateHasher().ComputeHash(state);
             string hashB = new GameStateHasher().ComputeHash(state);
 
-            Assert.That(state.StateSchemaVersion, Is.EqualTo(2));
+            Assert.That(state.StateSchemaVersion, Is.EqualTo(3));
             Assert.That(state.ActiveEffects.Count, Is.EqualTo(1));
             Assert.That(jsonA, Is.EqualTo(jsonB));
             Assert.That(hashA, Is.EqualTo(hashB));
             Assert.That(jsonA, Does.Contain("\"active_effects\":[{\"id\":\"inst_hash\""));
+            Assert.That(jsonA, Does.Contain("\"scheduled_actions\":[]"));
+            Assert.That(jsonA, Does.Contain("\"blocking_decision\":null"));
         }
 
         [Test]
@@ -556,6 +559,14 @@ namespace VictoriantChile.Simulation.Tests.EditMode
             builder.Append("\n  ]\n");
             builder.Append("}\n");
             return builder.ToString();
+        }
+
+        public static void ExportGoldenEvidence()
+        {
+            File.WriteAllText(
+                Path.Combine(ExportProjectRoot(), "tests", "effects", "effect_engine_v1.expected.json"),
+                BuildGoldenEvidence(),
+                new UTF8Encoding(false));
         }
 
         private static ContentPack CreatePack(params EffectTemplate[] effects)
@@ -755,6 +766,11 @@ namespace VictoriantChile.Simulation.Tests.EditMode
         private static string ProjectRoot()
         {
             return Path.GetFullPath(Path.Combine(TestContext.CurrentContext.TestDirectory, "..", ".."));
+        }
+
+        private static string ExportProjectRoot()
+        {
+            return Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
         }
     }
 }

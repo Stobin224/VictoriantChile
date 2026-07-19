@@ -1,0 +1,226 @@
+{
+  "contract": {
+    "algorithm": "pcg32-xsh-rr",
+    "contract_version": "pcg32-v1",
+    "multiplier_u64_decimal": "6364136223846793005",
+    "byte_order": "little-endian",
+    "warmup_draws": 0,
+    "serialized_fields": [
+      "state_u64",
+      "stream_u64",
+      "draw_count_u64"
+    ],
+    "global_keyed_draw_consumption": false
+  },
+  "initialization_cases": [
+    {
+      "seed_i64": "0",
+      "preimage_hex": "566963746f7269616e744368696c652f70636733322d76312f696e6974000000000000000000",
+      "digest_sha256": "b791e1acbb5890f5b96a07a99e50edeb90b75017fc9cd4b46d31119e63dc4106",
+      "initial_state_u64": "f59058bbace191b7",
+      "initial_stream_u64": "ebed509ea9076ab9",
+      "draws_u32": [
+        3358781406,
+        2174625884,
+        311918010
+      ],
+      "final_state_u64": "535afa78084227c2",
+      "final_stream_u64": "ebed509ea9076ab9",
+      "final_draw_count_u64": "0000000000000003"
+    },
+    {
+      "seed_i64": "1",
+      "preimage_hex": "566963746f7269616e744368696c652f70636733322d76312f696e6974000100000000000000",
+      "digest_sha256": "7b3098f193179fc0ed15020a7ef88702abba88d0f5954b706223eaca09136341",
+      "initial_state_u64": "c09f1793f198307b",
+      "initial_stream_u64": "0287f87e0a0215ed",
+      "draws_u32": [
+        3841361427,
+        1447290681,
+        2959985288
+      ],
+      "final_state_u64": "e05d298eeb4c3f02",
+      "final_stream_u64": "0287f87e0a0215ed",
+      "final_draw_count_u64": "0000000000000003"
+    },
+    {
+      "seed_i64": "424242",
+      "preimage_hex": "566963746f7269616e744368696c652f70636733322d76312f696e6974003279060000000000",
+      "digest_sha256": "e1e81f16fa830b3bf72365f2b2df2b1424feb476c36e4589d9181e834db02e80",
+      "initial_state_u64": "3b0b83fa161fe8e1",
+      "initial_stream_u64": "142bdfb2f26523f7",
+      "draws_u32": [
+        1019405134,
+        812382444,
+        319587703
+      ],
+      "final_state_u64": "30a6ef3f868dad86",
+      "final_stream_u64": "142bdfb2f26523f7",
+      "final_draw_count_u64": "0000000000000003"
+    },
+    {
+      "seed_i64": "-1",
+      "preimage_hex": "566963746f7269616e744368696c652f70636733322d76312f696e697400ffffffffffffffff",
+      "digest_sha256": "625535387a1a4e9925f10abf702f190e1896ce37e2b9c99b728b66658f56796d",
+      "initial_state_u64": "994e1a7a38355562",
+      "initial_stream_u64": "0e192f70bf0af125",
+      "draws_u32": [
+        4037469496,
+        828456722,
+        1791890310
+      ],
+      "final_state_u64": "743ac7075244321d",
+      "final_stream_u64": "0e192f70bf0af125",
+      "final_draw_count_u64": "0000000000000003"
+    },
+    {
+      "seed_i64": "9223372036854775807",
+      "preimage_hex": "566963746f7269616e744368696c652f70636733322d76312f696e697400ffffffffffffff7f",
+      "digest_sha256": "b4b53e3cb71aac96da57de2dab5f59b0092d46616c39d4ad39f5b641ddaf49d7",
+      "initial_state_u64": "96ac1ab73c3eb5b4",
+      "initial_stream_u64": "b0595fab2dde57db",
+      "draws_u32": [
+        4175557985,
+        2527283806,
+        201401414
+      ],
+      "final_state_u64": "715fa200807e68f1",
+      "final_stream_u64": "b0595fab2dde57db",
+      "final_draw_count_u64": "0000000000000003"
+    },
+    {
+      "seed_i64": "-9223372036854775808",
+      "preimage_hex": "566963746f7269616e744368696c652f70636733322d76312f696e6974000000000000000080",
+      "digest_sha256": "0781736d3da5c17effda606fbccedef9c25d4d9dc7d13188bb8089550f6c182f",
+      "initial_state_u64": "7ec1a53d6d738107",
+      "initial_stream_u64": "f9decebc6f60daff",
+      "draws_u32": [
+        2738991214,
+        12192743,
+        1986761603
+      ],
+      "final_state_u64": "42aced3470c4139c",
+      "final_stream_u64": "f9decebc6f60daff",
+      "final_draw_count_u64": "0000000000000003"
+    }
+  ],
+  "keyed_cases": [
+    {
+      "name": "nominal",
+      "seed_i64": "424242",
+      "tick_u64": "7",
+      "system": "events",
+      "template": "evt_a",
+      "slot_u64": "0",
+      "preimage_hex": "566963746f7269616e744368696c652f70636733322d76312f6576656e742d73656c6563746f720032790600000000000700000000000000060000006576656e7473050000006576745f610000000000000000",
+      "digest_sha256": "473763d65430001c84b1414c6acdbd26e2afa92382bd21940b2902257aae5112",
+      "keyed_state_u64": "1c003054d6633747",
+      "keyed_stream_u64": "26bdcd6a4c41b185",
+      "keyed_draw_u32": 1879104851
+    },
+    {
+      "name": "tick_zero",
+      "seed_i64": "424242",
+      "tick_u64": "0",
+      "system": "events",
+      "template": "evt_a",
+      "slot_u64": "0",
+      "preimage_hex": "566963746f7269616e744368696c652f70636733322d76312f6576656e742d73656c6563746f720032790600000000000000000000000000060000006576656e7473050000006576745f610000000000000000",
+      "digest_sha256": "13481113f5768b9f703e873990978b142d0ec8db73866aeabf0a5998a0959e7b",
+      "keyed_state_u64": "9f8b76f513114813",
+      "keyed_stream_u64": "148b979039873e71",
+      "keyed_draw_u32": 1147092525
+    },
+    {
+      "name": "tick_high",
+      "seed_i64": "424242",
+      "tick_u64": "18446744073709551615",
+      "system": "events",
+      "template": "evt_a",
+      "slot_u64": "0",
+      "preimage_hex": "566963746f7269616e744368696c652f70636733322d76312f6576656e742d73656c6563746f72003279060000000000ffffffffffffffff060000006576656e7473050000006576745f610000000000000000",
+      "digest_sha256": "aa05765f52926056093aa1aff57deb1599713efe5a9efa53b418a6199975098c",
+      "keyed_state_u64": "566092525f7605aa",
+      "keyed_stream_u64": "15eb7df5afa13a09",
+      "keyed_draw_u32": 1408435262
+    },
+    {
+      "name": "slot_one",
+      "seed_i64": "424242",
+      "tick_u64": "7",
+      "system": "events",
+      "template": "evt_a",
+      "slot_u64": "1",
+      "preimage_hex": "566963746f7269616e744368696c652f70636733322d76312f6576656e742d73656c6563746f720032790600000000000700000000000000060000006576656e7473050000006576745f610100000000000000",
+      "digest_sha256": "e5aa23c7363146a660c4e08a2403cd20f85c3c0eaadcd403db58d2f1a5919f55",
+      "keyed_state_u64": "a6463136c723aae5",
+      "keyed_stream_u64": "20cd03248ae0c461",
+      "keyed_draw_u32": 827235468
+    },
+    {
+      "name": "collision_guard_a",
+      "seed_i64": "1",
+      "tick_u64": "2",
+      "system": "a",
+      "template": "bc",
+      "slot_u64": "0",
+      "preimage_hex": "566963746f7269616e744368696c652f70636733322d76312f6576656e742d73656c6563746f72000100000000000000020000000000000001000000610200000062630000000000000000",
+      "digest_sha256": "1446429fc7a1cfdd2cd32627529ead7026a5984f70b05ba5c1396c23e50ed12d",
+      "keyed_state_u64": "ddcfa1c79f424614",
+      "keyed_stream_u64": "70ad9e522726d32d",
+      "keyed_draw_u32": 1046139351
+    },
+    {
+      "name": "collision_guard_b",
+      "seed_i64": "1",
+      "tick_u64": "2",
+      "system": "ab",
+      "template": "c",
+      "slot_u64": "0",
+      "preimage_hex": "566963746f7269616e744368696c652f70636733322d76312f6576656e742d73656c6563746f72000100000000000000020000000000000002000000616201000000630000000000000000",
+      "digest_sha256": "7003076a3a8d6a0bad66d7e94ea2ff25a4458d395b9a05c795c35632751a947a",
+      "keyed_state_u64": "0b6a8d3a6a070370",
+      "keyed_stream_u64": "25ffa24ee9d766ad",
+      "keyed_draw_u32": 3064528396
+    },
+    {
+      "name": "long_names",
+      "seed_i64": "-1",
+      "tick_u64": "5",
+      "system": "eventscheduler",
+      "template": "evt_template.long-01",
+      "slot_u64": "123456789",
+      "preimage_hex": "566963746f7269616e744368696c652f70636733322d76312f6576656e742d73656c6563746f7200ffffffffffffffff05000000000000000e0000006576656e747363686564756c6572140000006576745f74656d706c6174652e6c6f6e672d303115cd5b0700000000",
+      "digest_sha256": "8e0619f23459193e07d8484834f50e9ddab11fec6e79711b4389311956e6acfc",
+      "keyed_state_u64": "3e195934f219068e",
+      "keyed_stream_u64": "9d0ef5344848d807",
+      "keyed_draw_u32": 2844153260
+    },
+    {
+      "name": "unrelated_template_a",
+      "seed_i64": "424242",
+      "tick_u64": "7",
+      "system": "events",
+      "template": "evt_keep",
+      "slot_u64": "0",
+      "preimage_hex": "566963746f7269616e744368696c652f70636733322d76312f6576656e742d73656c6563746f720032790600000000000700000000000000060000006576656e7473080000006576745f6b6565700000000000000000",
+      "digest_sha256": "a1570a6531aa3b85ea38bce5dbe854a2016882752cd77ff86abd6f2170ac39ee",
+      "keyed_state_u64": "853baa31650a57a1",
+      "keyed_stream_u64": "a254e8dbe5bc38eb",
+      "keyed_draw_u32": 1878108017
+    },
+    {
+      "name": "unrelated_template_b",
+      "seed_i64": "424242",
+      "tick_u64": "7",
+      "system": "events",
+      "template": "evt_other",
+      "slot_u64": "0",
+      "preimage_hex": "566963746f7269616e744368696c652f70636733322d76312f6576656e742d73656c6563746f720032790600000000000700000000000000060000006576656e7473090000006576745f6f746865720000000000000000",
+      "digest_sha256": "20b80b42bf208aac72fa8eb249c1cb8e4ad460a216c8297ed7aeb3ff65617591",
+      "keyed_state_u64": "ac8a20bf420bb820",
+      "keyed_stream_u64": "8ecbc149b28efa73",
+      "keyed_draw_u32": 194890890
+    }
+  ]
+}

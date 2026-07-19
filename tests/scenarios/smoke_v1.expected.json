@@ -118,11 +118,19 @@
       "diagnostics": []
     }
   ],
-  "state_hash": "sha256:1f39c5fdfb920f31532e52646c3ceca468a667aa485e49202ff2f0c357fe6aef",
+  "state_hash": "sha256:51168b952197ecad4ca3454ae81917ce65ccee4ec806195a05528ca0864f86b6",
   "state": {
-    "state_schema_version": 2,
+    "state_schema_version": 3,
     "tick": 0,
     "rng_seed": 424242,
+    "rng": {
+      "algorithm": "pcg32-xsh-rr",
+      "contract_version": "pcg32-v1",
+      "state_u64": "3b0b83fa161fe8e1",
+      "stream_u64": "142bdfb2f26523f7",
+      "draw_count_u64": "0000000000000000"
+    },
+    "blocking_decision": null,
     "content": {
       "content_pack_version": 3,
       "content_schema_version": 1,
@@ -625,7 +633,8 @@
         "direction": 1
       }
     ],
-    "active_effects": []
+    "active_effects": [],
+    "scheduled_actions": []
   },
   "diagnostics": []
 }

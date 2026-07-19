@@ -16,7 +16,7 @@ namespace VictoriantChile.Simulation.Tests.EditMode
 {
     public sealed class StateResolutionScenarioRunnerTests
     {
-        private const string SmokeStateHash = "sha256:1f39c5fdfb920f31532e52646c3ceca468a667aa485e49202ff2f0c357fe6aef";
+        private const string SmokeStateHash = "sha256:51168b952197ecad4ca3454ae81917ce65ccee4ec806195a05528ca0864f86b6";
 
         [TestCase("metrics.legitimacy", 5000)]
         [TestCase("internals.economy.growth", 5000)]
@@ -262,7 +262,10 @@ namespace VictoriantChile.Simulation.Tests.EditMode
             string json = new CanonicalGameStateSerializer().ToCompactJson(state);
             string hash = new GameStateHasher().ComputeHash(state);
 
-            Assert.That(json, Does.StartWith("{\"state_schema_version\":2,\"tick\":0,\"rng_seed\":424242,\"content\":"));
+            Assert.That(
+                json,
+                Does.StartWith(
+                    "{\"state_schema_version\":3,\"tick\":0,\"rng_seed\":424242,\"rng\":{\"algorithm\":\"pcg32-xsh-rr\",\"contract_version\":\"pcg32-v1\","));
             Assert.That(hash, Does.Match("^sha256:[0-9a-f]{64}$"));
             Assert.That(hash, Is.EqualTo(new GameStateHasher().ComputeHash(CreateState(LoadRealPack(), 424242))));
             Assert.That(hash, Is.Not.EqualTo(new GameStateHasher().ComputeHash(CreateState(LoadRealPack(), 424243))));
@@ -280,6 +283,47 @@ namespace VictoriantChile.Simulation.Tests.EditMode
             Assert.That(result.Commands[2].Clamped, Is.True);
             Assert.That(result.Commands[5].NormalizeGroup, Is.EqualTo("igs.clout_sum_100"));
             Assert.That(result.Diagnostics, Is.Empty);
+        }
+
+        [Test]
+        public void ScenarioRunnerAdvanceCommandReportsWeeksHashesAndCausalTicksDeterministically()
+        {
+            byte[] scenario = Encoding.UTF8.GetBytes(
+                "{\n"
+                + "  \"scenario_schema_version\": 1,\n"
+                + "  \"seed\": 424242,\n"
+                + "  \"commands\": [\n"
+                + "    {\n"
+                + "      \"id\": \"advance_four\",\n"
+                + "      \"type\": \"ADVANCE\",\n"
+                + "      \"weeks\": 4\n"
+                + "    }\n"
+                + "  ]\n"
+                + "}\n");
+
+            ScenarioRunnerResult first = new ScenarioRunner().Run(scenario, ContentRoot());
+            ScenarioRunnerResult second = new ScenarioRunner().Run(scenario, ContentRoot());
+
+            Assert.That(first.Status, Is.EqualTo("passed"), Diagnostics(first.Diagnostics));
+            Assert.That(first.CommandCount, Is.EqualTo(1));
+            Assert.That(first.Commands.Count, Is.EqualTo(1));
+            Assert.That(first.Commands[0].Type, Is.EqualTo("advance"));
+            Assert.That(first.Commands[0].WeeksRequested, Is.EqualTo(4));
+            Assert.That(first.Commands[0].TicksCompleted, Is.EqualTo(4));
+            Assert.That(first.Commands[0].BlockingDecision, Is.Null);
+            Assert.That(first.Commands[0].TickStateHashes.Count, Is.EqualTo(4));
+            Assert.That(first.Commands[0].CausalTicks.Count, Is.EqualTo(4));
+            string stateJson = ScenarioState(first).ToString();
+            Assert.That(stateJson, Does.Contain("\"tick\": 4").Or.Contain("\"tick\":4"));
+            Assert.That(stateJson, Does.Contain("\"state_schema_version\": 3").Or.Contain("\"state_schema_version\":3"));
+            Assert.That(first.StateHash, Is.EqualTo(second.StateHash));
+            Assert.That(first.Commands[0].TickStateHashes, Is.EqualTo(second.Commands[0].TickStateHashes));
+            Assert.That(first.Commands[0].CausalTicks.Count, Is.EqualTo(second.Commands[0].CausalTicks.Count));
+            for (int i = 0; i < first.Commands[0].CausalTicks.Count; i++)
+            {
+                Assert.That(first.Commands[0].CausalTicks[i].Tick, Is.EqualTo(i + 1));
+                Assert.That(first.Commands[0].CausalTicks[i].AuditedTargets.Count, Is.GreaterThan(0));
+            }
         }
 
         [TestCase("negative_static_mutation.json", "target.read_only")]

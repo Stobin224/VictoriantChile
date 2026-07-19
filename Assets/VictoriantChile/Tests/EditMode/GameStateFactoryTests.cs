@@ -18,7 +18,7 @@ namespace VictoriantChile.Simulation.Tests.EditMode
         {
             GameState state = CreateRealState(12345);
 
-            Assert.That(state.StateSchemaVersion, Is.EqualTo(2));
+            Assert.That(state.StateSchemaVersion, Is.EqualTo(3));
             Assert.That(state.Tick, Is.EqualTo(0));
             Assert.That(state.RngSeed, Is.EqualTo(12345));
             Assert.That(state.Metrics.Count, Is.EqualTo(10));
@@ -27,6 +27,10 @@ namespace VictoriantChile.Simulation.Tests.EditMode
             Assert.That(state.InterestGroups.Count, Is.EqualTo(9));
             Assert.That(state.Movements.Count, Is.EqualTo(9));
             Assert.That(state.ActiveEffects, Is.Empty);
+            Assert.That(state.ScheduledActions, Is.Empty);
+            Assert.That(state.BlockingDecision, Is.Null);
+            Assert.That(state.RngState, Is.Not.Null);
+            Assert.That(state.RngState.DrawCountU64, Is.EqualTo(0UL));
             AssertAllMetrics(state, 5000);
             AssertAllRegions(state, 5000);
             AssertAllInternals(state, 5000);
@@ -141,6 +145,8 @@ namespace VictoriantChile.Simulation.Tests.EditMode
             Assert.That(state.Internals[0].Components.Count, Is.EqualTo(1));
             Assert.That(state.ContentMetadata.Files.Count, Is.EqualTo(1));
             Assert.That(state.ActiveEffects.Count, Is.EqualTo(0));
+            Assert.That(state.ScheduledActions.Count, Is.EqualTo(0));
+            Assert.That(state.BlockingDecision, Is.Null);
 
             AssertReadOnlyList(state.Metrics, new MetricState("gamma", 3));
             AssertReadOnlyDictionary(state.MetricsById, "gamma", new MetricState("gamma", 3));
@@ -164,6 +170,23 @@ namespace VictoriantChile.Simulation.Tests.EditMode
                 VictoriantChile.Simulation.Core.Effects.EffectStackMode.Stack,
                 null,
                 0));
+            AssertReadOnlyList(state.ScheduledActions, new VictoriantChile.Simulation.Core.Scheduling.ScheduledAction(
+                "gamma",
+                1,
+                0,
+                "gamma_action",
+                VictoriantChile.Simulation.Core.Scheduling.ScheduledActionPayload.Empty,
+                new VictoriantChile.Simulation.Core.Causality.CauseRef(VictoriantChile.Simulation.Core.Causality.CauseCategory.Decision, "decision_gamma")));
+            AssertReadOnlyDictionary(
+                state.ScheduledActionsById,
+                "gamma",
+                new VictoriantChile.Simulation.Core.Scheduling.ScheduledAction(
+                    "gamma",
+                    1,
+                    0,
+                    "gamma_action",
+                    VictoriantChile.Simulation.Core.Scheduling.ScheduledActionPayload.Empty,
+                    new VictoriantChile.Simulation.Core.Causality.CauseRef(VictoriantChile.Simulation.Core.Causality.CauseCategory.Decision, "decision_gamma")));
             AssertReadOnlyList(state.ContentMetadata.Files, new ContentFileIdentity("gamma.json", "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"));
         }
 

@@ -81,7 +81,10 @@ namespace VictoriantChile.Simulation.Core.Effects
                 current.InterestGroups,
                 current.Movements,
                 registry,
-                current.Tick);
+                current.Tick,
+                current.RngState,
+                current.ScheduledActions,
+                current.BlockingDecision);
         }
 
         private static List<EffectInstance> TrimExpiredForRegistration(IReadOnlyList<EffectInstance> current, int tick)
@@ -156,7 +159,10 @@ namespace VictoriantChile.Simulation.Core.Effects
                 current.InterestGroups,
                 current.Movements,
                 kept,
-                current.Tick);
+                current.Tick,
+                current.RngState,
+                current.ScheduledActions,
+                current.BlockingDecision);
         }
 
         public GameState ApplyStartInstantModifiers(GameState current, EffectRuntimeCatalog runtimeCatalog, TargetConfigCatalog targetConfigs, int tick, TickCausalBuffer causalBuffer)
@@ -212,7 +218,10 @@ namespace VictoriantChile.Simulation.Core.Effects
                     current.InterestGroups,
                     current.Movements,
                     updatedRegistry,
-                    current.Tick);
+                    current.Tick,
+                    current.RngState,
+                    current.ScheduledActions,
+                    current.BlockingDecision);
             }
 
             Dictionary<TargetPath, List<PlannedModifier>> byTarget = GroupByTarget(plannedModifiers);
@@ -702,7 +711,10 @@ namespace VictoriantChile.Simulation.Core.Effects
                 interestGroups,
                 movements,
                 activeEffects,
-                current.Tick);
+                current.Tick,
+                current.RngState,
+                current.ScheduledActions,
+                current.BlockingDecision);
         }
 
         private static int ResolveFinal(IReadOnlyDictionary<TargetPath, int> finalValues, TargetPath target, int existing)

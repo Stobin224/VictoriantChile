@@ -5,6 +5,8 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using VictoriantChile.Simulation.Core.Causality;
 using VictoriantChile.Simulation.Core.Effects;
+using VictoriantChile.Simulation.Core.Numerics;
+using VictoriantChile.Simulation.Core.Scheduling;
 using VictoriantChile.Simulation.Core.State;
 
 namespace VictoriantChile.Simulation.Runner
@@ -18,13 +20,16 @@ namespace VictoriantChile.Simulation.Runner
                 ["state_schema_version"] = state.StateSchemaVersion,
                 ["tick"] = state.Tick,
                 ["rng_seed"] = state.RngSeed,
+                ["rng"] = BuildRng(state.RngState),
+                ["blocking_decision"] = state.BlockingDecision == null ? JValue.CreateNull() : BuildBlockingDecision(state.BlockingDecision),
                 ["content"] = BuildContent(state),
                 ["metrics"] = BuildMetrics(state),
                 ["internals"] = BuildInternals(state),
                 ["regions"] = BuildRegions(state),
                 ["interest_groups"] = BuildInterestGroups(state),
                 ["movements"] = BuildMovements(state),
-                ["active_effects"] = BuildActiveEffects(state)
+                ["active_effects"] = BuildActiveEffects(state),
+                ["scheduled_actions"] = BuildScheduledActions(state)
             };
             return root;
         }
@@ -181,6 +186,62 @@ namespace VictoriantChile.Simulation.Runner
             }
 
             return values;
+        }
+
+        private static JObject BuildRng(Pcg32State state)
+        {
+            return new JObject
+            {
+                ["algorithm"] = Pcg32State.Algorithm,
+                ["contract_version"] = Pcg32State.ContractVersion,
+                ["state_u64"] = state.StateHex,
+                ["stream_u64"] = state.StreamHex,
+                ["draw_count_u64"] = state.DrawCountHex
+            };
+        }
+
+        private static JObject BuildBlockingDecision(BlockingDecision decision)
+        {
+            return new JObject
+            {
+                ["id"] = decision.Id,
+                ["type"] = decision.Type,
+                ["source"] = BuildCause(decision.Source),
+                ["created_tick"] = decision.CreatedTick,
+                ["payload"] = BuildPayload(decision.Payload)
+            };
+        }
+
+        private static JArray BuildScheduledActions(GameState state)
+        {
+            JArray values = new JArray();
+            for (int i = 0; i < state.ScheduledActions.Count; i++)
+            {
+                ScheduledAction action = state.ScheduledActions[i];
+                values.Add(new JObject
+                {
+                    ["id"] = action.Id,
+                    ["run_tick"] = action.RunTick,
+                    ["priority"] = action.Priority,
+                    ["type"] = action.Type,
+                    ["source"] = BuildCause(action.Source),
+                    ["payload"] = BuildPayload(action.Payload)
+                });
+            }
+
+            return values;
+        }
+
+        private static JObject BuildPayload(ScheduledActionPayload payload)
+        {
+            JObject root = new JObject();
+            for (int i = 0; i < payload.Entries.Count; i++)
+            {
+                ScheduledActionPayloadEntry entry = payload.Entries[i];
+                root.Add(entry.Key, entry.Value);
+            }
+
+            return root;
         }
 
         private static JObject BuildCause(CauseRef cause)
