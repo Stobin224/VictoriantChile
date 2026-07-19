@@ -131,11 +131,14 @@ class GameStateContractTest(unittest.TestCase):
 
     def test_core_has_no_forbidden_runtime_dependencies_or_nondeterminism(self) -> None:
         forbidden = re.compile(
-            r"UnityEngine|UnityEditor|Newtonsoft|System\.IO|System\.Text\.Json|System\.Security\.Cryptography|"
+            r"UnityEngine|UnityEditor|Newtonsoft|System\.IO|System\.Text\.Json|"
             r"\bfloat\b|\bdouble\b|\bdecimal\b|\bRandom\b|DateTime\.Now|DateTime\.UtcNow|Guid\.NewGuid|\bunsafe\b"
         )
         for path in CORE.rglob("*.cs"):
-            self.assertIsNone(forbidden.search(path.read_text(encoding="utf-8")), path)
+            text = path.read_text(encoding="utf-8")
+            self.assertIsNone(forbidden.search(text), path)
+            if path.name != "Pcg32Random.cs":
+                self.assertNotRegex(text, r"System\.Security\.Cryptography|SHA256", path)
 
     def test_runner_dependency_boundaries_are_explicit(self) -> None:
         core_guid = meta_guid(CORE / "VictoriantChile.Simulation.Core.asmdef.meta")

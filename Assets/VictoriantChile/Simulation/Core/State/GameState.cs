@@ -1,12 +1,15 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using VictoriantChile.Simulation.Core.Effects;
+using VictoriantChile.Simulation.Core.Numerics;
+using VictoriantChile.Simulation.Core.Scheduling;
 
 namespace VictoriantChile.Simulation.Core.State
 {
     public sealed class GameState
     {
-        public const int CurrentStateSchemaVersion = 2;
+        public const int CurrentStateSchemaVersion = 3;
 
         public GameState(
             int rngSeed,
@@ -16,7 +19,7 @@ namespace VictoriantChile.Simulation.Core.State
             IEnumerable<RegionState> regions,
             IEnumerable<InterestGroupState> interestGroups,
             IEnumerable<MovementState> movements)
-            : this(rngSeed, contentMetadata, metrics, internals, regions, interestGroups, movements, null, 0)
+            : this(rngSeed, contentMetadata, metrics, internals, regions, interestGroups, movements, null, 0, null, null, null)
         {
         }
 
@@ -29,7 +32,10 @@ namespace VictoriantChile.Simulation.Core.State
             IEnumerable<InterestGroupState> interestGroups,
             IEnumerable<MovementState> movements,
             IEnumerable<EffectInstance> activeEffects,
-            int tick = 0)
+            int tick = 0,
+            Pcg32State rngState = null,
+            IEnumerable<ScheduledAction> scheduledActions = null,
+            BlockingDecision blockingDecision = null)
         {
             ContentMetadata = contentMetadata ?? throw new ArgumentNullException(nameof(contentMetadata));
             if (tick < 0)
@@ -39,6 +45,7 @@ namespace VictoriantChile.Simulation.Core.State
 
             Tick = tick;
             RngSeed = rngSeed;
+            RngState = rngState ?? Pcg32State.CreateFromSeed(rngSeed);
             Metrics = StateCollection.SnapshotSorted(metrics, item => item.MetricId, nameof(metrics));
             MetricsById = StateCollection.MapById(Metrics, item => item.MetricId);
             Internals = StateCollection.SnapshotSorted(internals, item => item.Domain, nameof(internals));
@@ -51,6 +58,9 @@ namespace VictoriantChile.Simulation.Core.State
             MovementsById = StateCollection.MapById(Movements, item => item.MovementId);
             ActiveEffects = StateCollection.SnapshotSorted(activeEffects ?? Array.Empty<EffectInstance>(), item => item.Id, nameof(activeEffects));
             ActiveEffectsById = StateCollection.MapById(ActiveEffects, item => item.Id);
+            ScheduledActions = SnapshotScheduledActions(scheduledActions ?? Array.Empty<ScheduledAction>());
+            ScheduledActionsById = MapScheduledActionsById(ScheduledActions);
+            BlockingDecision = blockingDecision;
         }
 
         public int StateSchemaVersion => CurrentStateSchemaVersion;
@@ -58,6 +68,8 @@ namespace VictoriantChile.Simulation.Core.State
         public int Tick { get; }
 
         public int RngSeed { get; }
+
+        public Pcg32State RngState { get; }
 
         public GameStateContentMetadata ContentMetadata { get; }
 
@@ -84,5 +96,45 @@ namespace VictoriantChile.Simulation.Core.State
         public IReadOnlyList<EffectInstance> ActiveEffects { get; }
 
         public IReadOnlyDictionary<string, EffectInstance> ActiveEffectsById { get; }
+
+        public IReadOnlyList<ScheduledAction> ScheduledActions { get; }
+
+        public IReadOnlyDictionary<string, ScheduledAction> ScheduledActionsById { get; }
+
+        public BlockingDecision BlockingDecision { get; }
+
+        private static IReadOnlyList<ScheduledAction> SnapshotScheduledActions(IEnumerable<ScheduledAction> values)
+        {
+            List<ScheduledAction> snapshot = new List<ScheduledAction>();
+            HashSet<string> seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (ScheduledAction value in values)
+            {
+                if (value == null)
+                {
+                    throw new ArgumentNullException(nameof(values), "Scheduled actions cannot contain null values.");
+                }
+
+                if (!seen.Add(value.Id))
+                {
+                    throw new ArgumentException("Duplicate scheduled action ID: " + value.Id, nameof(values));
+                }
+
+                snapshot.Add(value);
+            }
+
+            snapshot.Sort(ScheduledAction.CompareQueueOrder);
+            return Array.AsReadOnly(snapshot.ToArray());
+        }
+
+        private static IReadOnlyDictionary<string, ScheduledAction> MapScheduledActionsById(IReadOnlyList<ScheduledAction> values)
+        {
+            Dictionary<string, ScheduledAction> result = new Dictionary<string, ScheduledAction>(StringComparer.Ordinal);
+            for (int i = 0; i < values.Count; i++)
+            {
+                result.Add(values[i].Id, values[i]);
+            }
+
+            return new ReadOnlyDictionary<string, ScheduledAction>(result);
+        }
     }
 }

@@ -129,9 +129,10 @@ namespace VictoriantChile.Simulation.Runner
             string typeText = ReadRequiredString(command, "type", path + ".type", diagnostics);
             bool isRead = typeText == "READ";
             bool isMutate = typeText == "MUTATE";
-            if (!isRead && !isMutate)
+            bool isAdvance = typeText == "ADVANCE";
+            if (!isRead && !isMutate && !isAdvance)
             {
-                diagnostics.Add(new StateDiagnostic("scenario.invalid_value", path + ".type", "Command type must be READ or MUTATE."));
+                diagnostics.Add(new StateDiagnostic("scenario.invalid_value", path + ".type", "Command type must be READ, MUTATE, or ADVANCE."));
             }
 
             if (isRead)
@@ -141,6 +142,10 @@ namespace VictoriantChile.Simulation.Runner
             else if (isMutate)
             {
                 RequireOnly(command, path, diagnostics, "id", "type", "target", "op", "value_s");
+            }
+            else if (isAdvance)
+            {
+                RequireOnly(command, path, diagnostics, "id", "type", "weeks");
             }
 
             string id = ReadRequiredString(command, "id", path + ".id", diagnostics);
@@ -157,15 +162,19 @@ namespace VictoriantChile.Simulation.Runner
                 }
             }
 
-            string targetText = ReadRequiredString(command, "target", path + ".target", diagnostics);
             TargetPath target = default;
-            if (!string.IsNullOrEmpty(targetText) && !TargetPath.TryParse(targetText, out target))
+            if (isRead || isMutate)
             {
-                diagnostics.Add(new StateDiagnostic("target.invalid_path", path + ".target", "Target must be a concrete canonical TargetPath."));
+                string targetText = ReadRequiredString(command, "target", path + ".target", diagnostics);
+                if (!string.IsNullOrEmpty(targetText) && !TargetPath.TryParse(targetText, out target))
+                {
+                    diagnostics.Add(new StateDiagnostic("target.invalid_path", path + ".target", "Target must be a concrete canonical TargetPath."));
+                }
             }
 
             TargetOperation operation = TargetOperation.Add;
             int valueS = 0;
+            int weeks = 0;
             if (isMutate)
             {
                 string opText = ReadRequiredString(command, "op", path + ".op", diagnostics);
@@ -195,10 +204,24 @@ namespace VictoriantChile.Simulation.Runner
                     diagnostics.Add(new StateDiagnostic("scenario.unknown_property", path, "READ commands cannot include op or value_s."));
                 }
             }
-
-            if (diagnostics.Count == 0 || target.IsValid)
+            else if (isAdvance)
             {
-                commands.Add(new ScenarioCommand(id, isRead ? ScenarioCommandType.Read : ScenarioCommandType.Mutate, target, operation, valueS));
+                weeks = ReadRequiredInt(command, "weeks", path + ".weeks", diagnostics);
+                if (weeks != 1 && weeks != 4 && weeks != 12)
+                {
+                    diagnostics.Add(new StateDiagnostic("scenario.invalid_value", path + ".weeks", "ADVANCE weeks must be exactly 1, 4, or 12."));
+                }
+            }
+
+            if (diagnostics.Count == 0 || target.IsValid || isAdvance)
+            {
+                commands.Add(new ScenarioCommand(
+                    id,
+                    isRead ? ScenarioCommandType.Read : (isMutate ? ScenarioCommandType.Mutate : ScenarioCommandType.Advance),
+                    target,
+                    operation,
+                    valueS,
+                    weeks));
             }
         }
 

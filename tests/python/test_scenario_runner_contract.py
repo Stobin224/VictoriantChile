@@ -19,7 +19,7 @@ sys.path.insert(0, str(ROOT))
 import scripts.run_scenario as run_scenario
 from scripts.find_unity import UnityResolution
 
-EXPECTED_STATE_HASH = "sha256:1f39c5fdfb920f31532e52646c3ceca468a667aa485e49202ff2f0c357fe6aef"
+EXPECTED_STATE_HASH = "sha256:51168b952197ecad4ca3454ae81917ce65ccee4ec806195a05528ca0864f86b6"
 
 
 def re_unfiltered_catch_exception(text: str) -> bool:
@@ -344,6 +344,8 @@ class ScenarioRunnerScriptTest(unittest.TestCase):
                 "state_schema_version",
                 "tick",
                 "rng_seed",
+                "rng",
+                "blocking_decision",
                 "content",
                 "metrics",
                 "internals",
@@ -351,9 +353,17 @@ class ScenarioRunnerScriptTest(unittest.TestCase):
                 "interest_groups",
                 "movements",
                 "active_effects",
+                "scheduled_actions",
             ],
             list(state.keys()),
         )
+        self.assertEqual(
+            ["algorithm", "contract_version", "state_u64", "stream_u64", "draw_count_u64"],
+            list(state["rng"].keys()),
+        )
+        self.assertEqual("pcg32-xsh-rr", state["rng"]["algorithm"])
+        self.assertEqual("pcg32-v1", state["rng"]["contract_version"])
+        self.assertIsNone(state["blocking_decision"])
         self.assertEqual(
             ["content_pack_version", "content_schema_version", "min_game_schema_version", "default_language", "files"],
             list(state["content"].keys()),
@@ -381,6 +391,7 @@ class ScenarioRunnerScriptTest(unittest.TestCase):
         for item in state["movements"]:
             self.assertEqual(["id", "intensity_s", "direction"], list(item.keys()))
         self.assertEqual([], state["active_effects"])
+        self.assertEqual([], state["scheduled_actions"])
 
     def assert_sorted_by(self, values: list[dict], key: str) -> None:
         ids = [item[key] for item in values]

@@ -107,10 +107,13 @@ class RuntimeContentLoaderContractTest(unittest.TestCase):
         self.assertIn("Read access denied", loading_source)
 
     def test_core_does_not_reference_loader_concerns(self) -> None:
-        forbidden = re.compile(r"Newtonsoft|System\.IO|System\.Text\.Json|Security\.Cryptography|SHA256|Json")
+        forbidden = re.compile(r"Newtonsoft|System\.IO|System\.Text\.Json|Json")
         core = ROOT / "Assets" / "VictoriantChile" / "Simulation" / "Core"
         for path in core.rglob("*.cs"):
-            self.assertIsNone(forbidden.search(path.read_text(encoding="utf-8")), path)
+            text = path.read_text(encoding="utf-8")
+            self.assertIsNone(forbidden.search(text), path)
+            if path.name != "Pcg32Random.cs":
+                self.assertNotRegex(text, r"Security\.Cryptography|SHA256", path)
 
     def test_public_content_api_does_not_expose_newtonsoft_types(self) -> None:
         forbidden = re.compile(r"\b(JObject|JArray|JToken|JsonReader|Newtonsoft\.)\b")
