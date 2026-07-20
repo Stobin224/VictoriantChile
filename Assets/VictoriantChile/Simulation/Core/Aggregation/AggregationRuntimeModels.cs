@@ -30,44 +30,56 @@ namespace VictoriantChile.Simulation.Core.Aggregation
         private const string DerivedId = "DERIVED";
         private const string AggregationId = "AGG";
 
-        public static CauseRef Materialize(AggregationCauseBase causeBase, TargetPath target)
-        {
-            if (!target.IsValid)
-            {
-                throw new ArgumentException("Target must be valid.", nameof(target));
-            }
-
-            return new CauseRef(CauseCategory.System, BaseId(causeBase) + "." + target.ToString());
-        }
-
         public static CauseRef MaterializeAggregationComponent(TargetPath metric, TargetPath component)
         {
-            if (!metric.IsValid)
-            {
-                throw new ArgumentException("Metric target must be valid.", nameof(metric));
-            }
-
-            if (!component.IsValid)
-            {
-                throw new ArgumentException("Component target must be valid.", nameof(component));
-            }
+            ValidateMetricTarget(metric, nameof(metric));
+            ValidateInternalTarget(component, nameof(component));
 
             return new CauseRef(CauseCategory.System, AggregationId + "." + metric.ToString() + "." + component.ToString());
         }
 
         public static CauseRef MaterializeReversion(TargetPath target)
         {
-            return Materialize(AggregationCauseBase.Reversion, target);
+            ValidateInternalTarget(target, nameof(target));
+            return new CauseRef(CauseCategory.System, BaseId(AggregationCauseBase.Reversion) + "." + target.ToString());
         }
 
         public static CauseRef MaterializeDerived(TargetPath target)
         {
-            return Materialize(AggregationCauseBase.Derived, target);
+            ValidateInternalTarget(target, nameof(target));
+            return new CauseRef(CauseCategory.System, BaseId(AggregationCauseBase.Derived) + "." + target.ToString());
         }
 
         public static CauseRef MaterializeAggregationMetric(TargetPath metric)
         {
-            return Materialize(AggregationCauseBase.Aggregation, metric);
+            ValidateMetricTarget(metric, nameof(metric));
+            return new CauseRef(CauseCategory.System, BaseId(AggregationCauseBase.Aggregation) + "." + metric.ToString());
+        }
+
+        internal static bool IsMetricTarget(TargetPath target)
+        {
+            return target.IsValid && string.Equals(target.Namespace, "metrics", StringComparison.Ordinal);
+        }
+
+        internal static bool IsInternalTarget(TargetPath target)
+        {
+            return target.IsValid && string.Equals(target.Namespace, "internals", StringComparison.Ordinal);
+        }
+
+        private static void ValidateMetricTarget(TargetPath target, string parameterName)
+        {
+            if (!IsMetricTarget(target))
+            {
+                throw new ArgumentException("Target must be a valid metrics.* path.", parameterName);
+            }
+        }
+
+        private static void ValidateInternalTarget(TargetPath target, string parameterName)
+        {
+            if (!IsInternalTarget(target))
+            {
+                throw new ArgumentException("Target must be a valid internals.* path.", parameterName);
+            }
         }
 
         private static string BaseId(AggregationCauseBase causeBase)
@@ -187,35 +199,105 @@ namespace VictoriantChile.Simulation.Core.Aggregation
 
         public CauseRef GetReversionCause(TargetPath target)
         {
-            return InternalReversion.MaterializeCause(target);
+            if (!TryGetReversionCause(target, out CauseRef cause))
+            {
+                throw new ArgumentException("Reversion cause requires a valid internals.* target.", nameof(target));
+            }
+
+            return cause;
         }
 
-        public CauseRef GetDerivedCause(TargetPath target)
+        public bool TryGetReversionCause(TargetPath target, out CauseRef cause)
         {
+            if (!AggregationCauseMaterializer.IsInternalTarget(target))
+            {
+                cause = null;
+                return false;
+            }
+
+            cause = InternalReversion.MaterializeCause(target);
+            return true;
+        }
+
+        public bool TryGetDerivedCause(TargetPath target, out CauseRef cause)
+        {
+            if (!AggregationCauseMaterializer.IsInternalTarget(target))
+            {
+                cause = null;
+                return false;
+            }
+
             for (int i = 0; i < DerivedInternals.Rules.Count; i++)
             {
                 DerivedAggregationRuleRuntime rule = DerivedInternals.Rules[i];
                 if (rule.Target == target)
                 {
-                    return rule.Cause;
+                    cause = rule.Cause;
+                    return true;
                 }
             }
 
-            return AggregationCauseMaterializer.Materialize(AggregationCauseBase.Derived, target);
+            cause = null;
+            return false;
+        }
+
+        public CauseRef GetDerivedCause(TargetPath target)
+        {
+            if (!AggregationCauseMaterializer.IsInternalTarget(target))
+            {
+                throw new ArgumentException("Derived cause requires a valid internals.* target.", nameof(target));
+            }
+
+            if (TryGetDerivedCause(target, out CauseRef cause))
+            {
+                return cause;
+            }
+
+            throw new KeyNotFoundException("Derived cause target is not present in the aggregation plan.");
+        }
+
+        public bool TryGetMetricCause(TargetPath metric, out CauseRef cause)
+        {
+            if (!AggregationCauseMaterializer.IsMetricTarget(metric))
+            {
+                cause = null;
+                return false;
+            }
+
+            if (TryGetMetric(metric, out AggregationMetricRuntime runtime))
+            {
+                cause = runtime.BaseCause;
+                return true;
+            }
+
+            cause = null;
+            return false;
         }
 
         public CauseRef GetMetricCause(TargetPath metric)
         {
-            if (TryGetMetric(metric, out AggregationMetricRuntime runtime))
+            if (!AggregationCauseMaterializer.IsMetricTarget(metric))
             {
-                return runtime.BaseCause;
+                throw new ArgumentException("Aggregation metric cause requires a valid metrics.* target.", nameof(metric));
             }
 
-            return AggregationCauseMaterializer.Materialize(AggregationCauseBase.Aggregation, metric);
+            if (TryGetMetricCause(metric, out CauseRef cause))
+            {
+                return cause;
+            }
+
+            throw new KeyNotFoundException("Aggregation metric is not present in the aggregation plan.");
         }
 
-        public CauseRef GetComponentCause(TargetPath metric, TargetPath component)
+        public bool TryGetComponentCause(TargetPath metric, TargetPath component, out CauseRef cause)
         {
+            if (!AggregationCauseMaterializer.IsMetricTarget(metric)
+                || !AggregationCauseMaterializer.IsInternalTarget(component))
+            {
+                cause = null;
+                return false;
+            }
+
             if (TryGetMetric(metric, out AggregationMetricRuntime runtime))
             {
                 for (int i = 0; i < runtime.Components.Count; i++)
@@ -223,12 +305,34 @@ namespace VictoriantChile.Simulation.Core.Aggregation
                     WeightedTargetComponentRuntime candidate = runtime.Components[i];
                     if (candidate.Target == component)
                     {
-                        return candidate.Cause;
+                        cause = candidate.Cause;
+                        return true;
                     }
                 }
             }
 
-            return AggregationCauseMaterializer.MaterializeAggregationComponent(metric, component);
+            cause = null;
+            return false;
+        }
+
+        public CauseRef GetComponentCause(TargetPath metric, TargetPath component)
+        {
+            if (!AggregationCauseMaterializer.IsMetricTarget(metric))
+            {
+                throw new ArgumentException("Aggregation component cause requires a valid metrics.* metric target.", nameof(metric));
+            }
+
+            if (!AggregationCauseMaterializer.IsInternalTarget(component))
+            {
+                throw new ArgumentException("Aggregation component cause requires a valid internals.* component target.", nameof(component));
+            }
+
+            if (TryGetComponentCause(metric, component, out CauseRef cause))
+            {
+                return cause;
+            }
+
+            throw new KeyNotFoundException("Aggregation component pair is not present in the aggregation plan.");
         }
 
         private static void AddMetricsToLookup(
@@ -317,7 +421,7 @@ namespace VictoriantChile.Simulation.Core.Aggregation
 
         public CauseRef MaterializeCause(TargetPath target)
         {
-            return AggregationCauseMaterializer.Materialize(CauseBase, target);
+            return AggregationCauseMaterializer.MaterializeReversion(target);
         }
     }
 
@@ -479,7 +583,7 @@ namespace VictoriantChile.Simulation.Core.Aggregation
                     throw new ArgumentException("Metric components cannot contain duplicate targets.", nameof(components));
                 }
 
-                componentSnapshot.Add(components[i]);
+                componentSnapshot.Add(new WeightedTargetComponentRuntime(metric, components[i].Target, components[i].WeightPpm));
             }
 
             Metric = metric;
@@ -487,11 +591,7 @@ namespace VictoriantChile.Simulation.Core.Aggregation
             AlphaPpm = alphaPpm;
             CapPerWeekS = capPerWeekS;
             Components = Array.AsReadOnly(componentSnapshot.ToArray());
-            BaseCause = AggregationCauseMaterializer.Materialize(AggregationCauseBase.Aggregation, metric);
-            for (int i = 0; i < componentSnapshot.Count; i++)
-            {
-                componentSnapshot[i].AttachCause(metric);
-            }
+            BaseCause = AggregationCauseMaterializer.MaterializeAggregationMetric(metric);
         }
 
         public TargetPath Metric { get; }
@@ -509,11 +609,16 @@ namespace VictoriantChile.Simulation.Core.Aggregation
 
     public sealed class WeightedTargetComponentRuntime
     {
-        public WeightedTargetComponentRuntime(TargetPath target, int weightPpm)
+        public WeightedTargetComponentRuntime(TargetPath metric, TargetPath target, int weightPpm)
         {
-            if (!target.IsValid)
+            if (!AggregationCauseMaterializer.IsMetricTarget(metric))
             {
-                throw new ArgumentException("Component target must be valid.", nameof(target));
+                throw new ArgumentException("Component cause metric must be a valid metrics.* target.", nameof(metric));
+            }
+
+            if (!AggregationCauseMaterializer.IsInternalTarget(target))
+            {
+                throw new ArgumentException("Component target must be a valid internals.* target.", nameof(target));
             }
 
             if (weightPpm == 0)
@@ -521,25 +626,19 @@ namespace VictoriantChile.Simulation.Core.Aggregation
                 throw new ArgumentOutOfRangeException(nameof(weightPpm), "Component weight must not be zero.");
             }
 
+            Metric = metric;
             Target = target;
             WeightPpm = weightPpm;
+            Cause = AggregationCauseMaterializer.MaterializeAggregationComponent(metric, target);
         }
+
+        public TargetPath Metric { get; }
 
         public TargetPath Target { get; }
 
         public int WeightPpm { get; }
 
-        public CauseRef Cause { get; private set; }
-
-        internal void AttachCause(TargetPath metric)
-        {
-            if (Cause != null)
-            {
-                throw new InvalidOperationException("Component cause has already been materialized.");
-            }
-
-            Cause = AggregationCauseMaterializer.MaterializeAggregationComponent(metric, Target);
-        }
+        public CauseRef Cause { get; }
     }
 
     public sealed class DerivedAggregationRuleRuntime
@@ -567,7 +666,7 @@ namespace VictoriantChile.Simulation.Core.Aggregation
             Target = target;
             Operation = operation;
             Expression = expression;
-            Cause = AggregationCauseMaterializer.Materialize(AggregationCauseBase.Derived, target);
+            Cause = AggregationCauseMaterializer.MaterializeDerived(target);
         }
 
         public TargetPath Target { get; }

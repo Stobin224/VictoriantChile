@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Reflection;
 using System.Text;
 using NUnit.Framework;
 using VictoriantChile.Content.Diagnostics;
@@ -85,6 +86,7 @@ namespace VictoriantChile.Simulation.Tests.EditMode
             Assert.That(plan.PrimaryMetrics, Is.TypeOf<AggregationMetricsPassRuntime>());
             Assert.That(plan.Legitimacy, Is.TypeOf<AggregationMetricsPassRuntime>());
             Assert.That(typeof(AggregationRuntimePlan).GetProperty("CausePrefix"), Is.Null);
+            Assert.That(typeof(AggregationCauseMaterializer).GetMethod("Materialize"), Is.Null);
             Assert.That(typeof(AggregationCauseMaterializer).GetMethod("ResolveBaseFromCauseRef"), Is.Null);
         }
 
@@ -257,9 +259,66 @@ namespace VictoriantChile.Simulation.Tests.EditMode
 
             Assert.That(plan.GetReversionCause(TargetPath.Parse("internals.economy.growth")).CanonicalKey,
                 Is.EqualTo("SYSTEM:REVERSION.internals.economy.growth"));
+            Assert.That(plan.TryGetReversionCause(TargetPath.Parse("internals.economy.growth"), out CauseRef reversionCause), Is.True);
+            Assert.That(reversionCause.CanonicalKey, Is.EqualTo("SYSTEM:REVERSION.internals.economy.growth"));
+            Assert.That(plan.TryGetDerivedCause(performance.Target, out CauseRef derivedCause), Is.True);
+            Assert.That(derivedCause, Is.SameAs(performance.Cause));
+            Assert.That(plan.TryGetMetricCause(economy.Metric, out CauseRef metricCause), Is.True);
+            Assert.That(metricCause, Is.SameAs(economy.BaseCause));
+            Assert.That(plan.TryGetComponentCause(economy.Metric, growth.Target, out CauseRef componentCause), Is.True);
+            Assert.That(componentCause, Is.SameAs(growth.Cause));
             Assert.That(plan.GetDerivedCause(performance.Target), Is.SameAs(performance.Cause));
             Assert.That(plan.GetMetricCause(economy.Metric), Is.SameAs(economy.BaseCause));
             Assert.That(plan.GetComponentCause(economy.Metric, growth.Target), Is.SameAs(growth.Cause));
+        }
+
+        [Test]
+        public void ValidAbsentTargetsDoNotFabricateCauseRefs()
+        {
+            AggregationRuntimePlan plan = LoadRealPack().AggregationRuntimePlan;
+
+            Assert.That(plan.TryGetDerivedCause(TargetPath.Parse("internals.absent.target"), out CauseRef derived), Is.False);
+            Assert.That(derived, Is.Null);
+            Assert.That(() => plan.GetDerivedCause(TargetPath.Parse("internals.absent.target")), Throws.InstanceOf<KeyNotFoundException>());
+
+            Assert.That(plan.TryGetMetricCause(TargetPath.Parse("metrics.absent"), out CauseRef metric), Is.False);
+            Assert.That(metric, Is.Null);
+            Assert.That(() => plan.GetMetricCause(TargetPath.Parse("metrics.absent")), Throws.InstanceOf<KeyNotFoundException>());
+
+            Assert.That(plan.TryGetComponentCause(TargetPath.Parse("metrics.economy"), TargetPath.Parse("internals.absent.target"), out CauseRef component), Is.False);
+            Assert.That(component, Is.Null);
+            Assert.That(() => plan.GetComponentCause(TargetPath.Parse("metrics.economy"), TargetPath.Parse("internals.absent.target")), Throws.InstanceOf<KeyNotFoundException>());
+
+            Assert.That(plan.TryGetComponentCause(TargetPath.Parse("metrics.absent"), TargetPath.Parse("internals.economy.growth"), out component), Is.False);
+            Assert.That(component, Is.Null);
+        }
+
+        [Test]
+        public void WrongNamespaceCauseRequestsFailClosed()
+        {
+            AggregationRuntimePlan plan = LoadRealPack().AggregationRuntimePlan;
+            TargetPath metric = TargetPath.Parse("metrics.economy");
+            TargetPath internalTarget = TargetPath.Parse("internals.economy.growth");
+
+            Assert.That(plan.TryGetReversionCause(metric, out CauseRef cause), Is.False);
+            Assert.That(cause, Is.Null);
+            Assert.That(() => plan.GetReversionCause(metric), Throws.ArgumentException);
+
+            Assert.That(plan.TryGetDerivedCause(metric, out cause), Is.False);
+            Assert.That(cause, Is.Null);
+            Assert.That(() => plan.GetDerivedCause(metric), Throws.ArgumentException);
+
+            Assert.That(plan.TryGetMetricCause(internalTarget, out cause), Is.False);
+            Assert.That(cause, Is.Null);
+            Assert.That(() => plan.GetMetricCause(internalTarget), Throws.ArgumentException);
+
+            Assert.That(plan.TryGetComponentCause(internalTarget, internalTarget, out cause), Is.False);
+            Assert.That(cause, Is.Null);
+            Assert.That(() => plan.GetComponentCause(internalTarget, internalTarget), Throws.ArgumentException);
+
+            Assert.That(plan.TryGetComponentCause(metric, metric, out cause), Is.False);
+            Assert.That(cause, Is.Null);
+            Assert.That(() => plan.GetComponentCause(metric, metric), Throws.ArgumentException);
         }
 
         [TestCaseSource(nameof(AllMetricCauseCases))]
@@ -320,12 +379,16 @@ namespace VictoriantChile.Simulation.Tests.EditMode
         [Test]
         public void MaterializerRejectsInvalidTargetsAndUnknownBase()
         {
-            Assert.That(() => AggregationCauseMaterializer.Materialize(AggregationCauseBase.Reversion, default), Throws.ArgumentException);
-            Assert.That(() => AggregationCauseMaterializer.Materialize(AggregationCauseBase.Derived, default), Throws.ArgumentException);
-            Assert.That(() => AggregationCauseMaterializer.Materialize(AggregationCauseBase.Aggregation, default), Throws.ArgumentException);
+            Assert.That(() => AggregationCauseMaterializer.MaterializeReversion(default), Throws.ArgumentException);
+            Assert.That(() => AggregationCauseMaterializer.MaterializeDerived(default), Throws.ArgumentException);
+            Assert.That(() => AggregationCauseMaterializer.MaterializeAggregationMetric(default), Throws.ArgumentException);
+            Assert.That(() => AggregationCauseMaterializer.MaterializeReversion(TargetPath.Parse("metrics.test")), Throws.ArgumentException);
+            Assert.That(() => AggregationCauseMaterializer.MaterializeDerived(TargetPath.Parse("metrics.test")), Throws.ArgumentException);
+            Assert.That(() => AggregationCauseMaterializer.MaterializeAggregationMetric(TargetPath.Parse("internals.test.base")), Throws.ArgumentException);
             Assert.That(() => AggregationCauseMaterializer.MaterializeAggregationComponent(default, TargetPath.Parse("internals.test.base")), Throws.ArgumentException);
             Assert.That(() => AggregationCauseMaterializer.MaterializeAggregationComponent(TargetPath.Parse("metrics.test"), default), Throws.ArgumentException);
-            Assert.That(() => AggregationCauseMaterializer.Materialize((AggregationCauseBase)99, TargetPath.Parse("metrics.test")), Throws.InstanceOf<ArgumentOutOfRangeException>());
+            Assert.That(() => AggregationCauseMaterializer.MaterializeAggregationComponent(TargetPath.Parse("internals.test.metric"), TargetPath.Parse("internals.test.base")), Throws.ArgumentException);
+            Assert.That(() => AggregationCauseMaterializer.MaterializeAggregationComponent(TargetPath.Parse("metrics.test"), TargetPath.Parse("metrics.test.base")), Throws.ArgumentException);
         }
 
         [TestCase(101, 5000, ContentRoundingMode.HalfAwayFromZero, TestName = "ProgrammaticScaleMustBeExact")]
@@ -379,8 +442,9 @@ namespace VictoriantChile.Simulation.Tests.EditMode
                 1,
                 1,
                 0,
-                new[] { new WeightedTargetComponentRuntime(TargetPath.Parse("internals.test.base"), 1000000) }), Throws.ArgumentException);
-            Assert.That(() => new WeightedTargetComponentRuntime(default, 1000000), Throws.ArgumentException);
+                new[] { RuntimeComponent("metrics.test", "internals.test.base") }), Throws.ArgumentException);
+            Assert.That(() => new WeightedTargetComponentRuntime(default, TargetPath.Parse("internals.test.base"), 1000000), Throws.ArgumentException);
+            Assert.That(() => new WeightedTargetComponentRuntime(TargetPath.Parse("metrics.test"), default, 1000000), Throws.ArgumentException);
             Assert.That(() => new DerivedAggregationRuleRuntime(
                 TargetPath.Parse("internals.test.derived"),
                 (TargetOperation)99,
@@ -417,13 +481,13 @@ namespace VictoriantChile.Simulation.Tests.EditMode
                 1,
                 AggregationRuntimePlan.PpmDenominator + 1,
                 0,
-                new[] { new WeightedTargetComponentRuntime(TargetPath.Parse("internals.test.base"), 1000000) }), Throws.InstanceOf<ArgumentOutOfRangeException>());
+                new[] { RuntimeComponent("metrics.test", "internals.test.base") }), Throws.InstanceOf<ArgumentOutOfRangeException>());
             Assert.That(() => new AggregationMetricRuntime(
                 TargetPath.Parse("metrics.test"),
                 1,
                 1,
                 -1,
-                new[] { new WeightedTargetComponentRuntime(TargetPath.Parse("internals.test.base"), 1000000) }), Throws.InstanceOf<ArgumentOutOfRangeException>());
+                new[] { RuntimeComponent("metrics.test", "internals.test.base") }), Throws.InstanceOf<ArgumentOutOfRangeException>());
         }
 
         [Test]
@@ -436,24 +500,100 @@ namespace VictoriantChile.Simulation.Tests.EditMode
                 0,
                 new[]
                 {
-                    new WeightedTargetComponentRuntime(TargetPath.Parse("internals.test.base"), 500000),
-                    new WeightedTargetComponentRuntime(TargetPath.Parse("internals.test.base"), 500000)
+                    RuntimeComponent("metrics.test", "internals.test.base", 500000),
+                    RuntimeComponent("metrics.test", "internals.test.base", 500000)
                 }), Throws.ArgumentException);
 
             AggregationMetricRuntime metric = RuntimeMetric("metrics.test", "internals.test.base");
             Assert.That(() => new AggregationMetricsPassRuntime(new[] { metric, metric }), Throws.ArgumentException);
         }
 
+        [Test]
+        public void RuntimeModelsExposeNoSettersOrMutatorMethods()
+        {
+            Type[] runtimeTypes =
+            {
+                typeof(AggregationRuntimePlan),
+                typeof(AggregationReversionPassRuntime),
+                typeof(AggregationDerivedPassRuntime),
+                typeof(AggregationMetricsPassRuntime),
+                typeof(AggregationReversionGroupRuntime),
+                typeof(AggregationMetricRuntime),
+                typeof(WeightedTargetComponentRuntime),
+                typeof(DerivedAggregationRuleRuntime),
+                typeof(AggregationExpressionRuntime)
+            };
+
+            for (int i = 0; i < runtimeTypes.Length; i++)
+            {
+                foreach (PropertyInfo property in runtimeTypes[i].GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+                {
+                    Assert.That(property.GetSetMethod(true), Is.Null, runtimeTypes[i].Name + "." + property.Name);
+                }
+
+                foreach (MethodInfo method in runtimeTypes[i].GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly))
+                {
+                    Assert.That(method.Name, Does.Not.StartWith("set_"), runtimeTypes[i].Name + "." + method.Name);
+                    Assert.That(method.Name, Does.Not.StartWith("Attach"), runtimeTypes[i].Name + "." + method.Name);
+                }
+            }
+        }
+
+        [Test]
+        public void WeightedTargetComponentRuntimeIsConstructedWithNonNullCause()
+        {
+            WeightedTargetComponentRuntime component = RuntimeComponent("metrics.economy", "internals.economy.growth");
+
+            Assert.That(component.Metric, Is.EqualTo(TargetPath.Parse("metrics.economy")));
+            Assert.That(component.Cause, Is.Not.Null);
+            Assert.That(component.Cause.CanonicalKey, Is.EqualTo("SYSTEM:AGG.metrics.economy.internals.economy.growth"));
+        }
+
+        [Test]
+        public void AggregationMetricRuntimeCopiesComponentValuesWithoutMutatingSourceComponent()
+        {
+            WeightedTargetComponentRuntime source = RuntimeComponent("metrics.source", "internals.economy.growth", 1000000);
+            CauseRef sourceCause = source.Cause;
+            AggregationMetricRuntime metric = new AggregationMetricRuntime(
+                TargetPath.Parse("metrics.destination"),
+                1,
+                1,
+                0,
+                new[] { source });
+
+            Assert.That(source.Cause, Is.SameAs(sourceCause));
+            Assert.That(source.Cause.CanonicalKey, Is.EqualTo("SYSTEM:AGG.metrics.source.internals.economy.growth"));
+            Assert.That(metric.Components[0], Is.Not.SameAs(source));
+            Assert.That(metric.Components[0].Cause.CanonicalKey, Is.EqualTo("SYSTEM:AGG.metrics.destination.internals.economy.growth"));
+        }
+
+        [TestCaseSource(nameof(IncompatiblePassFieldCases))]
+        public void ProgrammaticConfigRejectsIncompatiblePassFields(AggregationPass invalidPass, int passIndex)
+        {
+            AggregationPass[] passes = CopyPasses(BuildCanonicalConfig());
+            passes[passIndex] = invalidPass;
+
+            Assert.That(() => BuildPack(BuildCanonicalConfig(passes: passes)), Throws.InstanceOf<InvalidOperationException>());
+        }
+
         [TestCase("\"scale\": 100", "\"scale\": 101", ContentDiagnosticCode.InvalidRange, TestName = "LoaderScaleMustBeExact")]
         [TestCase("\"midS\": 5000", "\"midS\": 4999", ContentDiagnosticCode.InvalidRange, TestName = "LoaderMidpointMustBeExact")]
         [TestCase("\"rounding\": \"HALF_AWAY_FROM_ZERO\"", "\"rounding\": \"BANKERS\"", ContentDiagnosticCode.InvalidEnum, TestName = "LoaderRoundingMustBeExact")]
-        [TestCase("\"midS\": 5000", "\"midS\": 4999", ContentDiagnosticCode.InvalidRange, TestName = "LoaderReversionMidpointMustBeExact")]
         public void LoaderInvalidConstantsFailWithNullPackAndStableDiagnostic(string oldText, string newText, ContentDiagnosticCode code)
         {
             Dictionary<string, byte[]> files = FixtureFromReal();
             files["rules/aggregation_config.json"] = Bytes(Text(files["rules/aggregation_config.json"]).Replace(oldText, newText));
 
             AssertFailure(LoadInMemory(RebuildManifest(files)), code);
+        }
+
+        [Test]
+        public void LoaderReversionMidpointMustBeExact()
+        {
+            Dictionary<string, byte[]> files = FixtureFromReal();
+            files["rules/aggregation_config.json"] = Bytes(ReplaceReversionMidSOnly(Text(files["rules/aggregation_config.json"]), "4999"));
+
+            AssertFailure(LoadInMemory(RebuildManifest(files)), ContentDiagnosticCode.InvalidRange);
         }
 
         [TestCase("AGG")]
@@ -503,6 +643,40 @@ namespace VictoriantChile.Simulation.Tests.EditMode
             files["rules/aggregation_config.json"] = Bytes(RemoveSecondMetricPass(Text(files["rules/aggregation_config.json"])));
 
             AssertFailure(LoadInMemory(RebuildManifest(files)), ContentDiagnosticCode.AggregationMissingRequiredPassType);
+        }
+
+        [Test]
+        public void LoaderMissingPrimaryPassAloneFailsWithNullPack()
+        {
+            Dictionary<string, byte[]> files = FixtureFromReal();
+            files["rules/aggregation_config.json"] = Bytes(RemovePassByType(Text(files["rules/aggregation_config.json"]), "METRIC_AGGREGATION"));
+
+            AssertFailure(LoadInMemory(RebuildManifest(files)), ContentDiagnosticCode.AggregationMissingRequiredPassType);
+        }
+
+        [Test]
+        public void LoaderLegitimacyMixedWithAnotherMetricFailsWithNullPack()
+        {
+            Dictionary<string, byte[]> files = FixtureFromReal();
+            string json = Text(files["rules/aggregation_config.json"]);
+            int legitimacy = json.IndexOf("\"metric\": \"metrics.legitimacy\"", StringComparison.Ordinal);
+            int metricsKey = json.LastIndexOf("\"metrics\"", legitimacy, StringComparison.Ordinal);
+            int metricsEnd = FindArrayEnd(json, json.IndexOf('[', metricsKey));
+            string extra = ",{\"metric\":\"metrics.economy\",\"half_life_weeks\":8,\"alpha_ppm\":82996,\"cap_per_weekS\":200,\"components\":[{\"target\":\"internals.economy.growth\",\"weight_ppm\":1000000}]}";
+            files["rules/aggregation_config.json"] = Bytes(json.Insert(metricsEnd, extra));
+
+            AssertFailure(LoadInMemory(RebuildManifest(files)), ContentDiagnosticCode.AggregationPassFieldConflict);
+        }
+
+        [Test]
+        public void LoaderPrimaryContainingLegitimacyFailsWithNullPack()
+        {
+            Dictionary<string, byte[]> files = FixtureFromReal();
+            string json = Text(files["rules/aggregation_config.json"]);
+            int primary = json.IndexOf("\"metric\": \"metrics.economy\"", StringComparison.Ordinal);
+            files["rules/aggregation_config.json"] = Bytes(json.Substring(0, primary) + "\"metric\": \"metrics.legitimacy\"" + json.Substring(json.IndexOf(",", primary, StringComparison.Ordinal)));
+
+            AssertFailure(LoadInMemory(RebuildManifest(files)), ContentDiagnosticCode.AggregationPassFieldConflict);
         }
 
         [Test]
@@ -776,7 +950,12 @@ namespace VictoriantChile.Simulation.Tests.EditMode
                 1,
                 1,
                 0,
-                new[] { new WeightedTargetComponentRuntime(TargetPath.Parse(component), 1000000) });
+                new[] { RuntimeComponent(metric, component) });
+        }
+
+        private static WeightedTargetComponentRuntime RuntimeComponent(string metric, string component, int weightPpm = 1000000)
+        {
+            return new WeightedTargetComponentRuntime(TargetPath.Parse(metric), TargetPath.Parse(component), weightPpm);
         }
 
         private static AggregationMetricRuntime[] AllMetrics(AggregationRuntimePlan plan)
@@ -811,6 +990,98 @@ namespace VictoriantChile.Simulation.Tests.EditMode
                 yield return new TestCaseData(9, "metrics.legitimacy", ComponentTargets[9][j], "SYSTEM:AGG.metrics.legitimacy." + ComponentTargets[9][j])
                     .SetName("ComponentCause_metrics.legitimacy_" + ComponentTargets[9][j]);
             }
+        }
+
+        private static IEnumerable IncompatiblePassFieldCases()
+        {
+            yield return new TestCaseData(
+                new AggregationPass(AggregationPassType.InternalReversion, "SYSTEM:REVERSION", 5000, ReversionGroups(), ReversionSkips(), true, null, null, null),
+                0).SetName("ProgrammaticReversionRejectsLogComponents");
+            yield return new TestCaseData(
+                new AggregationPass(AggregationPassType.InternalReversion, "SYSTEM:REVERSION", 5000, ReversionGroups(), ReversionSkips(), null, 1000000, null, null),
+                0).SetName("ProgrammaticReversionRejectsWeightsRequired");
+            yield return new TestCaseData(
+                new AggregationPass(AggregationPassType.InternalReversion, "SYSTEM:REVERSION", 5000, ReversionGroups(), ReversionSkips(), null, null, new[] { Metric("metrics.economy", 0) }, null),
+                0).SetName("ProgrammaticReversionRejectsMetrics");
+            yield return new TestCaseData(
+                new AggregationPass(AggregationPassType.InternalReversion, "SYSTEM:REVERSION", 5000, ReversionGroups(), ReversionSkips(), null, null, null, DerivedRules()),
+                0).SetName("ProgrammaticReversionRejectsRules");
+
+            yield return new TestCaseData(
+                new AggregationPass(AggregationPassType.DerivedInternals, "SYSTEM:DERIVED", 5000, null, null, null, null, null, DerivedRules()),
+                2).SetName("ProgrammaticDerivedRejectsMidpoint");
+            yield return new TestCaseData(
+                new AggregationPass(AggregationPassType.DerivedInternals, "SYSTEM:DERIVED", null, ReversionGroups(), null, null, null, null, DerivedRules()),
+                2).SetName("ProgrammaticDerivedRejectsGroups");
+            yield return new TestCaseData(
+                new AggregationPass(AggregationPassType.DerivedInternals, "SYSTEM:DERIVED", null, null, ReversionSkips(), null, null, null, DerivedRules()),
+                2).SetName("ProgrammaticDerivedRejectsSkipTargets");
+            yield return new TestCaseData(
+                new AggregationPass(AggregationPassType.DerivedInternals, "SYSTEM:DERIVED", null, null, null, true, null, null, DerivedRules()),
+                2).SetName("ProgrammaticDerivedRejectsLogComponents");
+            yield return new TestCaseData(
+                new AggregationPass(AggregationPassType.DerivedInternals, "SYSTEM:DERIVED", null, null, null, null, 1000000, null, DerivedRules()),
+                2).SetName("ProgrammaticDerivedRejectsWeightsRequired");
+            yield return new TestCaseData(
+                new AggregationPass(AggregationPassType.DerivedInternals, "SYSTEM:DERIVED", null, null, null, null, null, new[] { Metric("metrics.economy", 0) }, DerivedRules()),
+                2).SetName("ProgrammaticDerivedRejectsMetrics");
+
+            yield return new TestCaseData(
+                new AggregationPass(AggregationPassType.MetricAggregation, "SYSTEM:AGG", 5000, null, null, true, 1000000, PrimaryMetricArray(), null),
+                1).SetName("ProgrammaticMetricRejectsMidpoint");
+            yield return new TestCaseData(
+                new AggregationPass(AggregationPassType.MetricAggregation, "SYSTEM:AGG", null, ReversionGroups(), null, true, 1000000, PrimaryMetricArray(), null),
+                1).SetName("ProgrammaticMetricRejectsGroups");
+            yield return new TestCaseData(
+                new AggregationPass(AggregationPassType.MetricAggregation, "SYSTEM:AGG", null, null, ReversionSkips(), true, 1000000, PrimaryMetricArray(), null),
+                1).SetName("ProgrammaticMetricRejectsSkipTargets");
+            yield return new TestCaseData(
+                new AggregationPass(AggregationPassType.MetricAggregation, "SYSTEM:AGG", null, null, null, true, 1000000, PrimaryMetricArray(), DerivedRules()),
+                1).SetName("ProgrammaticMetricRejectsRules");
+        }
+
+        private static AggregationReversionGroup[] ReversionGroups()
+        {
+            return new[]
+            {
+                new AggregationReversionGroup(TargetPattern.Parse("internals.economy.*"), 26, 26307),
+                new AggregationReversionGroup(TargetPattern.Parse("internals.security.*"), 20, 34064)
+            };
+        }
+
+        private static TargetPath[] ReversionSkips()
+        {
+            return new[]
+            {
+                TargetPath.Parse("internals.legitimacy.performance"),
+                TargetPath.Parse("internals.legitimacy.social_tension_load")
+            };
+        }
+
+        private static DerivedAggregationRule[] DerivedRules()
+        {
+            return new[]
+            {
+                new DerivedAggregationRule(
+                    TargetPath.Parse("internals.legitimacy.performance"),
+                    TargetOperation.Set,
+                    new AggregationExpression(
+                        AggregationExpressionKind.Avg,
+                        null,
+                        new[]
+                        {
+                            TargetPath.Parse("metrics.economy"),
+                            TargetPath.Parse("metrics.security"),
+                            TargetPath.Parse("metrics.governability")
+                        })),
+                new DerivedAggregationRule(
+                    TargetPath.Parse("internals.legitimacy.social_tension_load"),
+                    TargetOperation.Set,
+                    new AggregationExpression(
+                        AggregationExpressionKind.Copy,
+                        TargetPath.Parse("metrics.social_tension"),
+                        Array.Empty<TargetPath>()))
+            };
         }
 
         private static AggregationPass[] CopyPasses(AggregationConfig config)
@@ -1132,6 +1403,25 @@ namespace VictoriantChile.Simulation.Tests.EditMode
             int prefixIndex = json.IndexOf("\"cause_prefix\"", typeIndex, StringComparison.Ordinal);
             int valueStart = json.IndexOf('"', json.IndexOf(':', prefixIndex) + 1) + 1;
             int valueEnd = json.IndexOf('"', valueStart);
+            return json.Substring(0, valueStart) + replacement + json.Substring(valueEnd);
+        }
+
+        private static string ReplaceReversionMidSOnly(string json, string replacement)
+        {
+            int typeIndex = json.IndexOf("\"type\": \"INTERNAL_REVERSION\"", StringComparison.Ordinal);
+            int midIndex = json.IndexOf("\"midS\"", typeIndex, StringComparison.Ordinal);
+            int valueStart = json.IndexOf(':', midIndex) + 1;
+            while (valueStart < json.Length && char.IsWhiteSpace(json[valueStart]))
+            {
+                valueStart++;
+            }
+
+            int valueEnd = valueStart;
+            while (valueEnd < json.Length && char.IsDigit(json[valueEnd]))
+            {
+                valueEnd++;
+            }
+
             return json.Substring(0, valueStart) + replacement + json.Substring(valueEnd);
         }
 

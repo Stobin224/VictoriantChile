@@ -1810,7 +1810,10 @@ namespace VictoriantChile.Content.Models
                 throw AggregationCompileError(ContentDiagnosticCode.AggregationPassFieldConflict, passPath + ".groups", "InternalReversion passes must declare at least one reversion group.");
             }
 
-            if (pass.Metrics.Count != 0 || pass.Rules.Count != 0)
+            if (pass.Metrics.Count != 0
+                || pass.Rules.Count != 0
+                || pass.LogComponents.HasValue
+                || pass.WeightsAbsSumPpmRequired.HasValue)
             {
                 throw AggregationCompileError(ContentDiagnosticCode.AggregationPassFieldConflict, passPath, "InternalReversion pass contains fields from another pass type.");
             }
@@ -1852,7 +1855,10 @@ namespace VictoriantChile.Content.Models
 
         private static void ValidateMetricPassShape(AggregationPass pass, string passPath)
         {
-            if (pass.Groups.Count != 0 || pass.Rules.Count != 0 || pass.MidS.HasValue)
+            if (pass.Groups.Count != 0
+                || pass.Rules.Count != 0
+                || pass.MidS.HasValue
+                || pass.SkipTargets.Count != 0)
             {
                 throw AggregationCompileError(ContentDiagnosticCode.AggregationPassFieldConflict, passPath, "MetricAggregation pass contains fields from another pass type.");
             }
@@ -1875,7 +1881,12 @@ namespace VictoriantChile.Content.Models
 
         private static void ValidateDerivedShape(AggregationPass pass, string passPath)
         {
-            if (pass.Groups.Count != 0 || pass.Metrics.Count != 0 || pass.MidS.HasValue)
+            if (pass.Groups.Count != 0
+                || pass.Metrics.Count != 0
+                || pass.MidS.HasValue
+                || pass.SkipTargets.Count != 0
+                || pass.LogComponents.HasValue
+                || pass.WeightsAbsSumPpmRequired.HasValue)
             {
                 throw AggregationCompileError(ContentDiagnosticCode.AggregationPassFieldConflict, passPath, "DerivedInternals pass contains fields from another pass type.");
             }
@@ -2023,6 +2034,11 @@ namespace VictoriantChile.Content.Models
                     throw AggregationCompileError(ContentDiagnosticCode.AggregationPassFieldConflict, "$.passes.metrics[" + i + "]", "Metrics cannot contain null entries.");
                 }
 
+                if (!m.Metric.IsValid || !IsMetricTarget(m.Metric))
+                {
+                    throw AggregationCompileError(ContentDiagnosticCode.InvalidTargetReference, "$.passes.metrics[" + i + "].metric", "Metric aggregation target must be metrics.*.");
+                }
+
                 WeightedTargetComponentRuntime[] components = new WeightedTargetComponentRuntime[m.Components.Count];
                 for (int j = 0; j < m.Components.Count; j++)
                 {
@@ -2032,7 +2048,12 @@ namespace VictoriantChile.Content.Models
                         throw AggregationCompileError(ContentDiagnosticCode.AggregationPassFieldConflict, "$.passes.metrics[" + i + "].components[" + j + "]", "Metric components cannot contain null entries.");
                     }
 
-                    components[j] = new WeightedTargetComponentRuntime(c.Target, c.WeightPpm);
+                    if (!c.Target.IsValid || !IsInternalTarget(c.Target))
+                    {
+                        throw AggregationCompileError(ContentDiagnosticCode.InvalidTargetReference, "$.passes.metrics[" + i + "].components[" + j + "].target", "Metric components must be internals.* targets.");
+                    }
+
+                    components[j] = new WeightedTargetComponentRuntime(m.Metric, c.Target, c.WeightPpm);
                 }
 
                 result[i] = new AggregationMetricRuntime(m.Metric, m.HalfLifeWeeks, m.AlphaPpm, m.CapPerWeekS, Array.AsReadOnly(components));
