@@ -251,16 +251,13 @@ namespace VictoriantChile.Simulation.Tests.EditMode
             DerivedAggregationRuleRuntime performance = plan.DerivedInternals.Rules[0];
 
             Assert.That(plan.InternalReversion.CauseBase, Is.EqualTo(AggregationCauseBase.Reversion));
-            Assert.That(plan.InternalReversion.MaterializeCause(TargetPath.Parse("internals.economy.growth")).CanonicalKey,
-                Is.EqualTo("SYSTEM:REVERSION.internals.economy.growth"));
+            Assert.That(typeof(AggregationRuntimePlan).GetMethod("TryGetReversionCause"), Is.Null);
+            Assert.That(typeof(AggregationRuntimePlan).GetMethod("GetReversionCause"), Is.Null);
+            Assert.That(typeof(AggregationReversionPassRuntime).GetMethod("MaterializeCause"), Is.Null);
             Assert.That(performance.Cause.CanonicalKey, Is.EqualTo("SYSTEM:DERIVED.internals.legitimacy.performance"));
             Assert.That(economy.BaseCause.CanonicalKey, Is.EqualTo("SYSTEM:AGG.metrics.economy"));
             Assert.That(growth.Cause.CanonicalKey, Is.EqualTo("SYSTEM:AGG.metrics.economy.internals.economy.growth"));
 
-            Assert.That(plan.GetReversionCause(TargetPath.Parse("internals.economy.growth")).CanonicalKey,
-                Is.EqualTo("SYSTEM:REVERSION.internals.economy.growth"));
-            Assert.That(plan.TryGetReversionCause(TargetPath.Parse("internals.economy.growth"), out CauseRef reversionCause), Is.True);
-            Assert.That(reversionCause.CanonicalKey, Is.EqualTo("SYSTEM:REVERSION.internals.economy.growth"));
             Assert.That(plan.TryGetDerivedCause(performance.Target, out CauseRef derivedCause), Is.True);
             Assert.That(derivedCause, Is.SameAs(performance.Cause));
             Assert.That(plan.TryGetMetricCause(economy.Metric, out CauseRef metricCause), Is.True);
@@ -300,11 +297,7 @@ namespace VictoriantChile.Simulation.Tests.EditMode
             TargetPath metric = TargetPath.Parse("metrics.economy");
             TargetPath internalTarget = TargetPath.Parse("internals.economy.growth");
 
-            Assert.That(plan.TryGetReversionCause(metric, out CauseRef cause), Is.False);
-            Assert.That(cause, Is.Null);
-            Assert.That(() => plan.GetReversionCause(metric), Throws.ArgumentException);
-
-            Assert.That(plan.TryGetDerivedCause(metric, out cause), Is.False);
+            Assert.That(plan.TryGetDerivedCause(metric, out CauseRef cause), Is.False);
             Assert.That(cause, Is.Null);
             Assert.That(() => plan.GetDerivedCause(metric), Throws.ArgumentException);
 
@@ -360,7 +353,6 @@ namespace VictoriantChile.Simulation.Tests.EditMode
             Assert.That(Enum.IsDefined(typeof(AggregationCauseBase), AggregationCauseBase.Derived), Is.True);
             Assert.That(Enum.IsDefined(typeof(AggregationCauseBase), AggregationCauseBase.Aggregation), Is.True);
 
-            AssertOneColon(plan.InternalReversion.MaterializeCause(TargetPath.Parse("internals.economy.growth")));
             foreach (DerivedAggregationRuleRuntime rule in plan.DerivedInternals.Rules)
             {
                 AssertOneColon(rule.Cause);

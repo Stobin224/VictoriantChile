@@ -7,6 +7,7 @@ using NUnit.Framework;
 using VictoriantChile.Content.Loading;
 using VictoriantChile.Content.Models;
 using VictoriantChile.Content.State;
+using VictoriantChile.Simulation.Core.Aggregation;
 using VictoriantChile.Simulation.Core.Resolution;
 using VictoriantChile.Simulation.Core.State;
 using VictoriantChile.Simulation.Core.Targets;
@@ -346,6 +347,50 @@ namespace VictoriantChile.Simulation.Tests.EditMode
             Assert.That(HasCode(result.Diagnostics, expectedCode), Is.True, Diagnostics(result.Diagnostics));
         }
 
+        [Test]
+        public void ScenarioRunnerConvertsAggregationBindingFailuresToStableDiagnostics()
+        {
+            Dictionary<string, byte[]> files = FixtureFromReal();
+            string aggregationJson = Text(files["rules/aggregation_config.json"]);
+            files["rules/aggregation_config.json"] = Bytes(aggregationJson.Replace(
+                "\"pattern\": \"internals.economy.*\"",
+                "\"pattern\": \"internals.*.*\""));
+
+            byte[] scenario = Encoding.UTF8.GetBytes(
+                "{\n"
+                + "  \"scenario_schema_version\": 1,\n"
+                + "  \"seed\": 424242,\n"
+                + "  \"commands\": [\n"
+                + "    {\n"
+                + "      \"id\": \"advance_one\",\n"
+                + "      \"type\": \"ADVANCE\",\n"
+                + "      \"weeks\": 1\n"
+                + "    }\n"
+                + "  ]\n"
+                + "}\n");
+
+            string tempRoot = WriteTempContentRoot(RebuildManifest(files));
+            ScenarioRunnerResult result;
+            try
+            {
+                result = new ScenarioRunner().Run(scenario, tempRoot);
+            }
+            finally
+            {
+                Directory.Delete(tempRoot, true);
+            }
+
+            Assert.That(result.Status, Is.EqualTo("failed"));
+            Assert.That(ScenarioState(result), Is.Null);
+            Assert.That(result.StateHash, Is.Null);
+            Assert.That(result.Commands.Count, Is.EqualTo(1));
+            Assert.That(result.Commands[0].Status, Is.EqualTo("failed"));
+            Assert.That(result.Commands[0].TickStateHashes, Is.Empty);
+            Assert.That(result.Commands[0].CausalTicks, Is.Empty);
+            Assert.That(HasCode(result.Diagnostics, AggregationExecutionErrorCodes.ReversionOverlap), Is.True, Diagnostics(result.Diagnostics));
+            Assert.That(HasCode(result.Commands[0].Diagnostics, AggregationExecutionErrorCodes.ReversionOverlap), Is.True, Diagnostics(result.Commands[0].Diagnostics));
+        }
+
         private static IStateTargetReader Reader()
         {
             ContentPack pack = LoadRealPack();
@@ -391,6 +436,83 @@ namespace VictoriantChile.Simulation.Tests.EditMode
         private static string ContentRoot()
         {
             return Path.Combine(ProjectRoot(), "Assets", "StreamingAssets", "content");
+        }
+
+        private static Dictionary<string, byte[]> FixtureFromReal()
+        {
+            string root = ContentRoot();
+            Dictionary<string, byte[]> files = new Dictionary<string, byte[]>(StringComparer.Ordinal);
+            foreach (string relativePath in new[]
+            {
+                "core/regions.json",
+                "core/igs.json",
+                "core/movements.json",
+                "rules/target_config.json",
+                "rules/aggregation_config.json",
+                "rules/legislative_config.json",
+                "strings/es.json",
+                "templates/effects.json",
+                "templates/events.json",
+                "templates/reforms.json"
+            })
+            {
+                files.Add(relativePath, File.ReadAllBytes(Path.Combine(root, relativePath.Replace('/', Path.DirectorySeparatorChar))));
+            }
+
+            return files;
+        }
+
+        private static Dictionary<string, byte[]> RebuildManifest(Dictionary<string, byte[]> files)
+        {
+            Dictionary<string, byte[]> result = new Dictionary<string, byte[]>(files, StringComparer.Ordinal);
+            List<string> paths = new List<string>();
+            foreach (string path in result.Keys)
+            {
+                if (path != "manifest.json")
+                {
+                    paths.Add(path);
+                }
+            }
+
+            paths.Sort(StringComparer.Ordinal);
+            StringBuilder filesJson = new StringBuilder();
+            for (int i = 0; i < paths.Count; i++)
+            {
+                if (i > 0)
+                {
+                    filesJson.Append(",");
+                }
+
+                string path = paths[i];
+                filesJson.Append("\"").Append(path).Append("\":\"").Append(ContentHash.ComputeCanonicalSha256(result[path])).Append("\"");
+            }
+
+            result["manifest.json"] = Bytes("{\"content_pack_id\":\"test_pack\",\"content_pack_version\":1,\"content_schema_version\":1,\"default_language\":\"es\",\"files\":{"
+                + filesJson + "},\"languages\":[\"es\"],\"min_game_schema_version\":1}");
+            return result;
+        }
+
+        private static string Text(byte[] bytes)
+        {
+            return Encoding.UTF8.GetString(bytes);
+        }
+
+        private static byte[] Bytes(string text)
+        {
+            return Encoding.UTF8.GetBytes(text);
+        }
+
+        private static string WriteTempContentRoot(Dictionary<string, byte[]> files)
+        {
+            string root = Path.Combine(Path.GetTempPath(), "VictoriantChileScenarioRunnerTests", Guid.NewGuid().ToString("N"));
+            foreach (KeyValuePair<string, byte[]> file in files)
+            {
+                string path = Path.Combine(root, file.Key.Replace('/', Path.DirectorySeparatorChar));
+                Directory.CreateDirectory(Path.GetDirectoryName(path));
+                File.WriteAllBytes(path, file.Value);
+            }
+
+            return root;
         }
 
         private static int SumClout(GameState state)
@@ -471,5 +593,6 @@ namespace VictoriantChile.Simulation.Tests.EditMode
 
             return result;
         }
+
     }
 }

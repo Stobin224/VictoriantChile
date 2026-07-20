@@ -37,6 +37,7 @@ namespace VictoriantChile.Simulation.Core.Aggregation
         private readonly ReadOnlyCollection<AggregationRuleBinding> _derivedRules;
         private readonly ReadOnlyCollection<AggregationMetricBinding> _primaryMetrics;
         private readonly ReadOnlyCollection<AggregationMetricBinding> _legitimacyMetrics;
+        private readonly ReadOnlyDictionary<TargetPath, CauseRef> _reversionCausesByTarget;
 
         public AggregationEngine(AggregationRuntimePlan plan, TargetConfigCatalog targetConfigs)
         {
@@ -44,6 +45,7 @@ namespace VictoriantChile.Simulation.Core.Aggregation
             _targetConfigs = targetConfigs ?? throw new ArgumentNullException(nameof(targetConfigs));
             ValidateCanonicalPlanShape(plan);
             _reversionTargets = Array.AsReadOnly(BindReversion(plan, targetConfigs).ToArray());
+            _reversionCausesByTarget = BuildReversionCauseLookup(_reversionTargets);
             _derivedRules = Array.AsReadOnly(BindDerived(plan, targetConfigs).ToArray());
             _primaryMetrics = Array.AsReadOnly(BindMetrics(plan.PrimaryMetrics, targetConfigs).ToArray());
             _legitimacyMetrics = Array.AsReadOnly(BindMetrics(plan.Legitimacy, targetConfigs).ToArray());
@@ -56,6 +58,32 @@ namespace VictoriantChile.Simulation.Core.Aggregation
         public IReadOnlyList<AggregationMetricBinding> PrimaryMetricBindings => _primaryMetrics;
 
         public IReadOnlyList<AggregationMetricBinding> LegitimacyMetricBindings => _legitimacyMetrics;
+
+        public bool TryGetReversionCause(TargetPath target, out CauseRef cause)
+        {
+            if (!AggregationCauseMaterializer.IsInternalTarget(target))
+            {
+                cause = null;
+                return false;
+            }
+
+            return _reversionCausesByTarget.TryGetValue(target, out cause);
+        }
+
+        public CauseRef GetReversionCause(TargetPath target)
+        {
+            if (!AggregationCauseMaterializer.IsInternalTarget(target))
+            {
+                throw new ArgumentException("Reversion cause requires a valid internals.*.* target.", nameof(target));
+            }
+
+            if (TryGetReversionCause(target, out CauseRef cause))
+            {
+                return cause;
+            }
+
+            throw new KeyNotFoundException("Reversion target is not present in the concrete aggregation binding.");
+        }
 
         public GameState RevertInternals(GameState current)
         {
@@ -288,13 +316,25 @@ namespace VictoriantChile.Simulation.Core.Aggregation
 
                     result.Add(new AggregationTargetBinding(
                         target,
-                        ResolveConfig(targetConfigs, target),
-                        plan.GetReversionCause(target),
+                        RequireSetConfig(targetConfigs, target),
+                        AggregationCauseMaterializer.MaterializeReversion(target),
                         group.AlphaPpm));
                 }
             }
 
             return result;
+        }
+
+        private static ReadOnlyDictionary<TargetPath, CauseRef> BuildReversionCauseLookup(IReadOnlyList<AggregationTargetBinding> bindings)
+        {
+            Dictionary<TargetPath, CauseRef> lookup = new Dictionary<TargetPath, CauseRef>();
+            for (int i = 0; i < bindings.Count; i++)
+            {
+                AggregationTargetBinding binding = bindings[i];
+                lookup.Add(binding.Target, binding.Cause);
+            }
+
+            return new ReadOnlyDictionary<TargetPath, CauseRef>(lookup);
         }
 
         private static List<AggregationRuleBinding> BindDerived(AggregationRuntimePlan plan, TargetConfigCatalog targetConfigs)
@@ -344,6 +384,13 @@ namespace VictoriantChile.Simulation.Core.Aggregation
                 throw new AggregationExecutionException(AggregationExecutionErrorCodes.TargetConfigMissing, target, "Aggregation target did not resolve to TargetConfig.");
             }
 
+            return config;
+        }
+
+        private static TargetConfig RequireSetConfig(TargetConfigCatalog targetConfigs, TargetPath target)
+        {
+            TargetConfig config = ResolveConfig(targetConfigs, target);
+            RequireSetAllowed(config, target);
             return config;
         }
 

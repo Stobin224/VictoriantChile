@@ -188,9 +188,9 @@ namespace VictoriantChile.Simulation.Runner
 
         private static CommandExecutionResult ExecuteAdvance(int index, ScenarioCommand command, GameState state, ContentPack pack, out GameState next)
         {
-            SchedulerEngine scheduler = CreateScheduler(pack);
             try
             {
+                SchedulerEngine scheduler = CreateScheduler(pack);
                 List<string> hashes = new List<string>();
                 List<TickCausalSnapshot> ticks = new List<TickCausalSnapshot>();
                 GameState working = state;

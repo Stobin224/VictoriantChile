@@ -201,28 +201,6 @@ namespace VictoriantChile.Simulation.Core.Aggregation
             return _metricsByTarget.TryGetValue(target, out metric);
         }
 
-        public CauseRef GetReversionCause(TargetPath target)
-        {
-            if (!TryGetReversionCause(target, out CauseRef cause))
-            {
-                throw new ArgumentException("Reversion cause requires a valid internals.* target.", nameof(target));
-            }
-
-            return cause;
-        }
-
-        public bool TryGetReversionCause(TargetPath target, out CauseRef cause)
-        {
-            if (!AggregationCauseMaterializer.IsInternalTarget(target))
-            {
-                cause = null;
-                return false;
-            }
-
-            cause = InternalReversion.MaterializeCause(target);
-            return true;
-        }
-
         public bool TryGetDerivedCause(TargetPath target, out CauseRef cause)
         {
             if (!AggregationCauseMaterializer.IsInternalTarget(target))
@@ -428,10 +406,6 @@ namespace VictoriantChile.Simulation.Core.Aggregation
 
         public AggregationCauseBase CauseBase { get; }
 
-        public CauseRef MaterializeCause(TargetPath target)
-        {
-            return AggregationCauseMaterializer.MaterializeReversion(target);
-        }
     }
 
     public sealed class AggregationDerivedPassRuntime

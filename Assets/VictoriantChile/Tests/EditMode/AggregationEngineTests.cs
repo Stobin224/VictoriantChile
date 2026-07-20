@@ -82,6 +82,102 @@ namespace VictoriantChile.Simulation.Tests.EditMode
         }
 
         [Test]
+        public void ReversionBindingRejectsTargetConfigWithoutSet()
+        {
+            ContentPack pack = LoadRealPack();
+            TargetConfigCatalog configs = WithExactTargetConfig(pack, "internals.economy.growth", TargetOperation.Add);
+
+            AssertAggregationError(
+                () => new AggregationEngine(pack.AggregationRuntimePlan, configs),
+                AggregationExecutionErrorCodes.TargetConfigMissing);
+        }
+
+        [Test]
+        public void ReversionVectorCasesExecuteAgainstProductiveEngine()
+        {
+            ContentPack pack = LoadRealPack();
+            AggregationExecutionVectorFile vectors = ReadVectors();
+
+            for (int i = 0; i < vectors.reversion_cases.Length; i++)
+            {
+                ReversionCase item = vectors.reversion_cases[i];
+                AggregationRuntimePlan plan = WithReversionAlpha(pack.AggregationRuntimePlan, "internals.economy.*", item.alpha_ppm);
+                AggregationEngine engine = new AggregationEngine(plan, pack.TargetConfigCatalog);
+                GameState state = Set(CreateState(pack, 42), pack, "internals.economy.growth", item.currentS);
+
+                GameState final = engine.RevertInternals(state);
+
+                Assert.That(ReadInternal(final, "internals.economy.growth"), Is.EqualTo(item.expected.finalS), item.id);
+                Assert.That(ReadInternal(state, "internals.economy.growth"), Is.EqualTo(item.currentS), item.id);
+            }
+        }
+
+        [Test]
+        public void DerivedVectorCasesExecuteAgainstProductiveEngine()
+        {
+            ContentPack pack = LoadRealPack();
+            AggregationEngine engine = new AggregationEngine(pack.AggregationRuntimePlan, pack.TargetConfigCatalog);
+            AggregationExecutionVectorFile vectors = ReadVectors();
+
+            for (int i = 0; i < vectors.derived_cases.Length; i++)
+            {
+                DerivedCase item = vectors.derived_cases[i];
+                GameState state = CreateState(pack, 42);
+                if (item.kind == "AVG")
+                {
+                    state = Set(state, pack, "metrics.economy", item.inputs[0]);
+                    state = Set(state, pack, "metrics.security", item.inputs[1]);
+                    state = Set(state, pack, "metrics.governability", item.inputs[2]);
+                    GameState final = engine.DeriveInternals(state);
+                    Assert.That(ReadInternal(final, "internals.legitimacy.performance"), Is.EqualTo(item.expected), item.id);
+                    Assert.That(ReadInternal(state, "internals.legitimacy.performance"), Is.EqualTo(5000), item.id);
+                }
+                else if (item.kind == "COPY")
+                {
+                    state = Set(state, pack, "metrics.social_tension", item.input);
+                    GameState final = engine.DeriveInternals(state);
+                    Assert.That(ReadInternal(final, "internals.legitimacy.social_tension_load"), Is.EqualTo(item.expected), item.id);
+                    Assert.That(ReadInternal(state, "internals.legitimacy.social_tension_load"), Is.EqualTo(5000), item.id);
+                }
+                else
+                {
+                    Assert.Fail("Unknown derived vector kind: " + item.kind);
+                }
+            }
+        }
+
+        [Test]
+        public void MetricVectorCasesExecuteAgainstProductiveEngineWithExactCausality()
+        {
+            ContentPack pack = LoadRealPack();
+            AggregationExecutionVectorFile vectors = ReadVectors();
+
+            for (int i = 0; i < vectors.metric_cases.Length; i++)
+            {
+                MetricCase item = vectors.metric_cases[i];
+                AggregationRuntimePlan plan = WithMetricCase(pack.AggregationRuntimePlan, item);
+                AggregationEngine engine = new AggregationEngine(plan, pack.TargetConfigCatalog);
+                GameState state = StateForMetricCase(pack, item, item.components.Length);
+                TickCausalBuffer buffer = CreateBuffer(state);
+
+                GameState final = ExecuteMetricPass(engine, state, buffer, item.metric);
+                TickCausalSnapshot snapshot = Close(buffer, final);
+
+                Assert.That(ReadMetric(final, item.metric), Is.EqualTo(item.expected.finalS), item.id);
+                AssertContributionsExact(snapshot, item.metric, item.expected.contributions, item.id);
+
+                for (int prefix = 0; prefix < item.expected.F_values.Length; prefix++)
+                {
+                    TickCausalBuffer prefixBuffer;
+                    GameState prefixState = StateForMetricCase(pack, item, prefix);
+                    prefixBuffer = CreateBuffer(prefixState);
+                    GameState prefixFinal = ExecuteMetricPass(engine, prefixState, prefixBuffer, item.metric);
+                    Assert.That(ReadMetric(prefixFinal, item.metric), Is.EqualTo(item.expected.F_values[prefix]), item.id + " F(V" + prefix + ")");
+                }
+            }
+        }
+
+        [Test]
         public void EngineMatchesExecutionVectorEndToEndAndKeepsInternalsOutOfLedger()
         {
             ContentPack pack = LoadRealPack();
@@ -123,18 +219,24 @@ namespace VictoriantChile.Simulation.Tests.EditMode
                 Assert.That(target.Target.Namespace, Is.Not.EqualTo("internals"));
             }
 
+            Dictionary<string, ExpectedContribution[]> expectedContributions = new Dictionary<string, ExpectedContribution[]>(StringComparer.Ordinal);
             for (int i = 0; i < fixture.expected_metric_contributions.Length; i++)
             {
                 ExpectedMetricContributions metric = fixture.expected_metric_contributions[i];
-                TargetCausalSnapshot target = FindTarget(snapshot, metric.target);
-                Dictionary<string, long> actual = ContributionsByCause(target);
-                for (int j = 0; j < metric.contributions.Length; j++)
+                expectedContributions.Add(metric.target, metric.contributions);
+            }
+
+            for (int i = 0; i < InitialTargetRegistry.Metrics.Count; i++)
+            {
+                string targetPath = InitialTargetRegistry.Metrics[i].ToString();
+                TargetCausalSnapshot target = FindTarget(snapshot, targetPath);
+                if (expectedContributions.TryGetValue(targetPath, out ExpectedContribution[] expected))
                 {
-                    ExpectedContribution expected = metric.contributions[j];
-                    string cause = expected.cause;
-                    Assert.That(actual.ContainsKey(cause), Is.True, cause);
-                    Assert.That(actual[cause], Is.EqualTo(expected.deltaS), cause);
-                    Assert.That(CountColon(cause), Is.EqualTo(1), cause);
+                    AssertContributionsExact(target, expected, targetPath);
+                }
+                else
+                {
+                    Assert.That(target.Contributions, Is.Empty, targetPath);
                 }
             }
         }
@@ -142,9 +244,26 @@ namespace VictoriantChile.Simulation.Tests.EditMode
         [Test]
         public void AggregationCauseRefsArePrecompiledAndExact()
         {
-            AggregationRuntimePlan plan = LoadRealPack().AggregationRuntimePlan;
+            ContentPack pack = LoadRealPack();
+            AggregationRuntimePlan plan = pack.AggregationRuntimePlan;
+            AggregationEngine engine = new AggregationEngine(plan, pack.TargetConfigCatalog);
 
-            Assert.That(plan.GetReversionCause(TargetPath.Parse("internals.economy.growth")).CanonicalKey, Is.EqualTo("SYSTEM:REVERSION.internals.economy.growth"));
+            CauseRef reversion = engine.GetReversionCause(TargetPath.Parse("internals.economy.growth"));
+            Assert.That(reversion.CanonicalKey, Is.EqualTo("SYSTEM:REVERSION.internals.economy.growth"));
+            Assert.That(engine.TryGetReversionCause(TargetPath.Parse("internals.economy.growth"), out CauseRef reversionAgain), Is.True);
+            Assert.That(reversionAgain, Is.SameAs(reversion));
+            Assert.That(FindReversionBinding(engine, "internals.economy.growth").Cause, Is.SameAs(reversion));
+            Assert.That(engine.TryGetReversionCause(TargetPath.Parse("internals.legitimacy.performance"), out CauseRef skipped), Is.False);
+            Assert.That(skipped, Is.Null);
+            Assert.That(engine.TryGetReversionCause(TargetPath.Parse("internals.legitimacy.social_tension_load"), out skipped), Is.False);
+            Assert.That(skipped, Is.Null);
+            Assert.That(engine.TryGetReversionCause(TargetPath.Parse("internals.unknown.value"), out skipped), Is.False);
+            Assert.That(skipped, Is.Null);
+            Assert.That(engine.TryGetReversionCause(default, out skipped), Is.False);
+            Assert.That(skipped, Is.Null);
+            Assert.That(() => engine.GetReversionCause(TargetPath.Parse("internals.legitimacy.performance")), Throws.InstanceOf<KeyNotFoundException>());
+            Assert.That(() => engine.GetReversionCause(TargetPath.Parse("internals.unknown.value")), Throws.InstanceOf<KeyNotFoundException>());
+            Assert.That(() => engine.GetReversionCause(default), Throws.ArgumentException);
             Assert.That(plan.GetDerivedCause(TargetPath.Parse("internals.legitimacy.performance")).CanonicalKey, Is.EqualTo("SYSTEM:DERIVED.internals.legitimacy.performance"));
             Assert.That(plan.GetMetricCause(TargetPath.Parse("metrics.economy")).CanonicalKey, Is.EqualTo("SYSTEM:AGG.metrics.economy"));
             Assert.That(plan.GetComponentCause(TargetPath.Parse("metrics.economy"), TargetPath.Parse("internals.economy.growth")).CanonicalKey, Is.EqualTo("SYSTEM:AGG.metrics.economy.internals.economy.growth"));
@@ -213,6 +332,113 @@ namespace VictoriantChile.Simulation.Tests.EditMode
             return new AggregationReversionGroupRuntime(TargetPattern.Parse(pattern), 1, 1);
         }
 
+        private static TargetConfigCatalog WithExactTargetConfig(ContentPack pack, string target, params TargetOperation[] operations)
+        {
+            List<TargetConfig> configs = new List<TargetConfig>(pack.TargetConfigs);
+            configs.Add(new TargetConfig(TargetPattern.Parse(target), 100, 0, 10000, 5000, operations));
+            return new TargetConfigCatalog(configs);
+        }
+
+        private static AggregationRuntimePlan WithReversionAlpha(AggregationRuntimePlan plan, string pattern, int alphaPpm)
+        {
+            List<AggregationReversionGroupRuntime> groups = CopyGroups(plan);
+            for (int i = 0; i < groups.Count; i++)
+            {
+                if (groups[i].Pattern.ToString() == pattern)
+                {
+                    groups[i] = new AggregationReversionGroupRuntime(groups[i].Pattern, groups[i].HalfLifeWeeks, alphaPpm);
+                    return WithReversion(plan, groups, plan.InternalReversion.SkipTargets);
+                }
+            }
+
+            Assert.Fail("Reversion pattern not found: " + pattern);
+            return null;
+        }
+
+        private static AggregationRuntimePlan WithMetricCase(AggregationRuntimePlan plan, MetricCase item)
+        {
+            TargetPath metricPath = TargetPath.Parse(item.metric);
+            AggregationMetricRuntime replacement = new AggregationMetricRuntime(
+                metricPath,
+                1,
+                item.alpha_ppm,
+                item.cap_per_weekS,
+                Components(metricPath, item.components));
+
+            List<AggregationMetricRuntime> primary = new List<AggregationMetricRuntime>(plan.PrimaryMetrics.Metrics);
+            List<AggregationMetricRuntime> legitimacy = new List<AggregationMetricRuntime>(plan.Legitimacy.Metrics);
+            bool replaced = ReplaceMetric(primary, metricPath, replacement) || ReplaceMetric(legitimacy, metricPath, replacement);
+            Assert.That(replaced, Is.True, item.metric);
+
+            return new AggregationRuntimePlan(
+                plan.Scale,
+                plan.MidS,
+                plan.Rounding,
+                plan.InternalReversion,
+                plan.DerivedInternals,
+                new AggregationMetricsPassRuntime(primary),
+                new AggregationMetricsPassRuntime(legitimacy));
+        }
+
+        private static bool ReplaceMetric(List<AggregationMetricRuntime> metrics, TargetPath metricPath, AggregationMetricRuntime replacement)
+        {
+            for (int i = 0; i < metrics.Count; i++)
+            {
+                if (metrics[i].Metric == metricPath)
+                {
+                    metrics[i] = replacement;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static WeightedTargetComponentRuntime[] Components(TargetPath metric, MetricComponent[] components)
+        {
+            WeightedTargetComponentRuntime[] result = new WeightedTargetComponentRuntime[components.Length];
+            for (int i = 0; i < components.Length; i++)
+            {
+                result[i] = new WeightedTargetComponentRuntime(metric, TargetPath.Parse(components[i].target), components[i].weight_ppm);
+            }
+
+            return result;
+        }
+
+        private static GameState StateForMetricCase(ContentPack pack, MetricCase item, int prefixCount)
+        {
+            GameState state = Set(CreateState(pack, 42), pack, item.metric, item.current_metricS);
+            for (int i = 0; i < item.components.Length; i++)
+            {
+                int valueS = i < prefixCount ? item.components[i].componentS : AggregationRuntimePlan.RequiredMidS;
+                state = Set(state, pack, item.components[i].target, valueS);
+            }
+
+            return state;
+        }
+
+        private static GameState ExecuteMetricPass(AggregationEngine engine, GameState state, TickCausalBuffer buffer, string metric)
+        {
+            return metric == "metrics.legitimacy"
+                ? engine.AggregateLegitimacy(state, buffer)
+                : engine.AggregatePrimaryMetrics(state, buffer);
+        }
+
+        private static AggregationTargetBinding FindReversionBinding(AggregationEngine engine, string target)
+        {
+            TargetPath path = TargetPath.Parse(target);
+            for (int i = 0; i < engine.ReversionTargets.Count; i++)
+            {
+                if (engine.ReversionTargets[i].Target == path)
+                {
+                    return engine.ReversionTargets[i];
+                }
+            }
+
+            Assert.Fail("Missing reversion binding: " + target);
+            return null;
+        }
+
         private static TickCausalBuffer CreateBuffer(GameState state)
         {
             TickCausalBuffer buffer = new TickCausalBuffer(state.Tick, VisibleTargetCatalog.CreateCanonicalFromState(state));
@@ -273,14 +499,33 @@ namespace VictoriantChile.Simulation.Tests.EditMode
             return null;
         }
 
-        private static Dictionary<string, long> ContributionsByCause(TargetCausalSnapshot target)
+        private static void AssertContributionsExact(TickCausalSnapshot snapshot, string target, ExpectedContribution[] expected, string label)
         {
-            Dictionary<string, long> result = new Dictionary<string, long>(StringComparer.Ordinal);
-            for (int i = 0; i < target.Contributions.Count; i++)
+            AssertContributionsExact(FindTarget(snapshot, target), expected, label);
+        }
+
+        private static void AssertContributionsExact(TargetCausalSnapshot target, ExpectedContribution[] expected, string label)
+        {
+            ExpectedContribution[] sortedExpected = SortedExpected(expected);
+            Assert.That(target.Contributions.Count, Is.EqualTo(sortedExpected.Length), label);
+            long sum = 0;
+            for (int i = 0; i < sortedExpected.Length; i++)
             {
-                result.Add(target.Contributions[i].Cause.CanonicalKey, target.Contributions[i].DeltaS);
+                string actualCause = target.Contributions[i].Cause.CanonicalKey;
+                Assert.That(actualCause, Is.EqualTo(sortedExpected[i].cause), label + " cause " + i);
+                Assert.That(target.Contributions[i].DeltaS, Is.EqualTo(sortedExpected[i].deltaS), label + " delta " + i);
+                Assert.That(CountColon(actualCause), Is.EqualTo(1), actualCause);
+                sum += target.Contributions[i].DeltaS;
             }
 
+            Assert.That(sum, Is.EqualTo(target.DeltaTotalS), label + " telescopic");
+        }
+
+        private static ExpectedContribution[] SortedExpected(ExpectedContribution[] expected)
+        {
+            ExpectedContribution[] result = new ExpectedContribution[expected.Length];
+            Array.Copy(expected, result, expected.Length);
+            Array.Sort(result, (left, right) => string.Compare(left.cause, right.cause, StringComparison.Ordinal));
             return result;
         }
 
@@ -347,7 +592,71 @@ namespace VictoriantChile.Simulation.Tests.EditMode
         [Serializable]
         private sealed class AggregationExecutionVectorFile
         {
+            public ReversionCase[] reversion_cases;
+            public DerivedCase[] derived_cases;
+            public MetricCase[] metric_cases;
             public AggregationExecutionEndToEndCase end_to_end_case;
+        }
+
+        [Serializable]
+        private sealed class ReversionCase
+        {
+            public string id;
+            public int currentS;
+            public int alpha_ppm;
+            public ReversionExpected expected;
+        }
+
+        [Serializable]
+        private sealed class ReversionExpected
+        {
+            public int distanceS;
+            public int rounded_deltaS;
+            public int finalS;
+        }
+
+        [Serializable]
+        private sealed class DerivedCase
+        {
+            public string id;
+            public string kind;
+            public int[] inputs;
+            public int input;
+            public int expected;
+        }
+
+        [Serializable]
+        private sealed class MetricCase
+        {
+            public string id;
+            public string metric;
+            public int current_metricS;
+            public int alpha_ppm;
+            public int cap_per_weekS;
+            public MetricComponent[] components;
+            public MetricExpected expected;
+        }
+
+        [Serializable]
+        private sealed class MetricComponent
+        {
+            public string target;
+            public int componentS;
+            public int weight_ppm;
+        }
+
+        [Serializable]
+        private sealed class MetricExpected
+        {
+            public int weighted_offsetS;
+            public int targetS;
+            public int elastic_deltaS;
+            public int capped_deltaS;
+            public int pre_finalS;
+            public int finalS;
+            public int delta_totalS;
+            public int[] F_values;
+            public ExpectedContribution[] contributions;
         }
 
         [Serializable]
