@@ -193,34 +193,65 @@ def materialize_cause(source: str, target_path: str) -> str:
 
 # --- dispatch helper ---------------------------------------------------------
 
-PHASE_MAP: dict[str, int] = {
-    "INTERNAL_REVERSION": 6,
-    "DERIVED_INTERNALS": 7,
-    "METRIC_AGGREGATION": 8,
-}
-PHASE_ORDER = [6, 7, 8]
+PRIMARY_METRICS = [
+    "metrics.economy",
+    "metrics.security",
+    "metrics.social_tension",
+    "metrics.public_agenda",
+    "metrics.information_quality",
+    "metrics.governability",
+    "metrics.legislative_capacity",
+    "metrics.party_organization",
+    "metrics.internal_cohesion",
+]
+LEGITIMACY_METRIC = "metrics.legitimacy"
 
 
-def group_passes_by_type(passes: list[dict]) -> dict[str, list[dict]]:
-    """Group passes by type preserving config order within each group."""
-    grouped: dict[str, list[dict]] = {}
+def classify_passes(passes: list[dict]) -> dict[str, dict]:
+    classified: dict[str, dict] = {}
+    seen_metrics: set[str] = set()
     for p in passes:
-        t = p["type"]
-        if t not in grouped:
-            grouped[t] = []
-        grouped[t].append(p)
-    return grouped
+        pass_type = p["type"]
+        if pass_type == "INTERNAL_REVERSION":
+            key = "reversion"
+        elif pass_type == "DERIVED_INTERNALS":
+            key = "derived"
+        elif pass_type == "METRIC_AGGREGATION":
+            metric_names = [m["metric"] for m in p.get("metrics", [])]
+            duplicate_metrics = [m for m in metric_names if m in seen_metrics]
+            if duplicate_metrics:
+                raise ValueError(f"duplicate aggregation metric: {duplicate_metrics[0]}")
+            seen_metrics.update(metric_names)
+            if metric_names == [LEGITIMACY_METRIC]:
+                key = "legitimacy"
+            elif metric_names == PRIMARY_METRICS:
+                key = "primary"
+            elif LEGITIMACY_METRIC in metric_names:
+                raise ValueError("legitimacy cannot be mixed into primary metrics")
+            else:
+                raise ValueError("primary metric pass must contain the nine canonical primary metrics")
+        else:
+            raise ValueError(f"unknown pass type: {pass_type}")
+
+        if key in classified:
+            raise ValueError(f"duplicate pass role: {key}")
+        classified[key] = p
+
+    required = {"reversion", "derived", "primary", "legitimacy"}
+    if set(classified) != required:
+        raise ValueError(f"aggregation passes must be exactly {sorted(required)}")
+    return classified
 
 
 def dispatch_order(passes: list[dict]) -> list[dict]:
-    """Return passes sorted by phase order (6→7→8), preserving config order within each type group."""
-    grouped = group_passes_by_type(passes)
-    result: list[dict] = []
-    for phase in PHASE_ORDER:
-        for t, phase_id in PHASE_MAP.items():
-            if phase_id == phase and t in grouped:
-                result.extend(grouped[t])
-    return result
+    """Return canonical semantic execution order: reversion, derived, primary, legitimacy."""
+    classified = classify_passes(passes)
+    return [
+        classified["reversion"],
+        classified["derived"],
+        classified["primary"],
+        classified["legitimacy"],
+    ]
 
 
 # --- visibility policy -------------------------------------------------------
@@ -561,7 +592,6 @@ class AggregationContractTest(unittest.TestCase):
         config = read_aggregation_config()
         passes = config["passes"]
         ordered = dispatch_order(passes)
-        # Phase order: 6 (INTERNAL_REVERSION) → 7 (DERIVED_INTERNALS) → 8 (METRIC_AGGREGATION)
         ordered_types = [p["type"] for p in ordered]
         self.assertEqual(ordered_types, [
             "INTERNAL_REVERSION",
@@ -569,18 +599,29 @@ class AggregationContractTest(unittest.TestCase):
             "METRIC_AGGREGATION",
             "METRIC_AGGREGATION",
         ])
-        # Group by type preserves config order within each type
-        grouped = group_passes_by_type(passes)
-        self.assertEqual(len(grouped["INTERNAL_REVERSION"]), 1)
-        self.assertEqual(len(grouped["DERIVED_INTERNALS"]), 1)
-        self.assertEqual(len(grouped["METRIC_AGGREGATION"]), 2)
-        # Within METRIC_AGGREGATION, first is the nine-metric pass, second is legitimacy
-        self.assertEqual(len(grouped["METRIC_AGGREGATION"][0]["metrics"]), 9)
-        self.assertEqual(len(grouped["METRIC_AGGREGATION"][1]["metrics"]), 1)
-        self.assertEqual(
-            grouped["METRIC_AGGREGATION"][1]["metrics"][0]["metric"],
-            "metrics.legitimacy",
-        )
+        self.assertEqual([m["metric"] for m in ordered[2]["metrics"]], PRIMARY_METRICS)
+        self.assertEqual([m["metric"] for m in ordered[3]["metrics"]], [LEGITIMACY_METRIC])
+
+    def test_dispatch_order_adversarial_a_b_is_semantic(self) -> None:
+        config = read_aggregation_config()
+        passes = config["passes"]
+        scenario_a = [passes[0], passes[1], passes[2], passes[3]]
+        scenario_b = [passes[3], passes[2], passes[0], passes[1]]
+
+        ordered_a = dispatch_order(scenario_a)
+        ordered_b = dispatch_order(scenario_b)
+
+        self.assertEqual(ordered_a, ordered_b)
+        self.assertEqual([p["type"] for p in ordered_b], [
+            "INTERNAL_REVERSION",
+            "DERIVED_INTERNALS",
+            "METRIC_AGGREGATION",
+            "METRIC_AGGREGATION",
+        ])
+        self.assertEqual([g["pattern"] for g in ordered_b[0]["groups"]], [g["pattern"] for g in passes[0]["groups"]])
+        self.assertEqual([r["target"] for r in ordered_b[1]["rules"]], [r["target"] for r in passes[2]["rules"]])
+        self.assertEqual([m["metric"] for m in ordered_b[2]["metrics"]], PRIMARY_METRICS)
+        self.assertEqual([m["metric"] for m in ordered_b[3]["metrics"]], [LEGITIMACY_METRIC])
 
     # --- nine metrics before legitimacy in phase 8 ---
 

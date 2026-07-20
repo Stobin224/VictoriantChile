@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using VictoriantChile.Simulation.Core.Aggregation;
 using VictoriantChile.Simulation.Core.Causality;
 using VictoriantChile.Simulation.Core.Effects;
 using VictoriantChile.Simulation.Core.Numerics;
@@ -15,6 +16,7 @@ namespace VictoriantChile.Simulation.Core.Scheduling
         private readonly EffectEngine _effectEngine;
         private readonly EffectRuntimeCatalog _effectRuntimeCatalog;
         private readonly TargetConfigCatalog _targetConfigs;
+        private readonly AggregationEngine _aggregationEngine;
         private readonly IReadOnlyDictionary<string, IScheduledActionHandler> _handlers;
         private readonly IReadOnlyList<string> _orderedRegionIds;
         private readonly IReadOnlyList<string> _orderedInterestGroupIds;
@@ -24,6 +26,7 @@ namespace VictoriantChile.Simulation.Core.Scheduling
             EffectEngine effectEngine,
             EffectRuntimeCatalog effectRuntimeCatalog,
             TargetConfigCatalog targetConfigs,
+            AggregationRuntimePlan aggregationRuntimePlan,
             IEnumerable<string> orderedRegionIds,
             IEnumerable<string> orderedInterestGroupIds,
             IEnumerable<string> orderedMovementIds,
@@ -32,6 +35,7 @@ namespace VictoriantChile.Simulation.Core.Scheduling
             _effectEngine = effectEngine ?? throw new ArgumentNullException(nameof(effectEngine));
             _effectRuntimeCatalog = effectRuntimeCatalog ?? throw new ArgumentNullException(nameof(effectRuntimeCatalog));
             _targetConfigs = targetConfigs ?? throw new ArgumentNullException(nameof(targetConfigs));
+            _aggregationEngine = new AggregationEngine(aggregationRuntimePlan ?? throw new ArgumentNullException(nameof(aggregationRuntimePlan)), _targetConfigs);
             _orderedRegionIds = SnapshotIds(orderedRegionIds, nameof(orderedRegionIds));
             _orderedInterestGroupIds = SnapshotIds(orderedInterestGroupIds, nameof(orderedInterestGroupIds));
             _orderedMovementIds = SnapshotIds(orderedMovementIds, nameof(orderedMovementIds));
@@ -134,9 +138,13 @@ namespace VictoriantChile.Simulation.Core.Scheduling
             working = ExecutePhase(SimulationTickPhase.ApplyStartInstantModifiers, working, phases, observePhase, state => _effectEngine.ApplyStartInstantModifiers(state, _effectRuntimeCatalog, _targetConfigs, state.Tick, causalBuffer));
             working = ExecutePhase(SimulationTickPhase.ApplyPerTickModifiers, working, phases, observePhase, state => _effectEngine.ApplyPerTickModifiers(state, _effectRuntimeCatalog, _targetConfigs, state.Tick, causalBuffer));
 
-            working = ExecuteNoOpPhase(SimulationTickPhase.RevertInternals, working, phases, observePhase);
-            working = ExecuteNoOpPhase(SimulationTickPhase.DeriveInternals, working, phases, observePhase);
-            working = ExecuteNoOpPhase(SimulationTickPhase.AggregateNationalMetrics, working, phases, observePhase);
+            working = ExecutePhase(SimulationTickPhase.RevertInternals, working, phases, observePhase, state => _aggregationEngine.RevertInternals(state));
+            working = ExecutePhase(SimulationTickPhase.DeriveInternals, working, phases, observePhase, state => _aggregationEngine.DeriveInternals(state));
+            working = ExecutePhase(SimulationTickPhase.AggregateNationalMetrics, working, phases, observePhase, state =>
+            {
+                GameState afterPrimary = _aggregationEngine.AggregatePrimaryMetrics(state, causalBuffer);
+                return _aggregationEngine.AggregateLegitimacy(afterPrimary, causalBuffer);
+            });
             working = ExecuteNoOpPhase(SimulationTickPhase.DriftNationalToRegions, working, phases, observePhase);
             working = ExecuteNoOpPhase(SimulationTickPhase.PullRegionsToInternals, working, phases, observePhase);
             working = ExecuteNoOpPhase(SimulationTickPhase.UpdateMovements, working, phases, observePhase);

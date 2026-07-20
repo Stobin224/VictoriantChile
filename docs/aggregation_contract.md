@@ -1,6 +1,6 @@
 # Aggregation Contract v1
 
-PR 14.1 freezes the mathematical, temporal, and causal contract for national aggregation before writing productive logic.
+PR 14 freezes the mathematical, temporal, causal, runtime-plan, and execution contract for national aggregation.
 
 ## Scope and Non-Scope
 
@@ -14,16 +14,14 @@ PR 14.1 freezes the mathematical, temporal, and causal contract for national agg
 - Causal allocation algorithm (`ordered_prefix_counterfactual_marginal_v1`).
 - Cause key grammar.
 - Hidden internal policy.
+- C# runtime plan, Content -> Core bridge, executor binding, Scheduler integration, and scheduler golden evidence.
 
-**Not in scope (deferred to PR 14.2+):**
-- C# engine implementation of phases 6, 7, 8.
-- Runtime models.
-- SchedulerEngine integration.
-- GameState mutations.
+**Not in scope:**
 - New CausalLedger APIs.
-- Content Pack changes.
+- Content Pack data changes.
 - Manifest changes.
-- Golden file changes.
+- Non-scheduler golden changes.
+- Phases 9 through 14, which remain explicit no-op hooks.
 
 ## Phase Dispatch
 
@@ -51,7 +49,9 @@ Phase 9-14: later phases
 Phase 15: close_causal_report
 ```
 
-The scheduler dispatches passes by `type` into frozen phases. Pass position within the config array does NOT define the phase order between different types.
+Content parses the editorial `AggregationConfig` once and compiles it into `AggregationRuntimePlan` when constructing `ContentPack`. Core and Scheduler consume only that runtime plan and the one-time `AggregationEngine` binding. Pass position within the config array does NOT define execution order: the bridge classifies semantically into reversion, derived, primary metrics, and legitimacy.
+
+The two metric passes are not interchangeable by physical order. Primary contains exactly the nine non-legitimacy metrics; legitimacy contains exactly `metrics.legitimacy`. Execution order is always reversion -> derived -> primary -> legitimacy.
 
 ## Numeric Domain
 
@@ -125,6 +125,7 @@ finalS = clamp(
 - `long` checked arithmetic before `int` cast.
 - No extra weekly cap on reversion.
 - `skip_targets` are excluded (currently `internals.legitimacy.performance` and `internals.legitimacy.social_tension_load`).
+- Reversion patterns are expanded once against the 38 concrete `InitialTargetRegistry.Internals` targets. A zero-match pattern, concrete overlap, unmatched skip, uncovered internal, or missing target config fails closed before execution.
 
 ### Reversion Vector
 
@@ -335,6 +336,10 @@ Cause: `SYSTEM:AGG.<metric>.<component>`
 | `institutional_trust` | -24 |
 | **Sum** | **+32** |
 
+### Execution Vector File
+
+The versioned executable vector set is `tests/aggregation/aggregation_execution_v1_vectors.json`; `tests/python/test_aggregation_execution_contract.py` recalculates its expected values independently of Unity/C#.
+
 ## CauseKey Grammar
 
 CauseRef builds the key as:
@@ -393,19 +398,14 @@ Do not modify CauseRef in PR 14.1.
 8. Derived expressions read pre-aggregation metrics of the current tick.
 9. Legitimacy has one-tick latency for same-tick structural changes.
 
-## Responsibilities Deferred to PR 14.2+
+## Implementation Status
 
-- C# `AggregationEngine` implementing phases 6, 7, 8.
-- `InternalReversionPass` executor.
-- `DerivedInternalsPass` executor.
-- `MetricAggregationPass` executor.
-- Integration with `SchedulerEngine` phase dispatch.
-- Integration with `CausalLedger` for marginal attribution.
-- `GameState` mutations for metrics and internals.
-- Content Pack validation of `aggregation_config.json` (schema, types, enums, ranges, targets, patterns, weight sums, and references are already validated by the Content Pack loader; this sub-PR only freezes semantics; runtime projection and productive execution are deferred to PR 14.2+).
-- Manifest hash updates.
-- Golden file updates.
-- EditMode and ScenarioRunner tests for the aggregation system.
+- Runtime models and the Content -> Core bridge are implemented and immutable.
+- `AggregationEngine` implements phase 6 reversion, phase 7 derived internals, and phase 8a/8b metric aggregation.
+- `SchedulerEngine` requires an `AggregationRuntimePlan`, binds the executor once, and executes phases 6, 7, and 8.
+- `ScenarioRunner` passes `ContentPack.AggregationRuntimePlan` directly.
+- Phases 9 through 14 remain explicit no-op hooks.
+- Scheduler golden evidence is updated for aggregation-visible metric deltas; smoke and content hashes are unchanged.
 
 ## Content Pack Configuration
 

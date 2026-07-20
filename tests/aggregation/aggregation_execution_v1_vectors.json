@@ -1,0 +1,340 @@
+{
+  "schema_version": 1,
+  "algorithm": "ordered_prefix_counterfactual_marginal_v1",
+  "numeric_domain": {
+    "scale": 100,
+    "midS": 5000,
+    "ppm_denominator": 1000000,
+    "rounding": "HALF_AWAY_FROM_ZERO"
+  },
+  "reversion_cases": [
+    {
+      "id": "above_midpoint",
+      "currentS": 6000,
+      "alpha_ppm": 26307,
+      "expected": { "distanceS": -1000, "rounded_deltaS": -26, "finalS": 5974 }
+    },
+    {
+      "id": "below_midpoint",
+      "currentS": 4000,
+      "alpha_ppm": 26307,
+      "expected": { "distanceS": 1000, "rounded_deltaS": 26, "finalS": 4026 }
+    },
+    {
+      "id": "half_away_positive",
+      "currentS": 4500,
+      "alpha_ppm": 1000,
+      "expected": { "distanceS": 500, "rounded_deltaS": 1, "finalS": 4501 }
+    },
+    {
+      "id": "half_away_negative",
+      "currentS": 5500,
+      "alpha_ppm": 1000,
+      "expected": { "distanceS": -500, "rounded_deltaS": -1, "finalS": 5499 }
+    }
+  ],
+  "derived_cases": [
+    {
+      "id": "avg",
+      "kind": "AVG",
+      "inputs": [5000, 5001, 5001],
+      "expected": 5001
+    },
+    {
+      "id": "copy",
+      "kind": "COPY",
+      "input": 6123,
+      "expected": 6123
+    }
+  ],
+  "metric_cases": [
+    {
+      "id": "economy_contract",
+      "metric": "metrics.economy",
+      "current_metricS": 5000,
+      "alpha_ppm": 82996,
+      "cap_per_weekS": 200,
+      "components": [
+        { "target": "internals.economy.growth", "componentS": 6000, "weight_ppm": 350000 },
+        { "target": "internals.economy.unemployment", "componentS": 4000, "weight_ppm": -250000 },
+        { "target": "internals.economy.inflation", "componentS": 5000, "weight_ppm": -250000 },
+        { "target": "internals.economy.fiscal_stability", "componentS": 6000, "weight_ppm": 150000 }
+      ],
+      "expected": {
+        "weighted_offsetS": 750,
+        "targetS": 5750,
+        "elastic_deltaS": 62,
+        "capped_deltaS": 62,
+        "pre_finalS": 5062,
+        "finalS": 5062,
+        "delta_totalS": 62,
+        "F_values": [5000, 5029, 5050, 5050, 5062],
+        "contributions": [
+          { "cause": "SYSTEM:AGG.metrics.economy.internals.economy.growth", "deltaS": 29 },
+          { "cause": "SYSTEM:AGG.metrics.economy.internals.economy.unemployment", "deltaS": 21 },
+          { "cause": "SYSTEM:AGG.metrics.economy.internals.economy.fiscal_stability", "deltaS": 12 }
+        ]
+      }
+    },
+    {
+      "id": "social_tension_cancellation",
+      "metric": "metrics.social_tension",
+      "current_metricS": 5000,
+      "alpha_ppm": 159104,
+      "cap_per_weekS": 400,
+      "components": [
+        { "target": "internals.tension.cost_of_living", "componentS": 6000, "weight_ppm": 350000 },
+        { "target": "internals.tension.polarization", "componentS": 6000, "weight_ppm": 250000 },
+        { "target": "internals.tension.protest_activity", "componentS": 4000, "weight_ppm": 250000 },
+        { "target": "internals.tension.institutional_trust", "componentS": 6000, "weight_ppm": -150000 }
+      ],
+      "expected": {
+        "weighted_offsetS": 200,
+        "targetS": 5200,
+        "elastic_deltaS": 32,
+        "capped_deltaS": 32,
+        "pre_finalS": 5032,
+        "finalS": 5032,
+        "delta_totalS": 32,
+        "F_values": [5000, 5056, 5095, 5056, 5032],
+        "contributions": [
+          { "cause": "SYSTEM:AGG.metrics.social_tension.internals.tension.cost_of_living", "deltaS": 56 },
+          { "cause": "SYSTEM:AGG.metrics.social_tension.internals.tension.polarization", "deltaS": 39 },
+          { "cause": "SYSTEM:AGG.metrics.social_tension.internals.tension.protest_activity", "deltaS": -39 },
+          { "cause": "SYSTEM:AGG.metrics.social_tension.internals.tension.institutional_trust", "deltaS": -24 }
+        ]
+      }
+    },
+    {
+      "id": "cap_positive",
+      "metric": "metrics.public_agenda",
+      "current_metricS": 5000,
+      "alpha_ppm": 292893,
+      "cap_per_weekS": 600,
+      "components": [
+        { "target": "internals.agenda.media_heat", "componentS": 10000, "weight_ppm": 1000000 }
+      ],
+      "expected": {
+        "weighted_offsetS": 5000,
+        "targetS": 10000,
+        "elastic_deltaS": 1464,
+        "capped_deltaS": 600,
+        "pre_finalS": 5600,
+        "finalS": 5600,
+        "delta_totalS": 600,
+        "F_values": [5000, 5600],
+        "contributions": [
+          { "cause": "SYSTEM:AGG.metrics.public_agenda.internals.agenda.media_heat", "deltaS": 600 }
+        ]
+      }
+    },
+    {
+      "id": "cap_negative",
+      "metric": "metrics.public_agenda",
+      "current_metricS": 5000,
+      "alpha_ppm": 292893,
+      "cap_per_weekS": 600,
+      "components": [
+        { "target": "internals.agenda.media_heat", "componentS": 0, "weight_ppm": 1000000 }
+      ],
+      "expected": {
+        "weighted_offsetS": -5000,
+        "targetS": 0,
+        "elastic_deltaS": -1464,
+        "capped_deltaS": -600,
+        "pre_finalS": 4400,
+        "finalS": 4400,
+        "delta_totalS": -600,
+        "F_values": [5000, 4400],
+        "contributions": [
+          { "cause": "SYSTEM:AGG.metrics.public_agenda.internals.agenda.media_heat", "deltaS": -600 }
+        ]
+      }
+    },
+    {
+      "id": "target_clamp_upper_final_idempotent",
+      "metric": "metrics.public_agenda",
+      "current_metricS": 5000,
+      "alpha_ppm": 1000000,
+      "cap_per_weekS": 10000,
+      "components": [
+        { "target": "internals.agenda.media_heat", "componentS": 10000, "weight_ppm": 1000000 },
+        { "target": "internals.agenda.policy_conflict", "componentS": 10000, "weight_ppm": 1000000 }
+      ],
+      "expected": {
+        "weighted_offsetS": 10000,
+        "targetS": 10000,
+        "elastic_deltaS": 5000,
+        "capped_deltaS": 5000,
+        "pre_finalS": 10000,
+        "finalS": 10000,
+        "delta_totalS": 5000,
+        "F_values": [5000, 10000, 10000],
+        "contributions": [
+          { "cause": "SYSTEM:AGG.metrics.public_agenda.internals.agenda.media_heat", "deltaS": 5000 }
+        ]
+      }
+    },
+    {
+      "id": "target_clamp_lower_final_idempotent",
+      "metric": "metrics.public_agenda",
+      "current_metricS": 5000,
+      "alpha_ppm": 1000000,
+      "cap_per_weekS": 10000,
+      "components": [
+        { "target": "internals.agenda.media_heat", "componentS": 0, "weight_ppm": 1000000 },
+        { "target": "internals.agenda.policy_conflict", "componentS": 0, "weight_ppm": 1000000 }
+      ],
+      "expected": {
+        "weighted_offsetS": -10000,
+        "targetS": 0,
+        "elastic_deltaS": -5000,
+        "capped_deltaS": -5000,
+        "pre_finalS": 0,
+        "finalS": 0,
+        "delta_totalS": -5000,
+        "F_values": [5000, 0, 0],
+        "contributions": [
+          { "cause": "SYSTEM:AGG.metrics.public_agenda.internals.agenda.media_heat", "deltaS": -5000 }
+        ]
+      }
+    },
+    {
+      "id": "base_nonzero_component_zero_omitted",
+      "metric": "metrics.economy",
+      "current_metricS": 5500,
+      "alpha_ppm": 500000,
+      "cap_per_weekS": 10000,
+      "components": [
+        { "target": "internals.economy.growth", "componentS": 5000, "weight_ppm": 1000000 }
+      ],
+      "expected": {
+        "weighted_offsetS": 0,
+        "targetS": 5000,
+        "elastic_deltaS": -250,
+        "capped_deltaS": -250,
+        "pre_finalS": 5250,
+        "finalS": 5250,
+        "delta_totalS": -250,
+        "F_values": [5250, 5250],
+        "contributions": [
+          { "cause": "SYSTEM:AGG.metrics.economy", "deltaS": -250 }
+        ]
+      }
+    },
+    {
+      "id": "delta_zero_keeps_nonzero_canceling_marginals",
+      "metric": "metrics.economy",
+      "current_metricS": 5000,
+      "alpha_ppm": 1000000,
+      "cap_per_weekS": 10000,
+      "components": [
+        { "target": "internals.economy.growth", "componentS": 7000, "weight_ppm": 500000 },
+        { "target": "internals.economy.unemployment", "componentS": 7000, "weight_ppm": -500000 }
+      ],
+      "expected": {
+        "weighted_offsetS": 0,
+        "targetS": 5000,
+        "elastic_deltaS": 0,
+        "capped_deltaS": 0,
+        "pre_finalS": 5000,
+        "finalS": 5000,
+        "delta_totalS": 0,
+        "F_values": [5000, 6000, 5000],
+        "contributions": [
+          { "cause": "SYSTEM:AGG.metrics.economy.internals.economy.growth", "deltaS": 1000 },
+          { "cause": "SYSTEM:AGG.metrics.economy.internals.economy.unemployment", "deltaS": -1000 }
+        ]
+      }
+    }
+  ],
+  "end_to_end_case": {
+    "id": "phase_6_7_8a_8b_fixture",
+    "initial_metric_values": [
+      { "target": "metrics.legitimacy", "valueS": 5500 },
+      { "target": "metrics.economy", "valueS": 5000 },
+      { "target": "metrics.security", "valueS": 5000 },
+      { "target": "metrics.social_tension", "valueS": 5000 },
+      { "target": "metrics.public_agenda", "valueS": 5000 },
+      { "target": "metrics.information_quality", "valueS": 5000 },
+      { "target": "metrics.party_organization", "valueS": 5000 },
+      { "target": "metrics.internal_cohesion", "valueS": 5000 },
+      { "target": "metrics.legislative_capacity", "valueS": 5000 },
+      { "target": "metrics.governability", "valueS": 5000 }
+    ],
+    "initial_internal_overrides": [
+      { "target": "internals.economy.growth", "valueS": 6000 },
+      { "target": "internals.economy.unemployment", "valueS": 4000 },
+      { "target": "internals.economy.fiscal_stability", "valueS": 6000 },
+      { "target": "internals.security.police_capacity", "valueS": 5600 },
+      { "target": "internals.security.crime_rate", "valueS": 4600 },
+      { "target": "internals.tension.cost_of_living", "valueS": 6000 },
+      { "target": "internals.tension.polarization", "valueS": 6000 },
+      { "target": "internals.tension.protest_activity", "valueS": 4000 },
+      { "target": "internals.tension.institutional_trust", "valueS": 6000 },
+      { "target": "internals.legitimacy.integrity", "valueS": 6200 },
+      { "target": "internals.legitimacy.scandal_pressure", "valueS": 4400 }
+    ],
+    "expected_final_metric_values": [
+      { "target": "metrics.legitimacy", "valueS": 5492 },
+      { "target": "metrics.economy", "valueS": 5061 },
+      { "target": "metrics.security", "valueS": 5033 },
+      { "target": "metrics.social_tension", "valueS": 5030 },
+      { "target": "metrics.public_agenda", "valueS": 5000 },
+      { "target": "metrics.information_quality", "valueS": 5000 },
+      { "target": "metrics.party_organization", "valueS": 5000 },
+      { "target": "metrics.internal_cohesion", "valueS": 5000 },
+      { "target": "metrics.legislative_capacity", "valueS": 5000 },
+      { "target": "metrics.governability", "valueS": 5000 }
+    ],
+    "expected_final_internal_overrides": [
+      { "target": "internals.economy.growth", "valueS": 5974 },
+      { "target": "internals.economy.unemployment", "valueS": 4026 },
+      { "target": "internals.economy.fiscal_stability", "valueS": 5974 },
+      { "target": "internals.security.police_capacity", "valueS": 5580 },
+      { "target": "internals.security.crime_rate", "valueS": 4614 },
+      { "target": "internals.tension.cost_of_living", "valueS": 5944 },
+      { "target": "internals.tension.polarization", "valueS": 5944 },
+      { "target": "internals.tension.protest_activity", "valueS": 4056 },
+      { "target": "internals.tension.institutional_trust", "valueS": 5944 },
+      { "target": "internals.legitimacy.performance", "valueS": 5000 },
+      { "target": "internals.legitimacy.integrity", "valueS": 6159 },
+      { "target": "internals.legitimacy.scandal_pressure", "valueS": 4420 },
+      { "target": "internals.legitimacy.social_tension_load", "valueS": 5000 }
+    ],
+    "expected_metric_contributions": [
+      {
+        "target": "metrics.economy",
+        "contributions": [
+        { "cause": "SYSTEM:AGG.metrics.economy.internals.economy.growth", "deltaS": 28 },
+        { "cause": "SYSTEM:AGG.metrics.economy.internals.economy.unemployment", "deltaS": 20 },
+        { "cause": "SYSTEM:AGG.metrics.economy.internals.economy.fiscal_stability", "deltaS": 13 }
+        ]
+      },
+      {
+        "target": "metrics.security",
+        "contributions": [
+        { "cause": "SYSTEM:AGG.metrics.security.internals.security.police_capacity", "deltaS": 22 },
+        { "cause": "SYSTEM:AGG.metrics.security.internals.security.crime_rate", "deltaS": 11 }
+        ]
+      },
+      {
+        "target": "metrics.social_tension",
+        "contributions": [
+        { "cause": "SYSTEM:AGG.metrics.social_tension.internals.tension.cost_of_living", "deltaS": 53 },
+        { "cause": "SYSTEM:AGG.metrics.social_tension.internals.tension.polarization", "deltaS": 37 },
+        { "cause": "SYSTEM:AGG.metrics.social_tension.internals.tension.protest_activity", "deltaS": -37 },
+        { "cause": "SYSTEM:AGG.metrics.social_tension.internals.tension.institutional_trust", "deltaS": -23 }
+        ]
+      },
+      {
+        "target": "metrics.legitimacy",
+        "contributions": [
+        { "cause": "SYSTEM:AGG.metrics.legitimacy", "deltaS": -41 },
+        { "cause": "SYSTEM:AGG.metrics.legitimacy.internals.legitimacy.integrity", "deltaS": 24 },
+        { "cause": "SYSTEM:AGG.metrics.legitimacy.internals.legitimacy.scandal_pressure", "deltaS": 9 }
+        ]
+      }
+    ]
+  }
+}

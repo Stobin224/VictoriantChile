@@ -2128,12 +2128,16 @@ namespace VictoriantChile.Content.Models
 
         private static bool IsMetricTarget(TargetPath target)
         {
-            return target.IsValid && string.Equals(target.Namespace, "metrics", StringComparison.Ordinal);
+            return target.IsValid
+                && target.SegmentCount == 2
+                && string.Equals(target.Namespace, "metrics", StringComparison.Ordinal);
         }
 
         private static bool IsInternalTarget(TargetPath target)
         {
-            return target.IsValid && string.Equals(target.Namespace, "internals", StringComparison.Ordinal);
+            return target.IsValid
+                && target.SegmentCount == 3
+                && string.Equals(target.Namespace, "internals", StringComparison.Ordinal);
         }
 
         private static void ValidateEnum<TEnum>(TEnum value, string jsonPath, string message) where TEnum : struct

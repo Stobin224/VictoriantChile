@@ -550,21 +550,47 @@ namespace VictoriantChile.Simulation.Tests.EditMode
         }
 
         [Test]
-        public void AggregationMetricRuntimeCopiesComponentValuesWithoutMutatingSourceComponent()
+        public void AggregationMetricRuntimeRejectsComponentBoundToAnotherMetricWithoutMutatingSourceComponent()
         {
             WeightedTargetComponentRuntime source = RuntimeComponent("metrics.source", "internals.economy.growth", 1000000);
             CauseRef sourceCause = source.Cause;
-            AggregationMetricRuntime metric = new AggregationMetricRuntime(
-                TargetPath.Parse("metrics.destination"),
-                1,
-                1,
-                0,
-                new[] { source });
+
+            Assert.That(() => new AggregationMetricRuntime(
+                    TargetPath.Parse("metrics.destination"),
+                    1,
+                    1,
+                    0,
+                    new[] { source }),
+                Throws.ArgumentException);
 
             Assert.That(source.Cause, Is.SameAs(sourceCause));
             Assert.That(source.Cause.CanonicalKey, Is.EqualTo("SYSTEM:AGG.metrics.source.internals.economy.growth"));
-            Assert.That(metric.Components[0], Is.Not.SameAs(source));
-            Assert.That(metric.Components[0].Cause.CanonicalKey, Is.EqualTo("SYSTEM:AGG.metrics.destination.internals.economy.growth"));
+        }
+
+        [Test]
+        public void RuntimeRejectsMetricAndInternalTargetsWithWrongArity()
+        {
+            Assert.That(() => RuntimeComponent("metrics.economy.extra", "internals.economy.growth"), Throws.ArgumentException);
+            Assert.That(() => RuntimeComponent("metrics.economy", "internals.economy.growth.extra"), Throws.ArgumentException);
+            Assert.That(() => RuntimeMetric("metrics.economy.extra", "internals.economy.growth"), Throws.ArgumentException);
+            Assert.That(() => new DerivedAggregationRuleRuntime(
+                    TargetPath.Parse("internals.legitimacy.performance.extra"),
+                    TargetOperation.Set,
+                    new AggregationExpressionRuntime(
+                        AggregationExpressionKindRuntime.Copy,
+                        TargetPath.Parse("metrics.economy"),
+                        Array.Empty<TargetPath>())),
+                Throws.ArgumentException);
+            Assert.That(() => new AggregationExpressionRuntime(
+                    AggregationExpressionKindRuntime.Copy,
+                    TargetPath.Parse("metrics.economy.extra"),
+                    Array.Empty<TargetPath>()),
+                Throws.ArgumentException);
+            Assert.That(() => new AggregationExpressionRuntime(
+                    AggregationExpressionKindRuntime.Avg,
+                    null,
+                    new[] { TargetPath.Parse("metrics.economy"), TargetPath.Parse("metrics.economy") }),
+                Throws.ArgumentException);
         }
 
         [TestCaseSource(nameof(IncompatiblePassFieldCases))]
@@ -736,8 +762,9 @@ namespace VictoriantChile.Simulation.Tests.EditMode
             {
                 string content = File.ReadAllText(file);
                 Assert.That(content, Does.Not.Contain("VictoriantChile.Content."));
-                Assert.That(content, Does.Not.Contain("GameState"));
-                Assert.That(content, Does.Not.Contain("CausalLedger"));
+                Assert.That(content, Does.Not.Contain("Newtonsoft"));
+                Assert.That(content, Does.Not.Contain("UnityEngine"));
+                Assert.That(content, Does.Not.Contain("AggregationConfig"));
                 Assert.That(content, Does.Not.Contain("Scheduler"));
             }
         }

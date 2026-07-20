@@ -22,7 +22,7 @@ namespace VictoriantChile.Simulation.Tests.EditMode
 {
     public sealed class SchedulerEngineTests
     {
-        private const string GoldenHash = "sha256:faf419ac84726456288e56705d355b505d87bd3e995e34803d7c0b51bec31c85";
+        private const string GoldenHash = "sha256:e8c202a6a19881cd30c3ce0907ebb08994424f04cafda46b3ab9a3fb1a7c4ef3";
 
         [Test]
         public void ScheduledActionsValidateAndQueueDeterministically()
@@ -133,19 +133,19 @@ namespace VictoriantChile.Simulation.Tests.EditMode
             state = scheduler.ScheduleAction(state, Action("grant", 1, 3, "grant_effect", Decision("decision_grant")));
 
             TickAdvanceResult tick1 = scheduler.AdvanceOneTick(state);
-            Assert.That(tick1.FinalState.MetricsById["legitimacy"].ValueS, Is.EqualTo(6100));
+            Assert.That(tick1.FinalState.MetricsById["legitimacy"].ValueS, Is.EqualTo(6009));
             Assert.That(tick1.FinalState.ActiveEffects.Count, Is.EqualTo(1));
             Assert.That(tick1.FinalState.ActiveEffects[0].StartInstantApplied, Is.True);
 
             TickAdvanceResult tick2 = scheduler.AdvanceOneTick(tick1.FinalState);
-            Assert.That(tick2.FinalState.MetricsById["legitimacy"].ValueS, Is.EqualTo(6200));
+            Assert.That(tick2.FinalState.MetricsById["legitimacy"].ValueS, Is.EqualTo(6017));
 
             TickAdvanceResult tick3 = scheduler.AdvanceOneTick(tick2.FinalState);
-            Assert.That(tick3.FinalState.MetricsById["legitimacy"].ValueS, Is.EqualTo(6300));
+            Assert.That(tick3.FinalState.MetricsById["legitimacy"].ValueS, Is.EqualTo(6024));
             Assert.That(tick3.FinalState.ActiveEffects.Count, Is.EqualTo(1));
 
             TickAdvanceResult tick4 = scheduler.AdvanceOneTick(tick3.FinalState);
-            Assert.That(tick4.FinalState.MetricsById["legitimacy"].ValueS, Is.EqualTo(6300));
+            Assert.That(tick4.FinalState.MetricsById["legitimacy"].ValueS, Is.EqualTo(5939));
             Assert.That(tick4.FinalState.ActiveEffects, Is.Empty);
         }
 
@@ -264,8 +264,10 @@ namespace VictoriantChile.Simulation.Tests.EditMode
 
             GameState hiddenState = hiddenScheduler.ScheduleAction(CreateState(pack, 1), Action("hidden", 1, 0, "hidden_mutation", Decision("decision_hidden")));
             TickAdvanceResult result = hiddenScheduler.AdvanceOneTick(hiddenState);
-            Assert.That(result.FinalState.InternalsByDomain["economy"].ComponentsById["growth"].ValueS, Is.EqualTo(5100));
-            Assert.That(result.TickSnapshot.ChangedTargets.Count, Is.EqualTo(0));
+            Assert.That(result.FinalState.InternalsByDomain["economy"].ComponentsById["growth"].ValueS, Is.EqualTo(5097));
+            Assert.That(result.FinalState.MetricsById["economy"].ValueS, Is.EqualTo(5003));
+            Assert.That(result.TickSnapshot.ChangedTargets.Count, Is.EqualTo(1));
+            Assert.That(result.TickSnapshot.ChangedTargets[0].Target.ToString(), Is.EqualTo("metrics.economy"));
         }
 
         [Test]
@@ -573,7 +575,7 @@ namespace VictoriantChile.Simulation.Tests.EditMode
                 movementIds.Add(pack.Movements[i].Id);
             }
 
-            return new SchedulerEngine(new EffectEngine(), pack.EffectRuntimeCatalog, pack.TargetConfigCatalog, regionIds, interestGroupIds, movementIds, handlers);
+            return new SchedulerEngine(new EffectEngine(), pack.EffectRuntimeCatalog, pack.TargetConfigCatalog, pack.AggregationRuntimePlan, regionIds, interestGroupIds, movementIds, handlers);
         }
 
         private static ContentPack CreatePack(params EffectTemplate[] effects)

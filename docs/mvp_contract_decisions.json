@@ -604,6 +604,17 @@
             "silent_overflow"
           ]
         },
+        "implementation_status": {
+          "pr14_1_contract": "closed",
+          "pr14_2_runtime_plan_bridge": "implemented",
+          "pr14_phases_6_7_8": "implemented",
+          "phases_9_14": "explicit_no_op_hooks"
+        },
+        "execution_vectors": {
+          "version": "aggregation_execution_v1",
+          "path": "tests/aggregation/aggregation_execution_v1_vectors.json",
+          "oracle": "tests/python/test_aggregation_execution_contract.py"
+        },
         "phase_dispatch": {
           "internal_reversion_phase": 6,
           "derived_internals_phase": 7,
@@ -855,7 +866,6 @@
           "derived_provenance": "SYSTEM:DERIVED.<internal_target>",
           "public_influence_through": "SYSTEM:AGG.<metric>.<internal_target>",
           "no_double_counting": true,
-          "documentation_only_in_pr14_1": true,
           "provenance_scope": "ephemeral_execution_plan_only",
           "provenance_serialized": false,
           "provenance_stored_in_game_state": false,

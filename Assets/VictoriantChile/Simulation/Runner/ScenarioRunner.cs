@@ -5,6 +5,7 @@ using VictoriantChile.Content.Diagnostics;
 using VictoriantChile.Content.Loading;
 using VictoriantChile.Content.Models;
 using VictoriantChile.Content.State;
+using VictoriantChile.Simulation.Core.Aggregation;
 using VictoriantChile.Simulation.Core.Causality;
 using VictoriantChile.Simulation.Core.Effects;
 using VictoriantChile.Simulation.Core.Resolution;
@@ -253,6 +254,23 @@ namespace VictoriantChile.Simulation.Runner
                     CausalTicks = Array.Empty<TickCausalSnapshot>()
                 };
             }
+            catch (AggregationExecutionException exception)
+            {
+                next = null;
+                return new CommandExecutionResult
+                {
+                    Index = index,
+                    Id = command.Id,
+                    Type = "advance",
+                    Status = "failed",
+                    Target = "scheduler.advance",
+                    Source = "dynamic_state",
+                    Diagnostics = new[] { new StateDiagnostic(exception.Code, exception.Target, exception.Message) },
+                    WeeksRequested = command.Weeks,
+                    TickStateHashes = Array.Empty<string>(),
+                    CausalTicks = Array.Empty<TickCausalSnapshot>()
+                };
+            }
         }
 
         private static ScenarioRunnerResult Failed(
@@ -445,6 +463,7 @@ namespace VictoriantChile.Simulation.Runner
                 new EffectEngine(),
                 pack.EffectRuntimeCatalog,
                 pack.TargetConfigCatalog,
+                pack.AggregationRuntimePlan,
                 regionIds,
                 interestGroupIds,
                 movementIds,

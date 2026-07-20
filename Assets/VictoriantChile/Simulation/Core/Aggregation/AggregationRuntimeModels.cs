@@ -58,12 +58,16 @@ namespace VictoriantChile.Simulation.Core.Aggregation
 
         internal static bool IsMetricTarget(TargetPath target)
         {
-            return target.IsValid && string.Equals(target.Namespace, "metrics", StringComparison.Ordinal);
+            return target.IsValid
+                && target.SegmentCount == 2
+                && string.Equals(target.Namespace, "metrics", StringComparison.Ordinal);
         }
 
         internal static bool IsInternalTarget(TargetPath target)
         {
-            return target.IsValid && string.Equals(target.Namespace, "internals", StringComparison.Ordinal);
+            return target.IsValid
+                && target.SegmentCount == 3
+                && string.Equals(target.Namespace, "internals", StringComparison.Ordinal);
         }
 
         private static void ValidateMetricTarget(TargetPath target, string parameterName)
@@ -405,6 +409,11 @@ namespace VictoriantChile.Simulation.Core.Aggregation
                     throw new ArgumentException("Reversion skip targets cannot contain duplicates.", nameof(skipTargets));
                 }
 
+                if (!AggregationCauseMaterializer.IsInternalTarget(skipTargets[i]))
+                {
+                    throw new ArgumentException("Reversion skip targets must be internals.* target paths.", nameof(skipTargets));
+                }
+
                 skipSnapshot.Add(skipTargets[i]);
             }
 
@@ -508,6 +517,11 @@ namespace VictoriantChile.Simulation.Core.Aggregation
                 throw new ArgumentException("Reversion group pattern must be valid.", nameof(pattern));
             }
 
+            if (pattern.SegmentCount != 3 || !string.Equals(pattern[0], "internals", StringComparison.Ordinal))
+            {
+                throw new ArgumentException("Reversion group pattern must be a three-segment internals.* pattern.", nameof(pattern));
+            }
+
             if (halfLifeWeeks <= 0)
             {
                 throw new ArgumentOutOfRangeException(nameof(halfLifeWeeks), "halfLifeWeeks must be positive.");
@@ -542,6 +556,11 @@ namespace VictoriantChile.Simulation.Core.Aggregation
             if (!metric.IsValid)
             {
                 throw new ArgumentException("Metric target must be valid.", nameof(metric));
+            }
+
+            if (!AggregationCauseMaterializer.IsMetricTarget(metric) || metric.SegmentCount != 2)
+            {
+                throw new ArgumentException("Metric target must be metrics.*.", nameof(metric));
             }
 
             if (halfLifeWeeks <= 0)
@@ -583,6 +602,11 @@ namespace VictoriantChile.Simulation.Core.Aggregation
                     throw new ArgumentException("Metric components cannot contain duplicate targets.", nameof(components));
                 }
 
+                if (components[i].Metric != metric)
+                {
+                    throw new ArgumentException("Metric components must be precompiled for the same metric target.", nameof(components));
+                }
+
                 componentSnapshot.Add(new WeightedTargetComponentRuntime(metric, components[i].Target, components[i].WeightPpm));
             }
 
@@ -616,9 +640,19 @@ namespace VictoriantChile.Simulation.Core.Aggregation
                 throw new ArgumentException("Component cause metric must be a valid metrics.* target.", nameof(metric));
             }
 
+            if (metric.SegmentCount != 2)
+            {
+                throw new ArgumentException("Component cause metric must be metrics.*.", nameof(metric));
+            }
+
             if (!AggregationCauseMaterializer.IsInternalTarget(target))
             {
                 throw new ArgumentException("Component target must be a valid internals.* target.", nameof(target));
+            }
+
+            if (target.SegmentCount != 3)
+            {
+                throw new ArgumentException("Component target must be internals.*.*.", nameof(target));
             }
 
             if (weightPpm == 0)
@@ -651,6 +685,11 @@ namespace VictoriantChile.Simulation.Core.Aggregation
             if (!target.IsValid)
             {
                 throw new ArgumentException("Rule target must be valid.", nameof(target));
+            }
+
+            if (!AggregationCauseMaterializer.IsInternalTarget(target) || target.SegmentCount != 3)
+            {
+                throw new ArgumentException("Rule target must be internals.*.*.", nameof(target));
             }
 
             if (expression == null)
@@ -695,6 +734,12 @@ namespace VictoriantChile.Simulation.Core.Aggregation
                 throw new ArgumentException("COPY expression requires a valid target.", nameof(target));
             }
 
+            if (kind == AggregationExpressionKindRuntime.Copy
+                && (!AggregationCauseMaterializer.IsMetricTarget(target.Value) || target.Value.SegmentCount != 2))
+            {
+                throw new ArgumentException("COPY expression target must be metrics.*.", nameof(target));
+            }
+
             if (kind == AggregationExpressionKindRuntime.Copy && targets != null && targets.Count != 0)
             {
                 throw new ArgumentException("COPY expression requires zero plural targets.", nameof(targets));
@@ -716,11 +761,22 @@ namespace VictoriantChile.Simulation.Core.Aggregation
             List<TargetPath> targetSnapshot = new List<TargetPath>();
             if (targets != null)
             {
+                HashSet<TargetPath> seenTargets = new HashSet<TargetPath>();
                 for (int i = 0; i < targets.Count; i++)
                 {
                     if (!targets[i].IsValid)
                     {
                         throw new ArgumentException("Expression targets must be valid concrete target paths.", nameof(targets));
+                    }
+
+                    if (!AggregationCauseMaterializer.IsMetricTarget(targets[i]) || targets[i].SegmentCount != 2)
+                    {
+                        throw new ArgumentException("Expression targets must be metrics.* target paths.", nameof(targets));
+                    }
+
+                    if (!seenTargets.Add(targets[i]))
+                    {
+                        throw new ArgumentException("Expression targets cannot contain duplicates.", nameof(targets));
                     }
 
                     targetSnapshot.Add(targets[i]);

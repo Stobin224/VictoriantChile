@@ -640,6 +640,17 @@ PR 8 is documentation, contract, and test only. It does not implement gameplay, 
             "silent_overflow"
           ]
         },
+        "implementation_status": {
+          "pr14_1_contract": "closed",
+          "pr14_2_runtime_plan_bridge": "implemented",
+          "pr14_phases_6_7_8": "implemented",
+          "phases_9_14": "explicit_no_op_hooks"
+        },
+        "execution_vectors": {
+          "version": "aggregation_execution_v1",
+          "path": "tests/aggregation/aggregation_execution_v1_vectors.json",
+          "oracle": "tests/python/test_aggregation_execution_contract.py"
+        },
         "phase_dispatch": {
           "internal_reversion_phase": 6,
           "derived_internals_phase": 7,
@@ -891,7 +902,6 @@ PR 8 is documentation, contract, and test only. It does not implement gameplay, 
           "derived_provenance": "SYSTEM:DERIVED.<internal_target>",
           "public_influence_through": "SYSTEM:AGG.<metric>.<internal_target>",
           "no_double_counting": true,
-          "documentation_only_in_pr14_1": true,
           "provenance_scope": "ephemeral_execution_plan_only",
           "provenance_serialized": false,
           "provenance_stored_in_game_state": false,
@@ -1614,7 +1624,7 @@ PR 8 is documentation, contract, and test only. It does not implement gameplay, 
     - economy F(V0..4): `5000, 5029, 5050, 5050, 5062`, deltas: `0, +29, +21, 0(omit), +12`, sum = 62
     - social_tension F(V0..4): `5000, 5056, 5095, 5056, 5032`, deltas: `0, +56, +39, -39, -24`, sum = 32
 - Rationale: National aggregation now has one fixed-point execution order, one pre-aggregation derived snapshot, one exact telescoping causal allocation, pass-execution semantics for atomic snapshots and fail-closed guarantees, materialization rules for cause_prefix, and ephemeral provenance scope for hidden internals.
-- Downstream PRs: `PR 14.2+ (implementation)`
+- Implementation status: PR 14 phases 6-8 implemented; phases 9-14 remain explicit no-op hooks.
 
 ## No-MVP Boundary
 

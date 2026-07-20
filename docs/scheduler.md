@@ -1,6 +1,6 @@
 # Scheduler and Time Advancement
 
-PR 13 introduces the deterministic scheduler kernel that advances weekly time without implementing future gameplay systems.
+PR 13 introduces the deterministic scheduler kernel that advances weekly time. PR 14 wires national aggregation into phases 6, 7, and 8.
 
 ## Frozen Tick Order
 
@@ -23,7 +23,7 @@ The canonical phase sequence is:
 15. `close_causal_report`
 16. `detect_and_publish_blocking_decision`
 
-PR 13 executes phases 1, 2, 3, 4, 5, 15, and 16. Phases 6 through 14 remain explicit deterministic no-op hooks until later PRs implement those systems.
+PR 14 executes phases 1 through 8, 15, and 16. Phases 9 through 14 remain explicit deterministic no-op hooks until later PRs implement those systems.
 
 Regional feedback remains frozen at `regional_feedback_latency_ticks = 1`. PR 13 only preserves that hook boundary; it does not implement the feedback system itself.
 
