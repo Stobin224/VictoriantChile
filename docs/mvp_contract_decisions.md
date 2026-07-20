@@ -650,8 +650,65 @@ PR 8 is documentation, contract, and test only. It does not implement gameplay, 
           "aggregation_input_snapshot": "post_derived_internals_before_aggregation",
           "dispatch_rule": "scheduler_dispatches_by_type_not_array_position",
           "phase_8_order": [
-            { "pass": "METRIC_AGGREGATION", "metrics_count": 9, "note": "nine primary metrics" },
-            { "pass": "METRIC_AGGREGATION", "metrics_count": 1, "metric": "metrics.legitimacy", "note": "legitimacy after derived reads pre-aggregation metrics" }
+            {
+              "pass": "METRIC_AGGREGATION",
+              "metrics_count": 9,
+              "note": "nine primary metrics"
+            },
+            {
+              "pass": "METRIC_AGGREGATION",
+              "metrics_count": 1,
+              "metric": "metrics.legitimacy",
+              "note": "legitimacy after derived reads pre-aggregation metrics"
+            }
+          ]
+        },
+        "pass_execution_semantics": {
+          "input_snapshot": "immutable_snapshot_at_pass_start",
+          "planning": "all_outputs_and_causal_contributions_planned_before_publication",
+          "publication": "single_atomic_batch",
+          "next_pass_visibility": "complete_output_of_previous_pass",
+          "failure_behavior": "fail_closed_without_partial_state_or_causal_publication",
+          "rule_order": "config_order",
+          "dictionary_order_forbidden": true,
+          "duplicate_target_policy": "fail_closed_before_publication",
+          "overlapping_reversion_group_policy": "fail_closed_before_publication",
+          "internal_reversion": {
+            "snapshot_rule": "immutable_at_pass_start",
+            "cross_observation_forbidden": true,
+            "plan_before_publication": true,
+            "atomic_batch": true,
+            "overlapping_group_fail_closed": true
+          },
+          "derived_internals": {
+            "snapshot_rule": "post_reversion_immutable",
+            "cross_observation_forbidden": true,
+            "plan_before_publication": true,
+            "atomic_batch": true,
+            "duplicate_target_fail_closed": true
+          },
+          "metric_aggregation": {
+            "pass_level_snapshot": true,
+            "cross_metric_observation_within_pass_forbidden": true,
+            "next_pass_sees_complete_state": true,
+            "plan_before_publication": true,
+            "atomic_batch": true
+          },
+          "fail_closed_triggers": [
+            "missing_target",
+            "duplicate_target",
+            "overlapping_reversion_group",
+            "arithmetic_overflow",
+            "out_of_range_conversion",
+            "invalid_cause_prefix",
+            "causal_accounting_mismatch",
+            "ledger_rejection"
+          ],
+          "fail_closed_guarantees": [
+            "zero_partial_state",
+            "zero_partial_internals",
+            "zero_partial_metrics",
+            "zero_partial_causal_contributions"
           ]
         },
         "reversion_formula": {
@@ -739,9 +796,19 @@ PR 8 is documentation, contract, and test only. It does not implement gameplay, 
         },
         "cause_key_grammar": {
           "format": "CATEGORY + ':' + ID",
-          "id_forbidden_chars": [":", "|", "whitespace", "control_chars", "non_ascii_unicode"],
+          "id_forbidden_chars": [
+            ":",
+            "|",
+            "whitespace",
+            "control_chars",
+            "non_ascii_unicode"
+          ],
           "id_separator": ".",
-          "permitted_prefixes_for_pr14": ["AGG.", "REVERSION.", "DERIVED."],
+          "permitted_prefixes_for_pr14": [
+            "AGG.",
+            "REVERSION.",
+            "DERIVED."
+          ],
           "examples": [
             "SYSTEM:AGG.metrics.economy",
             "SYSTEM:AGG.metrics.economy.internals.economy.growth",
@@ -751,6 +818,67 @@ PR 8 is documentation, contract, and test only. It does not implement gameplay, 
           "forbidden_ambiguous_forms": [
             "SYSTEM:AGG:metrics.economy",
             "SYSTEM:AGG:metrics.economy:internals.economy.growth"
+          ]
+        },
+        "cause_prefix_materialization": {
+          "source_format": "CATEGORY:BASE_ID",
+          "separator_count": 1,
+          "required_category": "SYSTEM",
+          "allowed_base_ids": [
+            "AGG",
+            "REVERSION",
+            "DERIVED"
+          ],
+          "target_separator": ".",
+          "target_path_preserved_verbatim": true,
+          "invalid_prefix_behavior": "fail_closed_before_publication",
+          "materializations": {
+            "aggregation_base": {
+              "cause_prefix": "SYSTEM:AGG",
+              "metric": "metrics.economy",
+              "expected_cause_ref": {
+                "category": "CauseCategory.System",
+                "id": "AGG.metrics.economy"
+              },
+              "canonical_key": "SYSTEM:AGG.metrics.economy"
+            },
+            "aggregation_component": {
+              "cause_prefix": "SYSTEM:AGG",
+              "metric": "metrics.economy",
+              "component": "internals.economy.growth",
+              "expected_cause_ref": {
+                "category": "CauseCategory.System",
+                "id": "AGG.metrics.economy.internals.economy.growth"
+              },
+              "canonical_key": "SYSTEM:AGG.metrics.economy.internals.economy.growth"
+            },
+            "reversion": {
+              "cause_prefix": "SYSTEM:REVERSION",
+              "target": "internals.economy.growth",
+              "expected_cause_ref": {
+                "category": "CauseCategory.System",
+                "id": "REVERSION.internals.economy.growth"
+              },
+              "canonical_key": "SYSTEM:REVERSION.internals.economy.growth"
+            },
+            "derived": {
+              "cause_prefix": "SYSTEM:DERIVED",
+              "target": "internals.legitimacy.performance",
+              "expected_cause_ref": {
+                "category": "CauseCategory.System",
+                "id": "DERIVED.internals.legitimacy.performance"
+              },
+              "canonical_key": "SYSTEM:DERIVED.internals.legitimacy.performance"
+            }
+          },
+          "must_fail_prefixes": [
+            "AGG",
+            "SYSTEM:AGG:EXTRA",
+            "EVENT:AGG",
+            "SYSTEM:",
+            "SYSTEM:UNKNOWN",
+            "system:AGG",
+            "SYSTEM:AGG."
           ]
         },
         "hidden_internal_policy": {
@@ -763,7 +891,26 @@ PR 8 is documentation, contract, and test only. It does not implement gameplay, 
           "derived_provenance": "SYSTEM:DERIVED.<internal_target>",
           "public_influence_through": "SYSTEM:AGG.<metric>.<internal_target>",
           "no_double_counting": true,
-          "documentation_only_in_pr14_1": true
+          "documentation_only_in_pr14_1": true,
+          "provenance_scope": "ephemeral_execution_plan_only",
+          "provenance_serialized": false,
+          "provenance_stored_in_game_state": false,
+          "provenance_stored_in_public_ledger": false,
+          "provenance_exposed_in_turn_report": false,
+          "provenance_lifetime": "current_pass_only",
+          "provenance_clarifications": {
+            "reversion_labels": "ephemeral_plan_provenance_no_serialization",
+            "derived_labels": "ephemeral_plan_provenance_no_serialization",
+            "no_game_state_schema_change": true,
+            "no_second_ledger": true,
+            "no_hidden_ledger_rows": true,
+            "no_top_n_appearance": true,
+            "no_turn_report_appearance": true,
+            "lifetime": "current_pass_only",
+            "purpose": "structured_diagnostic_and_traceability_during_planning_validation_only",
+            "public_influence_only_through": "SYSTEM:AGG.<metric>.<internal_target>",
+            "single_registration_rule": "do_not_register_same_influence_as_REVERSION_DERIVED_AND_AGG_simultaneously"
+          }
         },
         "vectors": {
           "reversion_6000_to_5974": {
@@ -777,10 +924,26 @@ PR 8 is documentation, contract, and test only. It does not implement gameplay, 
           "economy": {
             "current_metricS": 5000,
             "components": [
-              { "target": "internals.economy.growth", "componentS": 6000, "weight_ppm": 350000 },
-              { "target": "internals.economy.unemployment", "componentS": 4000, "weight_ppm": -250000 },
-              { "target": "internals.economy.inflation", "componentS": 5000, "weight_ppm": -250000 },
-              { "target": "internals.economy.fiscal_stability", "componentS": 6000, "weight_ppm": 150000 }
+              {
+                "target": "internals.economy.growth",
+                "componentS": 6000,
+                "weight_ppm": 350000
+              },
+              {
+                "target": "internals.economy.unemployment",
+                "componentS": 4000,
+                "weight_ppm": -250000
+              },
+              {
+                "target": "internals.economy.inflation",
+                "componentS": 5000,
+                "weight_ppm": -250000
+              },
+              {
+                "target": "internals.economy.fiscal_stability",
+                "componentS": 6000,
+                "weight_ppm": 150000
+              }
             ],
             "alpha_ppm": 82996,
             "cap_per_weekS": 200,
@@ -794,10 +957,26 @@ PR 8 is documentation, contract, and test only. It does not implement gameplay, 
           "social_tension": {
             "current_metricS": 5000,
             "components": [
-              { "target": "internals.tension.cost_of_living", "componentS": 6000, "weight_ppm": 350000 },
-              { "target": "internals.tension.polarization", "componentS": 6000, "weight_ppm": 250000 },
-              { "target": "internals.tension.protest_activity", "componentS": 4000, "weight_ppm": 250000 },
-              { "target": "internals.tension.institutional_trust", "componentS": 6000, "weight_ppm": -150000 }
+              {
+                "target": "internals.tension.cost_of_living",
+                "componentS": 6000,
+                "weight_ppm": 350000
+              },
+              {
+                "target": "internals.tension.polarization",
+                "componentS": 6000,
+                "weight_ppm": 250000
+              },
+              {
+                "target": "internals.tension.protest_activity",
+                "componentS": 4000,
+                "weight_ppm": 250000
+              },
+              {
+                "target": "internals.tension.institutional_trust",
+                "componentS": 6000,
+                "weight_ppm": -150000
+              }
             ],
             "alpha_ppm": 159104,
             "cap_per_weekS": 400,
@@ -818,8 +997,16 @@ PR 8 is documentation, contract, and test only. It does not implement gameplay, 
             "finalS": 5600
           },
           "rounding_half_away_from_zero": [
-            { "numerator": 500000, "denominator": 1000000, "result": 1 },
-            { "numerator": -500000, "denominator": 1000000, "result": -1 }
+            {
+              "numerator": 500000,
+              "denominator": 1000000,
+              "result": 1
+            },
+            {
+              "numerator": -500000,
+              "denominator": 1000000,
+              "result": -1
+            }
           ]
         },
         "causal_vectors": {
@@ -831,10 +1018,23 @@ PR 8 is documentation, contract, and test only. It does not implement gameplay, 
             "F(V4)": 5062,
             "base_deltaS": 0,
             "component_deltas": [
-              { "component": "internals.economy.growth", "deltaS": 29 },
-              { "component": "internals.economy.unemployment", "deltaS": 21 },
-              { "component": "internals.economy.inflation", "deltaS": 0, "omitted": true },
-              { "component": "internals.economy.fiscal_stability", "deltaS": 12 }
+              {
+                "component": "internals.economy.growth",
+                "deltaS": 29
+              },
+              {
+                "component": "internals.economy.unemployment",
+                "deltaS": 21
+              },
+              {
+                "component": "internals.economy.inflation",
+                "deltaS": 0,
+                "omitted": true
+              },
+              {
+                "component": "internals.economy.fiscal_stability",
+                "deltaS": 12
+              }
             ],
             "sum_component_deltas": 62,
             "telescopic_check": "62 == 0 + 29 + 21 + 0 + 12"
@@ -847,17 +1047,29 @@ PR 8 is documentation, contract, and test only. It does not implement gameplay, 
             "F(V4)": 5032,
             "base_deltaS": 0,
             "component_deltas": [
-              { "component": "internals.tension.cost_of_living", "deltaS": 56 },
-              { "component": "internals.tension.polarization", "deltaS": 39 },
-              { "component": "internals.tension.protest_activity", "deltaS": -39 },
-              { "component": "internals.tension.institutional_trust", "deltaS": -24 }
+              {
+                "component": "internals.tension.cost_of_living",
+                "deltaS": 56
+              },
+              {
+                "component": "internals.tension.polarization",
+                "deltaS": 39
+              },
+              {
+                "component": "internals.tension.protest_activity",
+                "deltaS": -39
+              },
+              {
+                "component": "internals.tension.institutional_trust",
+                "deltaS": -24
+              }
             ],
             "sum_component_deltas": 32,
             "telescopic_check": "32 == 0 + 56 + 39 + (-39) + (-24)"
           }
         }
       },
-      "rationale": "National aggregation now has one fixed-point execution order, one pre-aggregation derived snapshot, and one exact telescoping causal allocation."
+      "rationale": "National aggregation now has one fixed-point execution order, one pre-aggregation derived snapshot, one exact telescoping causal allocation, pass-execution semantics for atomic snapshots and fail-closed guarantees, materialization rules for cause_prefix, and ephemeral provenance scope for hidden internals."
     }
   ]
 }
@@ -1349,12 +1561,49 @@ PR 8 is documentation, contract, and test only. It does not implement gameplay, 
     - permitted prefixes for PR 14: `AGG.`, `REVERSION.`, `DERIVED.`
     - examples: `SYSTEM:AGG.metrics.economy`, `SYSTEM:AGG.metrics.economy.internals.economy.growth`, `SYSTEM:REVERSION.internals.economy.growth`, `SYSTEM:DERIVED.internals.legitimacy.performance`
     - forbidden ambiguous: `SYSTEM:AGG:metrics.economy`, `SYSTEM:AGG:metrics.economy:internals.economy.growth`
+  - pass_execution_semantics:
+    - each pass reads an immutable snapshot taken at pass start
+    - all outputs and causal contributions are planned before publication
+    - validation completes before publication
+    - state and causality are published as a single atomic batch
+    - a failure does not publish partial state or partial causality
+    - the next pass observes the complete output of the previous pass
+    - within the same pass, no rule observes partial outputs of another rule
+    - `rule_order = config_order`
+    - dictionary order is forbidden
+    - duplicate targets fail before publication
+    - overlapping reversion groups fail before publication
+  - cause_prefix_materialization:
+    - source format: `CATEGORY:BASE_ID`
+    - exactly one `:`
+    - required category: `SYSTEM`
+    - allowed base IDs: `AGG`, `REVERSION`, `DERIVED`
+    - `.` concatenated with the unmodified target path
+    - any invalid prefix fails before publication
+    - valid examples:
+      - `SYSTEM:AGG` + `metrics.economy` → CauseRef(SYSTEM, `AGG.metrics.economy`) → `SYSTEM:AGG.metrics.economy`
+      - `SYSTEM:REVERSION` + `internals.economy.growth` → CauseRef(SYSTEM, `REVERSION.internals.economy.growth`) → `SYSTEM:REVERSION.internals.economy.growth`
+      - `SYSTEM:DERIVED` + `internals.legitimacy.performance` → CauseRef(SYSTEM, `DERIVED.internals.legitimacy.performance`) → `SYSTEM:DERIVED.internals.legitimacy.performance`
+    - forbidden examples:
+      - `SYSTEM:AGG:metrics.economy` (double colon)
+      - `SYSTEM::AGG` (empty base ID)
+      - category other than `SYSTEM`
+      - unknown base ID
+      - empty target
+      - prefix with more than one `:`
   - hidden_internal_policy:
     - internals remain hidden from public target catalog, TickCausalBuffer rows, Top-N slots, TurnReport
     - reversion provenance: `SYSTEM:REVERSION.<internal_target>`
     - derived provenance: `SYSTEM:DERIVED.<internal_target>`
     - public influence through: `SYSTEM:AGG.<metric>.<internal_target>`
     - no double counting
+    - provenance scope: `ephemeral_execution_plan_only`
+    - provenance serialized: `false`
+    - stored in GameState: `false`
+    - stored in public ledger: `false`
+    - exposed in turn report: `false`
+    - lifetime: `current_pass_only`
+    - single registration rule: do not register the same influence as REVERSION, DERIVED, and AGG simultaneously
   - vectors:
     - reversion: `6000 -> 5974` with `alpha_ppm = 26307`
     - economy: `weighted_offsetS = 750`, `targetS = 5750`, `elastic_deltaS = 62`, `finalS = 5062`
@@ -1364,7 +1613,7 @@ PR 8 is documentation, contract, and test only. It does not implement gameplay, 
   - causal_vectors:
     - economy F(V0..4): `5000, 5029, 5050, 5050, 5062`, deltas: `0, +29, +21, 0(omit), +12`, sum = 62
     - social_tension F(V0..4): `5000, 5056, 5095, 5056, 5032`, deltas: `0, +56, +39, -39, -24`, sum = 32
-- Rationale: National aggregation now has one fixed-point execution order, one pre-aggregation derived snapshot, and one exact telescoping causal allocation.
+- Rationale: National aggregation now has one fixed-point execution order, one pre-aggregation derived snapshot, one exact telescoping causal allocation, pass-execution semantics for atomic snapshots and fail-closed guarantees, materialization rules for cause_prefix, and ephemeral provenance scope for hidden internals.
 - Downstream PRs: `PR 14.2+ (implementation)`
 
 ## No-MVP Boundary

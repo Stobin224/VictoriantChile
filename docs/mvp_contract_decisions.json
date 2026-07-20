@@ -627,6 +627,54 @@
             }
           ]
         },
+        "pass_execution_semantics": {
+          "input_snapshot": "immutable_snapshot_at_pass_start",
+          "planning": "all_outputs_and_causal_contributions_planned_before_publication",
+          "publication": "single_atomic_batch",
+          "next_pass_visibility": "complete_output_of_previous_pass",
+          "failure_behavior": "fail_closed_without_partial_state_or_causal_publication",
+          "rule_order": "config_order",
+          "dictionary_order_forbidden": true,
+          "duplicate_target_policy": "fail_closed_before_publication",
+          "overlapping_reversion_group_policy": "fail_closed_before_publication",
+          "internal_reversion": {
+            "snapshot_rule": "immutable_at_pass_start",
+            "cross_observation_forbidden": true,
+            "plan_before_publication": true,
+            "atomic_batch": true,
+            "overlapping_group_fail_closed": true
+          },
+          "derived_internals": {
+            "snapshot_rule": "post_reversion_immutable",
+            "cross_observation_forbidden": true,
+            "plan_before_publication": true,
+            "atomic_batch": true,
+            "duplicate_target_fail_closed": true
+          },
+          "metric_aggregation": {
+            "pass_level_snapshot": true,
+            "cross_metric_observation_within_pass_forbidden": true,
+            "next_pass_sees_complete_state": true,
+            "plan_before_publication": true,
+            "atomic_batch": true
+          },
+          "fail_closed_triggers": [
+            "missing_target",
+            "duplicate_target",
+            "overlapping_reversion_group",
+            "arithmetic_overflow",
+            "out_of_range_conversion",
+            "invalid_cause_prefix",
+            "causal_accounting_mismatch",
+            "ledger_rejection"
+          ],
+          "fail_closed_guarantees": [
+            "zero_partial_state",
+            "zero_partial_internals",
+            "zero_partial_metrics",
+            "zero_partial_causal_contributions"
+          ]
+        },
         "reversion_formula": {
           "distanceS": "midS - currentS",
           "reversion_deltaS": "RoundHalfAwayFromZero(distanceS * alpha_ppm / 1000000)",
@@ -736,6 +784,67 @@
             "SYSTEM:AGG:metrics.economy:internals.economy.growth"
           ]
         },
+        "cause_prefix_materialization": {
+          "source_format": "CATEGORY:BASE_ID",
+          "separator_count": 1,
+          "required_category": "SYSTEM",
+          "allowed_base_ids": [
+            "AGG",
+            "REVERSION",
+            "DERIVED"
+          ],
+          "target_separator": ".",
+          "target_path_preserved_verbatim": true,
+          "invalid_prefix_behavior": "fail_closed_before_publication",
+          "materializations": {
+            "aggregation_base": {
+              "cause_prefix": "SYSTEM:AGG",
+              "metric": "metrics.economy",
+              "expected_cause_ref": {
+                "category": "CauseCategory.System",
+                "id": "AGG.metrics.economy"
+              },
+              "canonical_key": "SYSTEM:AGG.metrics.economy"
+            },
+            "aggregation_component": {
+              "cause_prefix": "SYSTEM:AGG",
+              "metric": "metrics.economy",
+              "component": "internals.economy.growth",
+              "expected_cause_ref": {
+                "category": "CauseCategory.System",
+                "id": "AGG.metrics.economy.internals.economy.growth"
+              },
+              "canonical_key": "SYSTEM:AGG.metrics.economy.internals.economy.growth"
+            },
+            "reversion": {
+              "cause_prefix": "SYSTEM:REVERSION",
+              "target": "internals.economy.growth",
+              "expected_cause_ref": {
+                "category": "CauseCategory.System",
+                "id": "REVERSION.internals.economy.growth"
+              },
+              "canonical_key": "SYSTEM:REVERSION.internals.economy.growth"
+            },
+            "derived": {
+              "cause_prefix": "SYSTEM:DERIVED",
+              "target": "internals.legitimacy.performance",
+              "expected_cause_ref": {
+                "category": "CauseCategory.System",
+                "id": "DERIVED.internals.legitimacy.performance"
+              },
+              "canonical_key": "SYSTEM:DERIVED.internals.legitimacy.performance"
+            }
+          },
+          "must_fail_prefixes": [
+            "AGG",
+            "SYSTEM:AGG:EXTRA",
+            "EVENT:AGG",
+            "SYSTEM:",
+            "SYSTEM:UNKNOWN",
+            "system:AGG",
+            "SYSTEM:AGG."
+          ]
+        },
         "hidden_internal_policy": {
           "internals_remain_hidden": true,
           "no_public_target_catalog_entry": true,
@@ -746,7 +855,26 @@
           "derived_provenance": "SYSTEM:DERIVED.<internal_target>",
           "public_influence_through": "SYSTEM:AGG.<metric>.<internal_target>",
           "no_double_counting": true,
-          "documentation_only_in_pr14_1": true
+          "documentation_only_in_pr14_1": true,
+          "provenance_scope": "ephemeral_execution_plan_only",
+          "provenance_serialized": false,
+          "provenance_stored_in_game_state": false,
+          "provenance_stored_in_public_ledger": false,
+          "provenance_exposed_in_turn_report": false,
+          "provenance_lifetime": "current_pass_only",
+          "provenance_clarifications": {
+            "reversion_labels": "ephemeral_plan_provenance_no_serialization",
+            "derived_labels": "ephemeral_plan_provenance_no_serialization",
+            "no_game_state_schema_change": true,
+            "no_second_ledger": true,
+            "no_hidden_ledger_rows": true,
+            "no_top_n_appearance": true,
+            "no_turn_report_appearance": true,
+            "lifetime": "current_pass_only",
+            "purpose": "structured_diagnostic_and_traceability_during_planning_validation_only",
+            "public_influence_only_through": "SYSTEM:AGG.<metric>.<internal_target>",
+            "single_registration_rule": "do_not_register_same_influence_as_REVERSION_DERIVED_AND_AGG_simultaneously"
+          }
         },
         "vectors": {
           "reversion_6000_to_5974": {
@@ -905,7 +1033,7 @@
           }
         }
       },
-      "rationale": "National aggregation now has one fixed-point execution order, one pre-aggregation derived snapshot, and one exact telescoping causal allocation."
+      "rationale": "National aggregation now has one fixed-point execution order, one pre-aggregation derived snapshot, one exact telescoping causal allocation, pass-execution semantics for atomic snapshots and fail-closed guarantees, materialization rules for cause_prefix, and ephemeral provenance scope for hidden internals."
     }
   ]
 }

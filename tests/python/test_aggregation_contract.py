@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import unittest
 from pathlib import Path
 
@@ -158,6 +159,97 @@ def compute_marginal_deltas(
         "total_delta": total_delta,
         "telescopic_ok": sum_deltas == total_delta,
     }
+
+
+# --- cause_prefix_materialization helper ------------------------------------
+
+def materialize_cause(source: str, target_path: str) -> str:
+    """Build a canonical CauseRef key from source and target.
+
+    source format: CATEGORY:BASE_ID (exactly one ':')
+    target_path: dot-separated path, no colon
+
+    Returns CATEGORY:BASE_ID.target_path
+
+    Raises ValueError for invalid formats as specified by cause_prefix_materialization.
+    """
+    parts = source.split(":")
+    if len(parts) != 2:
+        raise ValueError(f"source must have exactly one ':': {source}")
+    if not parts[0] or not parts[1]:
+        raise ValueError(f"empty category or base_id: {source}")
+    category, base_id = parts
+    if category != "SYSTEM":
+        raise ValueError(f"category must be SYSTEM, got: {category}")
+    allowed_bases = {"AGG", "REVERSION", "DERIVED"}
+    if base_id not in allowed_bases:
+        raise ValueError(f"base_id must be one of {allowed_bases}, got: {base_id}")
+    if not target_path:
+        raise ValueError("target_path must not be empty")
+    if ":" in target_path:
+        raise ValueError(f"target_path must not contain ':': {target_path}")
+    return f"{source}.{target_path}"
+
+
+# --- dispatch helper ---------------------------------------------------------
+
+PHASE_MAP: dict[str, int] = {
+    "INTERNAL_REVERSION": 6,
+    "DERIVED_INTERNALS": 7,
+    "METRIC_AGGREGATION": 8,
+}
+PHASE_ORDER = [6, 7, 8]
+
+
+def group_passes_by_type(passes: list[dict]) -> dict[str, list[dict]]:
+    """Group passes by type preserving config order within each group."""
+    grouped: dict[str, list[dict]] = {}
+    for p in passes:
+        t = p["type"]
+        if t not in grouped:
+            grouped[t] = []
+        grouped[t].append(p)
+    return grouped
+
+
+def dispatch_order(passes: list[dict]) -> list[dict]:
+    """Return passes sorted by phase order (6→7→8), preserving config order within each type group."""
+    grouped = group_passes_by_type(passes)
+    result: list[dict] = []
+    for phase in PHASE_ORDER:
+        for t, phase_id in PHASE_MAP.items():
+            if phase_id == phase and t in grouped:
+                result.extend(grouped[t])
+    return result
+
+
+# --- visibility policy -------------------------------------------------------
+
+VISIBLE_PATTERNS: list[tuple[str, str]] = [
+    ("metrics", r"^metrics\.[a-z][a-z0-9_]*$"),
+    ("igs_clout_approval", r"^igs\.[a-z][a-z0-9_]*\.(clout|approval)$"),
+    ("movements_intensity_direction", r"^movements\.[a-z][a-z0-9_]*\.(intensity|direction)$"),
+]
+HIDDEN_PATTERNS: list[tuple[str, str]] = [
+    ("internals", r"^internals\."),
+    ("static_regional_resources", r"^regions\."),
+]
+
+
+def is_visible_target(path: str) -> bool:
+    """Return True if target path is publicly visible per the MVP contract."""
+    for _name, pat in VISIBLE_PATTERNS:
+        if re.match(pat, path):
+            return True
+    return False
+
+
+def is_hidden_target(path: str) -> bool:
+    """Return True if target path is explicitly hidden per the MVP contract."""
+    for _name, pat in HIDDEN_PATTERNS:
+        if re.match(pat, path):
+            return True
+    return False
 
 
 # --- tests ------------------------------------------------------------------
@@ -368,19 +460,51 @@ class AggregationContractTest(unittest.TestCase):
     # --- canonical IDs with dots, no extra colon ---
 
     def test_canonical_cause_ids(self) -> None:
-        self.assertEqual("SYSTEM:AGG.metrics.economy", "SYSTEM:AGG.metrics.economy")
         self.assertEqual(
+            materialize_cause("SYSTEM:AGG", "metrics.economy"),
+            "SYSTEM:AGG.metrics.economy",
+        )
+        self.assertEqual(
+            materialize_cause("SYSTEM:AGG", "metrics.economy.internals.economy.growth"),
             "SYSTEM:AGG.metrics.economy.internals.economy.growth",
-            "SYSTEM:AGG.metrics.economy.internals.economy.growth",
         )
         self.assertEqual(
-            "SYSTEM:REVERSION.internals.economy.growth",
+            materialize_cause("SYSTEM:REVERSION", "internals.economy.growth"),
             "SYSTEM:REVERSION.internals.economy.growth",
         )
         self.assertEqual(
-            "SYSTEM:DERIVED.internals.legitimacy.performance",
+            materialize_cause("SYSTEM:DERIVED", "internals.legitimacy.performance"),
             "SYSTEM:DERIVED.internals.legitimacy.performance",
         )
+
+    def test_materialize_cause_negative_cases(self) -> None:
+        # double colon in source
+        with self.assertRaises(ValueError):
+            materialize_cause("SYSTEM:AGG:EXTRA", "metrics.economy")
+        # empty base_id
+        with self.assertRaises(ValueError):
+            materialize_cause("SYSTEM:", "metrics.economy")
+        # category other than SYSTEM
+        with self.assertRaises(ValueError):
+            materialize_cause("EVENT:AGG", "metrics.economy")
+        # unknown base_id
+        with self.assertRaises(ValueError):
+            materialize_cause("SYSTEM:UNKNOWN", "metrics.economy")
+        # empty target
+        with self.assertRaises(ValueError):
+            materialize_cause("SYSTEM:AGG", "")
+        # target with colon
+        with self.assertRaises(ValueError):
+            materialize_cause("SYSTEM:AGG", "metrics:economy")
+        # source with no colon
+        with self.assertRaises(ValueError):
+            materialize_cause("SYSTEMAGG", "metrics.economy")
+        # source with three parts
+        with self.assertRaises(ValueError):
+            materialize_cause("A:B:C", "metrics.economy")
+        # lowercase system
+        with self.assertRaises(ValueError):
+            materialize_cause("system:AGG", "metrics.economy")
 
     # --- no ambiguous colon-only formats ---
 
@@ -398,12 +522,27 @@ class AggregationContractTest(unittest.TestCase):
     # --- internals remain hidden from public catalog ---
 
     def test_internals_not_in_public_catalog(self) -> None:
-        config = read_aggregation_config()
-        # INTERNAL_REVERSION groups target internals.*
-        reversion_pass = config["passes"][0]
-        self.assertEqual(reversion_pass["type"], "INTERNAL_REVERSION")
-        for group in reversion_pass["groups"]:
-            self.assertIn("internals.", group["pattern"])
+        # metrics.* is visible
+        self.assertTrue(is_visible_target("metrics.economy"))
+        self.assertTrue(is_visible_target("metrics.social_tension"))
+        self.assertTrue(is_visible_target("metrics.legitimacy"))
+        # IGS regional fields (clout|approval) are visible
+        self.assertTrue(is_visible_target("igs.ig_empresarial.clout"))
+        self.assertTrue(is_visible_target("igs.ig_sindical.approval"))
+        # Movements intensity/direction are visible
+        self.assertTrue(is_visible_target("movements.mov_trabajo_huelgas.intensity"))
+        self.assertTrue(is_visible_target("movements.mov_trabajo_huelgas.direction"))
+        # internals.* is never visible
+        self.assertFalse(is_visible_target("internals.economy.growth"))
+        self.assertFalse(is_visible_target("internals.tension.cost_of_living"))
+        self.assertFalse(is_visible_target("internals.legitimacy.performance"))
+        # internals.* is explicitly hidden
+        self.assertTrue(is_hidden_target("internals.economy.growth"))
+        self.assertTrue(is_hidden_target("internals.tension.cost_of_living"))
+        self.assertTrue(is_hidden_target("internals.legitimacy.performance"))
+        # Static regional resources are not visible
+        self.assertFalse(is_visible_target("regions.metropolitana.population"))
+        self.assertFalse(is_visible_target("regions.biobio.area_km2"))
 
     # --- config structure: passes by type ---
 
@@ -421,27 +560,27 @@ class AggregationContractTest(unittest.TestCase):
     def test_dispatch_order_by_type(self) -> None:
         config = read_aggregation_config()
         passes = config["passes"]
-        types = [p["type"] for p in passes]
-        # Physical order: INTERNAL_REVERSION, METRIC_AGGREGATION, DERIVED_INTERNALS, METRIC_AGGREGATION
-        self.assertEqual(types, [
+        ordered = dispatch_order(passes)
+        # Phase order: 6 (INTERNAL_REVERSION) → 7 (DERIVED_INTERNALS) → 8 (METRIC_AGGREGATION)
+        ordered_types = [p["type"] for p in ordered]
+        self.assertEqual(ordered_types, [
             "INTERNAL_REVERSION",
-            "METRIC_AGGREGATION",
             "DERIVED_INTERNALS",
             "METRIC_AGGREGATION",
+            "METRIC_AGGREGATION",
         ])
-        # Dispatch by type maps to phases 6, 7, 8 independent of physical position
-        phase_6_types = {"INTERNAL_REVERSION"}
-        phase_7_types = {"DERIVED_INTERNALS"}
-        phase_8_types = {"METRIC_AGGREGATION"}
-        for p in passes:
-            if p["type"] in phase_6_types:
-                self.assertEqual(p["type"], "INTERNAL_REVERSION")
-            elif p["type"] in phase_7_types:
-                self.assertEqual(p["type"], "DERIVED_INTERNALS")
-            elif p["type"] in phase_8_types:
-                self.assertEqual(p["type"], "METRIC_AGGREGATION")
-            else:
-                self.fail(f"Unexpected type: {p['type']}")
+        # Group by type preserves config order within each type
+        grouped = group_passes_by_type(passes)
+        self.assertEqual(len(grouped["INTERNAL_REVERSION"]), 1)
+        self.assertEqual(len(grouped["DERIVED_INTERNALS"]), 1)
+        self.assertEqual(len(grouped["METRIC_AGGREGATION"]), 2)
+        # Within METRIC_AGGREGATION, first is the nine-metric pass, second is legitimacy
+        self.assertEqual(len(grouped["METRIC_AGGREGATION"][0]["metrics"]), 9)
+        self.assertEqual(len(grouped["METRIC_AGGREGATION"][1]["metrics"]), 1)
+        self.assertEqual(
+            grouped["METRIC_AGGREGATION"][1]["metrics"][0]["metric"],
+            "metrics.legitimacy",
+        )
 
     # --- nine metrics before legitimacy in phase 8 ---
 
@@ -537,6 +676,199 @@ class AggregationContractTest(unittest.TestCase):
         self.assertEqual(result_rev["distanceS"], rev_vec["distanceS"])
         self.assertEqual(result_rev["rounded_deltaS"], rev_vec["rounded_deltaS"])
         self.assertEqual(result_rev["finalS"], rev_vec["finalS"])
+
+
+# --- atomicity contract tests (D) -------------------------------------------
+
+PASSES_MARKER = "## Pass Execution Atomicity"
+INTERNAL_REVERSION_PAYLOAD = "fail_closed_without_partial_state_or_causal_publication"
+
+
+class AtomicityContractTest(unittest.TestCase):
+    """Verify pass_execution_semantics contract in JSON and documentation."""
+
+    maxDiff = None
+
+    def setUp(self) -> None:
+        self.decisions = read_decisions()
+        self.mvp12 = [
+            d for d in self.decisions["decisions"]
+            if d["id"] == "MVP-012-national-aggregation"
+        ][0]
+        self.pes = self.mvp12["resolution"]["pass_execution_semantics"]
+        self.md_source = (
+            ROOT / "docs" / "aggregation_contract.md"
+        ).read_text(encoding="utf-8")
+
+    def test_immutable_snapshot_at_pass_start(self) -> None:
+        self.assertEqual(self.pes["input_snapshot"], "immutable_snapshot_at_pass_start")
+
+    def test_planning_before_publication(self) -> None:
+        self.assertEqual(self.pes["planning"], "all_outputs_and_causal_contributions_planned_before_publication")
+
+    def test_single_atomic_batch(self) -> None:
+        self.assertEqual(self.pes["publication"], "single_atomic_batch")
+
+    def test_next_pass_complete_visibility(self) -> None:
+        self.assertEqual(self.pes["next_pass_visibility"], "complete_output_of_previous_pass")
+
+    def test_failure_behavior_fail_closed(self) -> None:
+        self.assertEqual(self.pes["failure_behavior"], "fail_closed_without_partial_state_or_causal_publication")
+
+    def test_rule_order_config_order(self) -> None:
+        self.assertEqual(self.pes["rule_order"], "config_order")
+
+    def test_dictionary_order_forbidden(self) -> None:
+        self.assertTrue(self.pes["dictionary_order_forbidden"])
+
+    def test_duplicate_target_fail_closed(self) -> None:
+        self.assertEqual(self.pes["duplicate_target_policy"], "fail_closed_before_publication")
+
+    def test_overlapping_reversion_groups_fail_closed(self) -> None:
+        self.assertEqual(self.pes["overlapping_reversion_group_policy"], "fail_closed_before_publication")
+
+    def test_fail_closed_triggers_listed(self) -> None:
+        triggers = self.pes["fail_closed_triggers"]
+        required = {
+            "missing_target",
+            "duplicate_target",
+            "overlapping_reversion_group",
+            "arithmetic_overflow",
+            "out_of_range_conversion",
+            "invalid_cause_prefix",
+            "causal_accounting_mismatch",
+            "ledger_rejection",
+        }
+        self.assertSetEqual(set(triggers), required)
+
+    def test_fail_closed_guarantees_listed(self) -> None:
+        guarantees = self.pes["fail_closed_guarantees"]
+        required = {
+            "zero_partial_state",
+            "zero_partial_internals",
+            "zero_partial_metrics",
+            "zero_partial_causal_contributions",
+        }
+        self.assertSetEqual(set(guarantees), required)
+
+    def test_internal_reversion_sub_block(self) -> None:
+        ir = self.pes["internal_reversion"]
+        self.assertTrue(ir["snapshot_rule"], "immutable_at_pass_start")
+        self.assertTrue(ir["cross_observation_forbidden"])
+        self.assertTrue(ir["plan_before_publication"])
+        self.assertTrue(ir["atomic_batch"])
+        self.assertTrue(ir["overlapping_group_fail_closed"])
+
+    def test_derived_internals_sub_block(self) -> None:
+        di = self.pes["derived_internals"]
+        self.assertEqual(di["snapshot_rule"], "post_reversion_immutable")
+        self.assertTrue(di["cross_observation_forbidden"])
+        self.assertTrue(di["plan_before_publication"])
+        self.assertTrue(di["atomic_batch"])
+        self.assertTrue(di["duplicate_target_fail_closed"])
+
+    def test_metric_aggregation_sub_block(self) -> None:
+        ma = self.pes["metric_aggregation"]
+        self.assertTrue(ma["pass_level_snapshot"])
+        self.assertTrue(ma["cross_metric_observation_within_pass_forbidden"])
+        self.assertTrue(ma["next_pass_sees_complete_state"])
+        self.assertTrue(ma["plan_before_publication"])
+        self.assertTrue(ma["atomic_batch"])
+
+    def test_aggregation_doc_mentions_atomicity(self) -> None:
+        self.assertIn(PASSES_MARKER, self.md_source)
+        self.assertIn("Immutable snapshot", self.md_source)
+        self.assertIn("Full planning", self.md_source)
+        self.assertIn("Single atomic publication", self.md_source)
+        self.assertIn("Fail-closed", self.md_source)
+        self.assertIn("No cross-observation within pass", self.md_source)
+
+
+# --- provenance contract tests (E) ------------------------------------------
+
+PROVENANCE_SCOPE = "ephemeral_execution_plan_only"
+HIDDEN_INTERNALS_MARKER = "## Hidden Internals and Causality"
+
+
+class ProvenanceContractTest(unittest.TestCase):
+    """Verify hidden_internal_policy provenance fields in JSON and documentation."""
+
+    maxDiff = None
+
+    def setUp(self) -> None:
+        self.decisions = read_decisions()
+        self.mvp12 = [
+            d for d in self.decisions["decisions"]
+            if d["id"] == "MVP-012-national-aggregation"
+        ][0]
+        self.hip = self.mvp12["resolution"]["hidden_internal_policy"]
+        self.md_source = (
+            ROOT / "docs" / "aggregation_contract.md"
+        ).read_text(encoding="utf-8")
+
+    def test_ephemeral_scope(self) -> None:
+        self.assertEqual(self.hip["provenance_scope"], PROVENANCE_SCOPE)
+
+    def test_not_serialized(self) -> None:
+        self.assertFalse(self.hip["provenance_serialized"])
+
+    def test_not_in_game_state(self) -> None:
+        self.assertFalse(self.hip["provenance_stored_in_game_state"])
+
+    def test_not_in_public_ledger(self) -> None:
+        self.assertFalse(self.hip["provenance_stored_in_public_ledger"])
+
+    def test_not_in_turn_report(self) -> None:
+        self.assertFalse(self.hip["provenance_exposed_in_turn_report"])
+
+    def test_lifetime_current_pass_only(self) -> None:
+        self.assertEqual(self.hip["provenance_lifetime"], "current_pass_only")
+
+    def test_public_influence_through_visible_metrics(self) -> None:
+        self.assertEqual(
+            self.hip["public_influence_through"],
+            "SYSTEM:AGG.<metric>.<internal_target>",
+        )
+
+    def test_no_double_counting(self) -> None:
+        self.assertTrue(self.hip["no_double_counting"])
+
+    def test_internals_remain_hidden(self) -> None:
+        self.assertTrue(self.hip["internals_remain_hidden"])
+        self.assertTrue(self.hip["no_public_target_catalog_entry"])
+        self.assertTrue(self.hip["no_TickCausalBuffer_own_row"])
+        self.assertTrue(self.hip["no_top_n_slot_consumption"])
+        self.assertTrue(self.hip["no_accidental_TurnReport_exposure"])
+
+    def test_provenance_clarifications(self) -> None:
+        pc = self.hip["provenance_clarifications"]
+        self.assertEqual(pc["reversion_labels"], "ephemeral_plan_provenance_no_serialization")
+        self.assertEqual(pc["derived_labels"], "ephemeral_plan_provenance_no_serialization")
+        self.assertTrue(pc["no_game_state_schema_change"])
+        self.assertTrue(pc["no_second_ledger"])
+        self.assertTrue(pc["no_hidden_ledger_rows"])
+        self.assertTrue(pc["no_top_n_appearance"])
+        self.assertTrue(pc["no_turn_report_appearance"])
+        self.assertEqual(pc["lifetime"], "current_pass_only")
+        self.assertEqual(pc["purpose"], "structured_diagnostic_and_traceability_during_planning_validation_only")
+        self.assertEqual(
+            pc["public_influence_only_through"],
+            "SYSTEM:AGG.<metric>.<internal_target>",
+        )
+        self.assertEqual(
+            pc["single_registration_rule"],
+            "do_not_register_same_influence_as_REVERSION_DERIVED_AND_AGG_simultaneously",
+        )
+
+    def test_aggregation_doc_mentions_provenance(self) -> None:
+        self.assertIn(HIDDEN_INTERNALS_MARKER, self.md_source)
+        self.assertIn(PROVENANCE_SCOPE, self.md_source)
+        self.assertIn("not serialized", self.md_source.lower())
+        self.assertIn("Not stored in GameState", self.md_source)
+        self.assertIn("Not stored in the public ledger", self.md_source)
+        self.assertIn("Not exposed in the turn report", self.md_source)
+        self.assertIn("Lifetime is limited to the current pass only", self.md_source)
+        self.assertIn("single registration rule", self.md_source.lower())
 
 
 if __name__ == "__main__":
