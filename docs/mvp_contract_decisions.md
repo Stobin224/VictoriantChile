@@ -29,6 +29,7 @@ PR 8 is documentation, contract, and test only. It does not implement gameplay, 
 | MVP-009-cadre-schema-and-roles | Cadre schema and roles | approved |
 | MVP-010-turn-report-top-n | Turn-report causal limit | approved |
 | MVP-011-active-movements | Active movements | approved |
+| MVP-012-national-aggregation | National aggregation contract | approved |
 
 ## Canonical JSON
 
@@ -612,6 +613,251 @@ PR 8 is documentation, contract, and test only. It does not implement gameplay, 
         "disabled_movements_activate_dynamically": false
       },
       "rationale": "The slice now has four active movements, five fully disabled movements, and exact escalation state rules."
+    },
+    {
+      "id": "MVP-012-national-aggregation",
+      "topic": "National aggregation contract",
+      "question": "What exact fixed-point, phase, snapshot, cap, rounding, and causal-allocation rules define national aggregation?",
+      "status": "approved",
+      "resolution": {
+        "numeric_domain": {
+          "scale": 100,
+          "S": 100,
+          "midS": 5000,
+          "minS": 0,
+          "maxS": 10000,
+          "ppm_denominator": 1000000,
+          "intermediate_arithmetic": "long_checked",
+          "stored_type": "int",
+          "rounding": "HALF_AWAY_FROM_ZERO",
+          "forbidden": [
+            "float",
+            "double",
+            "decimal",
+            "dictionary_order",
+            "componentwise_rounding",
+            "culture_dependent_rounding",
+            "silent_overflow"
+          ]
+        },
+        "phase_dispatch": {
+          "internal_reversion_phase": 6,
+          "derived_internals_phase": 7,
+          "aggregate_national_metrics_phase": 8,
+          "reversion_input_snapshot": "post_apply_per_tick_modifiers",
+          "reversion_output_snapshot": "post_reversion",
+          "derived_input_snapshot": "post_reversion",
+          "aggregation_input_snapshot": "post_derived_internals_before_aggregation",
+          "dispatch_rule": "scheduler_dispatches_by_type_not_array_position",
+          "phase_8_order": [
+            { "pass": "METRIC_AGGREGATION", "metrics_count": 9, "note": "nine primary metrics" },
+            { "pass": "METRIC_AGGREGATION", "metrics_count": 1, "metric": "metrics.legitimacy", "note": "legitimacy after derived reads pre-aggregation metrics" }
+          ]
+        },
+        "reversion_formula": {
+          "distanceS": "midS - currentS",
+          "reversion_deltaS": "RoundHalfAwayFromZero(distanceS * alpha_ppm / 1000000)",
+          "pre_clampS": "currentS + reversion_deltaS",
+          "finalS": "clamp(pre_clampS, TargetConfig.minS, TargetConfig.maxS)",
+          "order": [
+            "subtract_current_from_midpoint",
+            "multiply_by_alpha_ppm",
+            "single_division_rounding",
+            "add_to_current",
+            "final_clamp"
+          ],
+          "arithmetic": "long_checked_before_int_cast",
+          "no_extra_weekly_cap": true,
+          "skip_targets": [
+            "internals.legitimacy.performance",
+            "internals.legitimacy.social_tension_load"
+          ]
+        },
+        "derived_formulas": {
+          "internals.legitimacy.performance": {
+            "op": "SET",
+            "expression": "AVG(metrics.economy, metrics.security, metrics.governability)",
+            "sum_arithmetic": "long_checked",
+            "div_rounding": "HALF_AWAY_FROM_ZERO",
+            "reads": "pre_aggregation_metrics_current_tick"
+          },
+          "internals.legitimacy.social_tension_load": {
+            "op": "SET",
+            "expression": "COPY(metrics.social_tension)",
+            "reads": "pre_aggregation_metrics_current_tick"
+          },
+          "legitimacy_latency_note": "legitimacy aggregation in phase 8 sees pre-aggregation economy, security, governability, social_tension; legitimacy has one-tick latency for structural changes from aggregation of those metrics in same tick"
+        },
+        "metric_aggregation_formula": {
+          "weighted_offset_numerator": "SUM(weight_ppm[i] * (componentS[i] - midS))",
+          "weighted_offsetS": "RoundHalfAwayFromZero(weighted_offset_numerator / 1000000)",
+          "target_unclampedS": "midS + weighted_offsetS",
+          "targetS": "clamp(target_unclampedS, TargetConfig.minS, TargetConfig.maxS)",
+          "elastic_distance": "targetS - current_metricS",
+          "elastic_numerator": "elastic_distance * alpha_ppm",
+          "elastic_deltaS": "RoundHalfAwayFromZero(elastic_numerator / 1000000)",
+          "capped_deltaS": "clamp(elastic_deltaS, -cap_per_weekS, +cap_per_weekS)",
+          "pre_finalS": "current_metricS + capped_deltaS",
+          "final_metricS": "clamp(pre_finalS, TargetConfig.minS, TargetConfig.maxS)",
+          "delta_totalS": "final_metricS - current_metricS",
+          "pipeline_order": [
+            "sum_weighted_offsets",
+            "single_rounding_for_weighted_offset",
+            "target_clamp",
+            "compute_distance_to_target",
+            "elasticity_rounding",
+            "weekly_cap",
+            "add_to_current_metric",
+            "final_clamp"
+          ],
+          "forbidden": [
+            "swap_cap_and_rounding",
+            "apply_cap_to_weighted_target_instead_of_delta"
+          ]
+        },
+        "causal_algorithm": {
+          "name": "ordered_prefix_counterfactual_marginal_v1",
+          "description": "For each metric define F(vector) as the full aggregation pipeline returning final_metricS",
+          "V0": "all components replaced by midS",
+          "Vi": "first i components real, remaining at midS",
+          "Vn": "all components real",
+          "base_deltaS": "F(V0) - current_metricS",
+          "base_cause": "SYSTEM:AGG.<metric>",
+          "component_deltaS": "F(Vi) - F(Vi-1)",
+          "component_cause": "SYSTEM:AGG.<metric>.<component>",
+          "telescopic_identity": "F(Vn) - current_metricS == base_deltaS + SUM(component_deltaS)",
+          "component_order": "exact_config_order",
+          "zero_contributions_omitted_from_ledger": true,
+          "forbidden_methods": [
+            "proportional_split",
+            "largest_remainder",
+            "shapley",
+            "dictionary_order",
+            "invented_residual_to_balance"
+          ],
+          "no_additional_system_causes": "SYSTEM:ROUNDING and SYSTEM:CLAMP reserved for other systems; do not emit within aggregation marginal attribution"
+        },
+        "cause_key_grammar": {
+          "format": "CATEGORY + ':' + ID",
+          "id_forbidden_chars": [":", "|", "whitespace", "control_chars", "non_ascii_unicode"],
+          "id_separator": ".",
+          "permitted_prefixes_for_pr14": ["AGG.", "REVERSION.", "DERIVED."],
+          "examples": [
+            "SYSTEM:AGG.metrics.economy",
+            "SYSTEM:AGG.metrics.economy.internals.economy.growth",
+            "SYSTEM:REVERSION.internals.economy.growth",
+            "SYSTEM:DERIVED.internals.legitimacy.performance"
+          ],
+          "forbidden_ambiguous_forms": [
+            "SYSTEM:AGG:metrics.economy",
+            "SYSTEM:AGG:metrics.economy:internals.economy.growth"
+          ]
+        },
+        "hidden_internal_policy": {
+          "internals_remain_hidden": true,
+          "no_public_target_catalog_entry": true,
+          "no_TickCausalBuffer_own_row": true,
+          "no_top_n_slot_consumption": true,
+          "no_accidental_TurnReport_exposure": true,
+          "reversion_provenance": "SYSTEM:REVERSION.<internal_target>",
+          "derived_provenance": "SYSTEM:DERIVED.<internal_target>",
+          "public_influence_through": "SYSTEM:AGG.<metric>.<internal_target>",
+          "no_double_counting": true,
+          "documentation_only_in_pr14_1": true
+        },
+        "vectors": {
+          "reversion_6000_to_5974": {
+            "currentS": 6000,
+            "midS": 5000,
+            "alpha_ppm": 26307,
+            "distanceS": -1000,
+            "rounded_deltaS": -26,
+            "finalS": 5974
+          },
+          "economy": {
+            "current_metricS": 5000,
+            "components": [
+              { "target": "internals.economy.growth", "componentS": 6000, "weight_ppm": 350000 },
+              { "target": "internals.economy.unemployment", "componentS": 4000, "weight_ppm": -250000 },
+              { "target": "internals.economy.inflation", "componentS": 5000, "weight_ppm": -250000 },
+              { "target": "internals.economy.fiscal_stability", "componentS": 6000, "weight_ppm": 150000 }
+            ],
+            "alpha_ppm": 82996,
+            "cap_per_weekS": 200,
+            "weighted_offsetS": 750,
+            "targetS": 5750,
+            "elastic_deltaS": 62,
+            "capped_deltaS": 62,
+            "finalS": 5062,
+            "delta_totalS": 62
+          },
+          "social_tension": {
+            "current_metricS": 5000,
+            "components": [
+              { "target": "internals.tension.cost_of_living", "componentS": 6000, "weight_ppm": 350000 },
+              { "target": "internals.tension.polarization", "componentS": 6000, "weight_ppm": 250000 },
+              { "target": "internals.tension.protest_activity", "componentS": 4000, "weight_ppm": 250000 },
+              { "target": "internals.tension.institutional_trust", "componentS": 6000, "weight_ppm": -150000 }
+            ],
+            "alpha_ppm": 159104,
+            "cap_per_weekS": 400,
+            "weighted_offsetS": 200,
+            "targetS": 5200,
+            "elastic_deltaS": 32,
+            "capped_deltaS": 32,
+            "finalS": 5032,
+            "delta_totalS": 32
+          },
+          "cap_weekly": {
+            "currentS": 5000,
+            "targetS": 10000,
+            "alpha_ppm": 292893,
+            "cap_per_weekS": 600,
+            "elastic_deltaS": 1464,
+            "capped_deltaS": 600,
+            "finalS": 5600
+          },
+          "rounding_half_away_from_zero": [
+            { "numerator": 500000, "denominator": 1000000, "result": 1 },
+            { "numerator": -500000, "denominator": 1000000, "result": -1 }
+          ]
+        },
+        "causal_vectors": {
+          "economy_prefix_deltas": {
+            "F(V0)": 5000,
+            "F(V1)": 5029,
+            "F(V2)": 5050,
+            "F(V3)": 5050,
+            "F(V4)": 5062,
+            "base_deltaS": 0,
+            "component_deltas": [
+              { "component": "internals.economy.growth", "deltaS": 29 },
+              { "component": "internals.economy.unemployment", "deltaS": 21 },
+              { "component": "internals.economy.inflation", "deltaS": 0, "omitted": true },
+              { "component": "internals.economy.fiscal_stability", "deltaS": 12 }
+            ],
+            "sum_component_deltas": 62,
+            "telescopic_check": "62 == 0 + 29 + 21 + 0 + 12"
+          },
+          "social_tension_prefix_deltas": {
+            "F(V0)": 5000,
+            "F(V1)": 5056,
+            "F(V2)": 5095,
+            "F(V3)": 5056,
+            "F(V4)": 5032,
+            "base_deltaS": 0,
+            "component_deltas": [
+              { "component": "internals.tension.cost_of_living", "deltaS": 56 },
+              { "component": "internals.tension.polarization", "deltaS": 39 },
+              { "component": "internals.tension.protest_activity", "deltaS": -39 },
+              { "component": "internals.tension.institutional_trust", "deltaS": -24 }
+            ],
+            "sum_component_deltas": 32,
+            "telescopic_check": "32 == 0 + 56 + 39 + (-39) + (-24)"
+          }
+        }
+      },
+      "rationale": "National aggregation now has one fixed-point execution order, one pre-aggregation derived snapshot, and one exact telescoping causal allocation."
     }
   ]
 }
@@ -623,6 +869,7 @@ PR 8 is documentation, contract, and test only. It does not implement gameplay, 
 - PR 11 implements the causal ledger with the frozen cause categories and report boundaries.
 - PR 12 implements effect execution with the frozen SET, ADD, MUL, clamp, and normalization order.
 - PR 13 implements the canonical tick, RNG contract, and scheduler ordering.
+- PR 14.1 freezes the aggregation contract: numeric domain, phase dispatch, reversion, derived internals, metric formula, cap, rounding, causal algorithm, cause key grammar, and hidden internal policy.
 - PR 16 implements political state, scenario state, and cadre runtime/save boundaries.
 - PR 17 implements movement state, escalation, and crisis eligibility rules.
 - PR 20 implements the TurnReport limits, tie-breaks, alerts, and exact remainder accounting.
@@ -1031,6 +1278,94 @@ PR 8 is documentation, contract, and test only. It does not implement gameplay, 
   - disabled_movements_activate_dynamically: `false`
 - Rationale: The slice now has four active movements, five fully disabled movements, and exact escalation state rules.
 - Downstream PRs: `PR 16`, `PR 17`, `PR 20`
+
+## MVP-012-national-aggregation
+
+- Topic: National aggregation contract
+- Question: What exact fixed-point, phase, snapshot, cap, rounding, and causal-allocation rules define national aggregation?
+- Status: approved
+- Resolution:
+  - numeric_domain:
+    - scale: `100`
+    - S: `100`
+    - midS: `5000`
+    - minS: `0`, maxS: `10000`
+    - ppm_denominator: `1000000`
+    - intermediate_arithmetic: `long_checked`
+    - stored_type: `int`
+    - rounding: `HALF_AWAY_FROM_ZERO`
+    - forbidden: `float`, `double`, `decimal`, `dictionary_order`, `componentwise_rounding`, `culture_dependent_rounding`, `silent_overflow`
+  - phase_dispatch:
+    - `revert_internals` -> phase 6, reads `post_apply_per_tick_modifiers`, produces `post_reversion`
+    - `derive_internals` -> phase 7, reads `post_reversion`, produces pre-aggregation derived values
+    - `aggregate_national_metrics` -> phase 8
+    - dispatch_rule: `scheduler_dispatches_by_type_not_array_position`
+    - phase 8 order:
+      - first pass: `METRIC_AGGREGATION` of nine primary metrics
+      - second pass: `METRIC_AGGREGATION` of `metrics.legitimacy`
+  - reversion_formula:
+    - `distanceS = midS - currentS`
+    - `reversion_deltaS = RoundHalfAwayFromZero(distanceS * alpha_ppm / 1000000)`
+    - `pre_clampS = currentS + reversion_deltaS`
+    - `finalS = clamp(pre_clampS, TargetConfig.minS, TargetConfig.maxS)`
+    - order: subtract from midpoint, multiply by alpha, single rounding, add, final clamp
+    - arithmetic: `long_checked_before_int_cast`
+    - no extra weekly cap
+    - skip_targets: `internals.legitimacy.performance`, `internals.legitimacy.social_tension_load`
+  - derived_formulas:
+    - `internals.legitimacy.performance` = `AVG(metrics.economy, metrics.security, metrics.governability)` with `long_checked` sum, `HALF_AWAY_FROM_ZERO` division
+    - `internals.legitimacy.social_tension_load` = `COPY(metrics.social_tension)`
+    - both read pre-aggregation metrics of the current tick
+    - legitimacy has one-tick latency for structural changes from aggregation of economy, security, governability, social_tension
+  - metric_aggregation_formula:
+    - `weighted_offset_numerator = SUM(weight_ppm[i] * (componentS[i] - midS))`
+    - `weighted_offsetS = RoundHalfAwayFromZero(weighted_offset_numerator / 1000000)`
+    - `target_unclampedS = midS + weighted_offsetS`
+    - `targetS = clamp(target_unclampedS, TargetConfig.minS, TargetConfig.maxS)`
+    - `elastic_distance = targetS - current_metricS`
+    - `elastic_numerator = elastic_distance * alpha_ppm`
+    - `elastic_deltaS = RoundHalfAwayFromZero(elastic_numerator / 1000000)`
+    - `capped_deltaS = clamp(elastic_deltaS, -cap_per_weekS, +cap_per_weekS)`
+    - `pre_finalS = current_metricS + capped_deltaS`
+    - `final_metricS = clamp(pre_finalS, TargetConfig.minS, TargetConfig.maxS)`
+    - `delta_totalS = final_metricS - current_metricS`
+    - pipeline order: weighted sum, single offset rounding, target clamp, distance, elasticity rounding, weekly cap, add, final clamp
+    - forbidden: swap cap and rounding, apply cap to weighted target instead of delta
+  - causal_algorithm:
+    - `ordered_prefix_counterfactual_marginal_v1`
+    - `F(vector)` = full aggregation pipeline returning `final_metricS`
+    - V0 = all components at midS, Vi = first i real, Vn = all real
+    - `base_deltaS = F(V0) - current_metricS`, cause: `SYSTEM:AGG.<metric>`
+    - `component_deltaS = F(Vi) - F(Vi-1)`, cause: `SYSTEM:AGG.<metric>.<component>`
+    - telescopic: `F(Vn) - current_metricS == base_deltaS + SUM(component_deltaS)`
+    - component order = exact config order
+    - zero contributions omitted from ledger
+    - forbidden: proportional split, largest remainder, Shapley, dictionary order, invented residual
+    - no additional SYSTEM:ROUNDING or SYSTEM:CLAMP within aggregation marginal attribution
+  - cause_key_grammar:
+    - format: `CATEGORY + ':' + ID`
+    - ID forbidden: `:`, `|`, whitespace, controls, non-ASCII Unicode
+    - ID separator: `.`
+    - permitted prefixes for PR 14: `AGG.`, `REVERSION.`, `DERIVED.`
+    - examples: `SYSTEM:AGG.metrics.economy`, `SYSTEM:AGG.metrics.economy.internals.economy.growth`, `SYSTEM:REVERSION.internals.economy.growth`, `SYSTEM:DERIVED.internals.legitimacy.performance`
+    - forbidden ambiguous: `SYSTEM:AGG:metrics.economy`, `SYSTEM:AGG:metrics.economy:internals.economy.growth`
+  - hidden_internal_policy:
+    - internals remain hidden from public target catalog, TickCausalBuffer rows, Top-N slots, TurnReport
+    - reversion provenance: `SYSTEM:REVERSION.<internal_target>`
+    - derived provenance: `SYSTEM:DERIVED.<internal_target>`
+    - public influence through: `SYSTEM:AGG.<metric>.<internal_target>`
+    - no double counting
+  - vectors:
+    - reversion: `6000 -> 5974` with `alpha_ppm = 26307`
+    - economy: `weighted_offsetS = 750`, `targetS = 5750`, `elastic_deltaS = 62`, `finalS = 5062`
+    - social_tension: `weighted_offsetS = 200`, `targetS = 5200`, `elastic_deltaS = 32`, `finalS = 5032`
+    - cap_weekly: `currentS = 5000`, `targetS = 10000`, `alpha_ppm = 292893`, `cap_per_weekS = 600`, `elastic_deltaS = 1464`, `capped_deltaS = 600`, `finalS = 5600`
+    - rounding_half_away_from_zero: `+500000/1000000 = +1`, `-500000/1000000 = -1`
+  - causal_vectors:
+    - economy F(V0..4): `5000, 5029, 5050, 5050, 5062`, deltas: `0, +29, +21, 0(omit), +12`, sum = 62
+    - social_tension F(V0..4): `5000, 5056, 5095, 5056, 5032`, deltas: `0, +56, +39, -39, -24`, sum = 32
+- Rationale: National aggregation now has one fixed-point execution order, one pre-aggregation derived snapshot, and one exact telescoping causal allocation.
+- Downstream PRs: `PR 14.2+ (implementation)`
 
 ## No-MVP Boundary
 
