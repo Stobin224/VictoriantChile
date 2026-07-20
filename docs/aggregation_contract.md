@@ -83,6 +83,19 @@ The scheduler dispatches passes by `type` into frozen phases. Pass position with
 - Derived expressions read pre-aggregation metrics of the current tick.
 - They do not read metrics that will be calculated later in phase 8.
 
+## Pass Execution Atomicity
+
+Each pass in phases 6, 7, and 8 executes under atomic semantics:
+
+1. **Immutable snapshot:** The pass reads a frozen snapshot of its inputs captured at pass start. No mutation of external state occurs during planning.
+2. **Full planning:** All outputs and causal contributions are computed and validated against the snapshot before any state is published.
+3. **Single atomic publication:** State mutations and causal contributions are committed as one batch. External observers never see a partial pass.
+4. **Fail-closed:** If validation or execution fails — duplicate target, overlapping reversion group, arithmetic overflow, invalid cause prefix, causal accounting mismatch, or ledger rejection — zero partial state, internals, metrics, or causal contributions are published.
+5. **Complete output for next pass:** The next pass in the phase order (6 → 7 → 8a → 8b) observes the full output of the previous pass.
+6. **No cross-observation within pass:** Within the same pass, no rule observes partial outputs of another rule. Rule order is config order; dictionary order is forbidden.
+7. **Fail-closed triggers:** missing target, duplicate target, overlapping reversion group, arithmetic overflow, out-of-range conversion, invalid cause prefix, causal accounting mismatch, ledger rejection.
+8. **Fail-closed guarantees:** zero partial state, zero partial internals, zero partial metrics, zero partial causal contributions.
+
 ## Reversion Formula
 
 For each internal targeted by the corresponding group:
@@ -358,6 +371,14 @@ Do not modify CauseRef in PR 14.1.
 - When an internal influences a visible metric, the public influence appears via:
   - `SYSTEM:AGG.<metric>.<internal_target>`
 - No double counting: the same influence is NOT registered as REVERSION, DERIVED, AND AGG simultaneously.
+- Provenance scope: `ephemeral_execution_plan_only`
+- Provenance is not serialized to any persistent store.
+- Not stored in GameState.
+- Not stored in the public ledger.
+- Not exposed in the turn report.
+- Lifetime is limited to the current pass only.
+- Public influence appears solely through the causal contribution of the visible metric it moves.
+- Single registration rule: do not register the same influence as REVERSION, DERIVED, AND AGG simultaneously.
 
 ## Invariants
 
@@ -380,7 +401,7 @@ Do not modify CauseRef in PR 14.1.
 - Integration with `SchedulerEngine` phase dispatch.
 - Integration with `CausalLedger` for marginal attribution.
 - `GameState` mutations for metrics and internals.
-- Content Pack validation of `aggregation_config.json`.
+- Content Pack validation of `aggregation_config.json` (schema, types, enums, ranges, targets, patterns, weight sums, and references are already validated by the Content Pack loader; this sub-PR only freezes semantics; runtime projection and productive execution are deferred to PR 14.2+).
 - Manifest hash updates.
 - Golden file updates.
 - EditMode and ScenarioRunner tests for the aggregation system.
