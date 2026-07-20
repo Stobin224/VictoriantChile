@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using VictoriantChile.Content.Diagnostics;
+using VictoriantChile.Simulation.Core.Aggregation;
 using VictoriantChile.Simulation.Core.Effects;
 using VictoriantChile.Simulation.Core.Targets;
 
@@ -1470,6 +1472,35 @@ namespace VictoriantChile.Content.Models
             IEnumerable<EffectTemplate> effects,
             IEnumerable<EventTemplate> events,
             IEnumerable<ReformTemplate> reforms)
+            : this(
+                manifest,
+                targetConfigs,
+                regions,
+                interestGroups,
+                movements,
+                localization,
+                aggregationConfig,
+                aggregationConfig == null ? null : CompileAggregationRuntimePlan(aggregationConfig),
+                legislativeConfig,
+                effects,
+                events,
+                reforms)
+        {
+        }
+
+        internal ContentPack(
+            ContentManifest manifest,
+            IEnumerable<TargetConfig> targetConfigs,
+            IEnumerable<RegionDefinition> regions,
+            IEnumerable<InterestGroupDefinition> interestGroups,
+            IEnumerable<MovementDefinition> movements,
+            ContentLocalizationTable localization,
+            AggregationConfig aggregationConfig,
+            AggregationRuntimePlan aggregationRuntimePlan,
+            LegislativeConfig legislativeConfig,
+            IEnumerable<EffectTemplate> effects,
+            IEnumerable<EventTemplate> events,
+            IEnumerable<ReformTemplate> reforms)
         {
             Manifest = manifest ?? throw new ArgumentNullException(nameof(manifest));
 
@@ -1491,6 +1522,7 @@ namespace VictoriantChile.Content.Models
             MovementsById = ModelSnapshot.Dictionary(MapMovementsById(movementSnapshot), nameof(movements));
             Localization = localization;
             AggregationConfig = aggregationConfig;
+            AggregationRuntimePlan = aggregationRuntimePlan;
             LegislativeConfig = legislativeConfig;
             Effects = Array.AsReadOnly(effectSnapshot);
             EffectsById = ModelSnapshot.Dictionary(MapEffectsById(effectSnapshot), nameof(effects));
@@ -1530,6 +1562,8 @@ namespace VictoriantChile.Content.Models
         public IReadOnlyDictionary<string, EffectTemplate> EffectsById { get; }
 
         public EffectRuntimeCatalog EffectRuntimeCatalog { get; }
+
+        public AggregationRuntimePlan AggregationRuntimePlan { get; }
 
         public IReadOnlyList<EventTemplate> Events { get; }
 
@@ -1606,6 +1640,512 @@ namespace VictoriantChile.Content.Models
                 yield return new KeyValuePair<string, ReformTemplate>(value.Id, value);
             }
         }
+
+        internal static AggregationRuntimePlan CompileAggregationRuntimePlan(AggregationConfig config)
+        {
+            if (config == null)
+            {
+                throw new ArgumentNullException(nameof(config));
+            }
+
+            ValidateAggregationConstants(config);
+
+            AggregationReversionPassRuntime reversionPass = null;
+            AggregationDerivedPassRuntime derivedPass = null;
+            AggregationMetricsPassRuntime primaryPass = null;
+            AggregationMetricsPassRuntime legitimacyPass = null;
+            HashSet<TargetPath> allMetricTargets = new HashSet<TargetPath>();
+
+            for (int i = 0; i < config.Passes.Count; i++)
+            {
+                AggregationPass pass = config.Passes[i];
+                if (pass == null)
+                {
+                    throw AggregationCompileError(ContentDiagnosticCode.AggregationPassFieldConflict, "$.passes[" + i + "]", "Aggregation passes cannot contain null entries.");
+                }
+
+                ValidateEnum(pass.Type, "$.passes[" + i + "].type", "Unknown aggregation pass type.");
+                ValidatePassPrefix(pass, "$.passes[" + i + "]");
+
+                switch (pass.Type)
+                {
+                    case AggregationPassType.InternalReversion:
+                        if (reversionPass != null)
+                        {
+                            throw AggregationCompileError(ContentDiagnosticCode.AggregationMissingRequiredPassType, "$.passes", "Content pack must declare exactly one InternalReversion pass.");
+                        }
+
+                        ValidateInternalReversionShape(pass, "$.passes[" + i + "]");
+                        reversionPass = new AggregationReversionPassRuntime(
+                            MapGroups(pass.Groups),
+                            pass.SkipTargets);
+                        break;
+
+                    case AggregationPassType.DerivedInternals:
+                        if (derivedPass != null)
+                        {
+                            throw AggregationCompileError(ContentDiagnosticCode.AggregationMissingRequiredPassType, "$.passes", "Content pack must declare exactly one DerivedInternals pass.");
+                        }
+
+                        ValidateDerivedShape(pass, "$.passes[" + i + "]");
+                        derivedPass = new AggregationDerivedPassRuntime(
+                            MapDerivedRules(pass.Rules));
+                        break;
+
+                    case AggregationPassType.MetricAggregation:
+                        ValidateMetricPassShape(pass, "$.passes[" + i + "]");
+                        IReadOnlyList<AggregationMetricRuntime> mapped = MapMetrics(pass.Metrics);
+                        AggregationMetricsPassRuntime metricPass = new AggregationMetricsPassRuntime(mapped);
+                        bool isLegitimacy = mapped.Count == 1
+                            && mapped[0].Metric == TargetPath.Parse("metrics.legitimacy");
+
+                        ValidateMetricTargets(mapped, allMetricTargets, "$.passes[" + i + "]");
+
+                        if (isLegitimacy)
+                        {
+                            if (legitimacyPass != null)
+                            {
+                                throw AggregationCompileError(ContentDiagnosticCode.AggregationPassFieldConflict, "$.passes", "Multiple metric passes contain metrics.legitimacy; exactly one legitimacy pass is required.");
+                            }
+
+                            legitimacyPass = metricPass;
+                        }
+                        else
+                        {
+                            if (primaryPass != null)
+                            {
+                                throw AggregationCompileError(ContentDiagnosticCode.AggregationPassFieldConflict, "$.passes", "Multiple primary metric passes found; exactly one primary metric pass is required.");
+                            }
+
+                            if (ContainsLegitimacy(mapped))
+                            {
+                                throw AggregationCompileError(ContentDiagnosticCode.AggregationPassFieldConflict, "$.passes[" + i + "]", "Legitimacy pass must not mix metrics.legitimacy with other metrics.");
+                            }
+
+                            primaryPass = metricPass;
+                        }
+
+                        break;
+                }
+            }
+
+            if (reversionPass == null)
+            {
+                throw AggregationCompileError(ContentDiagnosticCode.AggregationMissingRequiredPassType, "$.passes", "Content pack must declare exactly one InternalReversion pass.");
+            }
+
+            if (derivedPass == null)
+            {
+                throw AggregationCompileError(ContentDiagnosticCode.AggregationMissingRequiredPassType, "$.passes", "Content pack must declare exactly one DerivedInternals pass.");
+            }
+
+            if (primaryPass == null)
+            {
+                throw AggregationCompileError(ContentDiagnosticCode.AggregationMissingRequiredPassType, "$.passes", "Primary metrics pass not found. One metric pass must target metrics other than metrics.legitimacy.");
+            }
+
+            if (legitimacyPass == null)
+            {
+                throw AggregationCompileError(ContentDiagnosticCode.AggregationMissingRequiredPassType, "$.passes", "Legitimacy metrics pass not found. One metric pass must target exactly metrics.legitimacy.");
+            }
+
+            if (primaryPass.Metrics.Count != AggregationRuntimePlan.RequiredPrimaryMetricCount)
+            {
+                throw AggregationCompileError(ContentDiagnosticCode.AggregationMissingRequiredPassType, "$.passes.metrics", "Primary metrics pass must contain exactly 9 metrics.");
+            }
+
+            if (legitimacyPass.Metrics.Count != 1 || legitimacyPass.Metrics[0].Metric != TargetPath.Parse("metrics.legitimacy"))
+            {
+                throw AggregationCompileError(ContentDiagnosticCode.AggregationPassFieldConflict, "$.passes.metrics", "Legitimacy pass must contain exactly metrics.legitimacy.");
+            }
+
+            return new AggregationRuntimePlan(
+                config.Scale,
+                config.MidS,
+                AggregationRoundingModeRuntime.HalfAwayFromZero,
+                reversionPass,
+                derivedPass,
+                primaryPass,
+                legitimacyPass);
+        }
+
+        private static void ValidateAggregationConstants(AggregationConfig config)
+        {
+            if (config.SchemaVersion != 1)
+            {
+                throw AggregationCompileError(ContentDiagnosticCode.UnsupportedSchemaVersion, "$.schema_version", "Unsupported aggregation schema version.");
+            }
+
+            if (config.Scale != AggregationRuntimePlan.RequiredScale)
+            {
+                throw AggregationCompileError(ContentDiagnosticCode.InvalidRange, "$.scale", "Aggregation scale must be exactly 100.");
+            }
+
+            if (config.MidS != AggregationRuntimePlan.RequiredMidS)
+            {
+                throw AggregationCompileError(ContentDiagnosticCode.InvalidRange, "$.midS", "Aggregation midS must be exactly 5000.");
+            }
+
+            ValidateEnum(config.Rounding, "$.rounding", "rounding must be HALF_AWAY_FROM_ZERO.");
+            if (config.Rounding != ContentRoundingMode.HalfAwayFromZero)
+            {
+                throw AggregationCompileError(ContentDiagnosticCode.InvalidEnum, "$.rounding", "rounding must be HALF_AWAY_FROM_ZERO.");
+            }
+
+            if (config.Passes == null || config.Passes.Count == 0)
+            {
+                throw AggregationCompileError(ContentDiagnosticCode.InvalidValue, "$.passes", "passes must not be empty.");
+            }
+        }
+
+        private static void ValidateInternalReversionShape(AggregationPass pass, string passPath)
+        {
+            if (pass.MidS != AggregationRuntimePlan.RequiredMidS)
+            {
+                throw AggregationCompileError(ContentDiagnosticCode.InvalidRange, passPath + ".midS", "Internal reversion midS must be exactly 5000.");
+            }
+
+            if (pass.Groups.Count == 0)
+            {
+                throw AggregationCompileError(ContentDiagnosticCode.AggregationPassFieldConflict, passPath + ".groups", "InternalReversion passes must declare at least one reversion group.");
+            }
+
+            if (pass.Metrics.Count != 0 || pass.Rules.Count != 0)
+            {
+                throw AggregationCompileError(ContentDiagnosticCode.AggregationPassFieldConflict, passPath, "InternalReversion pass contains fields from another pass type.");
+            }
+
+            HashSet<TargetPattern> patterns = new HashSet<TargetPattern>();
+            for (int i = 0; i < pass.Groups.Count; i++)
+            {
+                AggregationReversionGroup group = pass.Groups[i];
+                if (group == null)
+                {
+                    throw AggregationCompileError(ContentDiagnosticCode.AggregationPassFieldConflict, passPath + ".groups[" + i + "]", "Reversion groups cannot contain null entries.");
+                }
+
+                if (string.IsNullOrEmpty(group.Pattern.ToString()) || !group.Pattern.ToString().StartsWith("internals.", StringComparison.Ordinal))
+                {
+                    throw AggregationCompileError(ContentDiagnosticCode.InvalidTargetPattern, passPath + ".groups[" + i + "].pattern", "Reversion group pattern must target internals.*.");
+                }
+
+                if (!patterns.Add(group.Pattern))
+                {
+                    throw AggregationCompileError(ContentDiagnosticCode.AggregationPassFieldConflict, passPath + ".groups[" + i + "].pattern", "Duplicate reversion pattern.");
+                }
+            }
+
+            HashSet<TargetPath> skipTargets = new HashSet<TargetPath>();
+            for (int i = 0; i < pass.SkipTargets.Count; i++)
+            {
+                if (!pass.SkipTargets[i].IsValid || !IsInternalTarget(pass.SkipTargets[i]))
+                {
+                    throw AggregationCompileError(ContentDiagnosticCode.InvalidTargetReference, passPath + ".skip_targets[" + i + "]", "skip_targets must contain valid internals.* target paths.");
+                }
+
+                if (!skipTargets.Add(pass.SkipTargets[i]))
+                {
+                    throw AggregationCompileError(ContentDiagnosticCode.InvalidValue, passPath + ".skip_targets[" + i + "]", "Duplicate skip target.");
+                }
+            }
+        }
+
+        private static void ValidateMetricPassShape(AggregationPass pass, string passPath)
+        {
+            if (pass.Groups.Count != 0 || pass.Rules.Count != 0 || pass.MidS.HasValue)
+            {
+                throw AggregationCompileError(ContentDiagnosticCode.AggregationPassFieldConflict, passPath, "MetricAggregation pass contains fields from another pass type.");
+            }
+
+            if (pass.LogComponents != true)
+            {
+                throw AggregationCompileError(ContentDiagnosticCode.AggregationPassFieldConflict, passPath + ".log_components", "MetricAggregation pass must log components.");
+            }
+
+            if (pass.WeightsAbsSumPpmRequired != AggregationRuntimePlan.PpmDenominator)
+            {
+                throw AggregationCompileError(ContentDiagnosticCode.InvalidWeightSum, passPath + ".weights_abs_sum_ppm_required", "weights_abs_sum_ppm_required must be exactly 1_000_000.");
+            }
+
+            if (pass.Metrics.Count == 0)
+            {
+                throw AggregationCompileError(ContentDiagnosticCode.AggregationPassFieldConflict, passPath + ".metrics", "MetricAggregation passes must declare at least one metric.");
+            }
+        }
+
+        private static void ValidateDerivedShape(AggregationPass pass, string passPath)
+        {
+            if (pass.Groups.Count != 0 || pass.Metrics.Count != 0 || pass.MidS.HasValue)
+            {
+                throw AggregationCompileError(ContentDiagnosticCode.AggregationPassFieldConflict, passPath, "DerivedInternals pass contains fields from another pass type.");
+            }
+
+            if (pass.Rules.Count == 0)
+            {
+                throw AggregationCompileError(ContentDiagnosticCode.AggregationPassFieldConflict, passPath + ".rules", "DerivedInternals passes must declare at least one rule.");
+            }
+
+            HashSet<TargetPath> targets = new HashSet<TargetPath>();
+            for (int i = 0; i < pass.Rules.Count; i++)
+            {
+                DerivedAggregationRule rule = pass.Rules[i];
+                if (rule == null)
+                {
+                    throw AggregationCompileError(ContentDiagnosticCode.AggregationPassFieldConflict, passPath + ".rules[" + i + "]", "Derived rules cannot contain null entries.");
+                }
+
+                if (!rule.Target.IsValid || !IsInternalTarget(rule.Target))
+                {
+                    throw AggregationCompileError(ContentDiagnosticCode.InvalidTargetReference, passPath + ".rules[" + i + "].target", "Derived rule target must be a valid internals.* target.");
+                }
+
+                if (!targets.Add(rule.Target))
+                {
+                    throw AggregationCompileError(ContentDiagnosticCode.AggregationPassFieldConflict, passPath + ".rules[" + i + "].target", "Duplicate derived rule target.");
+                }
+
+                ValidateEnum(rule.Operation, passPath + ".rules[" + i + "].op", "Unknown derived rule operation.");
+                if (rule.Operation != TargetOperation.Set)
+                {
+                    throw AggregationCompileError(ContentDiagnosticCode.InvalidTargetOperation, passPath + ".rules[" + i + "].op", "Derived aggregation rules only support SET.");
+                }
+
+                ValidateExpression(rule.Expression, passPath + ".rules[" + i + "].expr");
+            }
+        }
+
+        private static void ValidateExpression(AggregationExpression expression, string jsonPath)
+        {
+            if (expression == null)
+            {
+                throw AggregationCompileError(ContentDiagnosticCode.AggregationPassFieldConflict, jsonPath, "Derived expression is required.");
+            }
+
+            ValidateEnum(expression.Kind, jsonPath + ".kind", "Unknown aggregation expression kind.");
+            if (expression.Kind == AggregationExpressionKind.Copy)
+            {
+                if (!expression.Target.HasValue || !expression.Target.Value.IsValid || !IsMetricTarget(expression.Target.Value) || expression.Targets.Count != 0)
+                {
+                    throw AggregationCompileError(ContentDiagnosticCode.InvalidTargetReference, jsonPath, "COPY requires exactly one metric target and zero plural targets.");
+                }
+
+                return;
+            }
+
+            if (expression.Target.HasValue || expression.Targets.Count == 0)
+            {
+                throw AggregationCompileError(ContentDiagnosticCode.InvalidValue, jsonPath, "AVG requires no singular target and at least one plural target.");
+            }
+
+            HashSet<TargetPath> targets = new HashSet<TargetPath>();
+            for (int i = 0; i < expression.Targets.Count; i++)
+            {
+                if (!expression.Targets[i].IsValid || !IsMetricTarget(expression.Targets[i]))
+                {
+                    throw AggregationCompileError(ContentDiagnosticCode.InvalidTargetReference, jsonPath + ".targets[" + i + "]", "AVG targets must be valid metrics.* target paths.");
+                }
+
+                if (!targets.Add(expression.Targets[i]))
+                {
+                    throw AggregationCompileError(ContentDiagnosticCode.InvalidValue, jsonPath + ".targets[" + i + "]", "Duplicate AVG source target.");
+                }
+            }
+        }
+
+        private static void ValidateMetricTargets(
+            IReadOnlyList<AggregationMetricRuntime> metrics,
+            HashSet<TargetPath> allMetricTargets,
+            string passPath)
+        {
+            for (int i = 0; i < metrics.Count; i++)
+            {
+                AggregationMetricRuntime metric = metrics[i];
+                if (!IsMetricTarget(metric.Metric))
+                {
+                    throw AggregationCompileError(ContentDiagnosticCode.InvalidTargetReference, passPath + ".metrics[" + i + "].metric", "Metric aggregation target must be metrics.*.");
+                }
+
+                if (!allMetricTargets.Add(metric.Metric))
+                {
+                    throw AggregationCompileError(ContentDiagnosticCode.AggregationPassFieldConflict, passPath + ".metrics[" + i + "].metric", "Duplicate metric target across passes.");
+                }
+
+                HashSet<TargetPath> components = new HashSet<TargetPath>();
+                for (int j = 0; j < metric.Components.Count; j++)
+                {
+                    if (!IsInternalTarget(metric.Components[j].Target))
+                    {
+                        throw AggregationCompileError(ContentDiagnosticCode.InvalidTargetReference, passPath + ".metrics[" + i + "].components[" + j + "].target", "Metric components must be internals.* targets.");
+                    }
+
+                    if (!components.Add(metric.Components[j].Target))
+                    {
+                        throw AggregationCompileError(ContentDiagnosticCode.AggregationPassFieldConflict, passPath + ".metrics[" + i + "].components[" + j + "].target", "Duplicate metric component target.");
+                    }
+                }
+            }
+        }
+
+        private static bool ContainsLegitimacy(IReadOnlyList<AggregationMetricRuntime> metrics)
+        {
+            TargetPath legitimacy = TargetPath.Parse("metrics.legitimacy");
+            for (int i = 0; i < metrics.Count; i++)
+            {
+                if (metrics[i].Metric == legitimacy)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static IReadOnlyList<AggregationReversionGroupRuntime> MapGroups(IReadOnlyList<AggregationReversionGroup> groups)
+        {
+            AggregationReversionGroupRuntime[] result = new AggregationReversionGroupRuntime[groups.Count];
+            for (int i = 0; i < groups.Count; i++)
+            {
+                AggregationReversionGroup g = groups[i];
+                result[i] = new AggregationReversionGroupRuntime(g.Pattern, g.HalfLifeWeeks, g.AlphaPpm);
+            }
+
+            return Array.AsReadOnly(result);
+        }
+
+        private static IReadOnlyList<AggregationMetricRuntime> MapMetrics(IReadOnlyList<AggregationMetric> metrics)
+        {
+            AggregationMetricRuntime[] result = new AggregationMetricRuntime[metrics.Count];
+            for (int i = 0; i < metrics.Count; i++)
+            {
+                AggregationMetric m = metrics[i];
+                if (m == null)
+                {
+                    throw AggregationCompileError(ContentDiagnosticCode.AggregationPassFieldConflict, "$.passes.metrics[" + i + "]", "Metrics cannot contain null entries.");
+                }
+
+                WeightedTargetComponentRuntime[] components = new WeightedTargetComponentRuntime[m.Components.Count];
+                for (int j = 0; j < m.Components.Count; j++)
+                {
+                    WeightedTargetComponent c = m.Components[j];
+                    if (c == null)
+                    {
+                        throw AggregationCompileError(ContentDiagnosticCode.AggregationPassFieldConflict, "$.passes.metrics[" + i + "].components[" + j + "]", "Metric components cannot contain null entries.");
+                    }
+
+                    components[j] = new WeightedTargetComponentRuntime(c.Target, c.WeightPpm);
+                }
+
+                result[i] = new AggregationMetricRuntime(m.Metric, m.HalfLifeWeeks, m.AlphaPpm, m.CapPerWeekS, Array.AsReadOnly(components));
+            }
+
+            return Array.AsReadOnly(result);
+        }
+
+        private static IReadOnlyList<DerivedAggregationRuleRuntime> MapDerivedRules(IReadOnlyList<DerivedAggregationRule> rules)
+        {
+            DerivedAggregationRuleRuntime[] result = new DerivedAggregationRuleRuntime[rules.Count];
+            for (int i = 0; i < rules.Count; i++)
+            {
+                DerivedAggregationRule r = rules[i];
+                if (r == null)
+                {
+                    throw AggregationCompileError(ContentDiagnosticCode.AggregationPassFieldConflict, "$.passes.rules[" + i + "]", "Derived rules cannot contain null entries.");
+                }
+
+                result[i] = new DerivedAggregationRuleRuntime(r.Target, r.Operation, MapExpression(r.Expression));
+            }
+
+            return Array.AsReadOnly(result);
+        }
+
+        private static AggregationExpressionRuntime MapExpression(AggregationExpression expression)
+        {
+            return new AggregationExpressionRuntime(
+                MapExpressionKind(expression.Kind),
+                expression.Target,
+                expression.Targets);
+        }
+
+        private static AggregationExpressionKindRuntime MapExpressionKind(AggregationExpressionKind kind)
+        {
+            switch (kind)
+            {
+                case AggregationExpressionKind.Avg:
+                    return AggregationExpressionKindRuntime.Avg;
+                case AggregationExpressionKind.Copy:
+                    return AggregationExpressionKindRuntime.Copy;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unsupported aggregation expression kind.");
+            }
+        }
+
+        private static void ValidatePassPrefix(AggregationPass pass, string passPath)
+        {
+            string expected;
+            if (pass.Type == AggregationPassType.InternalReversion)
+            {
+                expected = "SYSTEM:REVERSION";
+            }
+            else if (pass.Type == AggregationPassType.DerivedInternals)
+            {
+                expected = "SYSTEM:DERIVED";
+            }
+            else if (pass.Type == AggregationPassType.MetricAggregation)
+            {
+                expected = "SYSTEM:AGG";
+            }
+            else
+            {
+                throw AggregationCompileError(ContentDiagnosticCode.AggregationInvalidPrefix, passPath + ".cause_prefix", "Unknown aggregation pass type.");
+            }
+
+            if (!string.Equals(pass.CausePrefix, expected, StringComparison.Ordinal))
+            {
+                throw AggregationCompileError(ContentDiagnosticCode.AggregationInvalidPrefix, passPath + ".cause_prefix", "Invalid aggregation cause prefix.");
+            }
+        }
+
+        private static bool IsMetricTarget(TargetPath target)
+        {
+            return target.IsValid && string.Equals(target.Namespace, "metrics", StringComparison.Ordinal);
+        }
+
+        private static bool IsInternalTarget(TargetPath target)
+        {
+            return target.IsValid && string.Equals(target.Namespace, "internals", StringComparison.Ordinal);
+        }
+
+        private static void ValidateEnum<TEnum>(TEnum value, string jsonPath, string message) where TEnum : struct
+        {
+            if (!Enum.IsDefined(typeof(TEnum), value))
+            {
+                throw AggregationCompileError(ContentDiagnosticCode.InvalidEnum, jsonPath, message);
+            }
+        }
+
+        private static ContentAggregationCompileException AggregationCompileError(ContentDiagnosticCode code, string jsonPath, string message)
+        {
+            return new ContentAggregationCompileException(code, AggregationConfigPathForDiagnostics, jsonPath, message);
+        }
+
+        private const string AggregationConfigPathForDiagnostics = "rules/aggregation_config.json";
+    }
+
+    internal sealed class ContentAggregationCompileException : InvalidOperationException
+    {
+        public ContentAggregationCompileException(ContentDiagnosticCode code, string relativeFile, string jsonPath, string message)
+            : base(message)
+        {
+            Code = code;
+            RelativeFile = relativeFile ?? string.Empty;
+            JsonPath = jsonPath ?? string.Empty;
+        }
+
+        public ContentDiagnosticCode Code { get; }
+
+        public string RelativeFile { get; }
+
+        public string JsonPath { get; }
     }
 
     internal static class ModelSnapshot

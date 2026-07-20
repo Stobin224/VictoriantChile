@@ -41,7 +41,10 @@ namespace VictoriantChile.Content.Diagnostics
         InvalidWeightSum,
         MissingLocalizationKey,
         InvalidMacrozone,
-        RegionWeightTotalMismatch
+        RegionWeightTotalMismatch,
+        AggregationPassFieldConflict,
+        AggregationMissingRequiredPassType,
+        AggregationInvalidPrefix
     }
 
     public sealed class ContentDiagnostic

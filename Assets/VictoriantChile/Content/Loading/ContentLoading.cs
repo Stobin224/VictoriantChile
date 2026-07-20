@@ -8,6 +8,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using VictoriantChile.Content.Diagnostics;
 using VictoriantChile.Content.Models;
+using VictoriantChile.Simulation.Core.Aggregation;
 using VictoriantChile.Simulation.Core.Targets;
 
 namespace VictoriantChile.Content.Loading
@@ -261,6 +262,7 @@ namespace VictoriantChile.Content.Loading
             List<MovementDefinition> movements = null;
             ContentLocalizationTable localization = null;
             AggregationConfig aggregationConfig = null;
+            AggregationRuntimePlan aggregationRuntimePlan = null;
             LegislativeConfig legislativeConfig = null;
             List<EffectTemplate> effects = null;
             List<EventTemplate> events = null;
@@ -299,6 +301,10 @@ namespace VictoriantChile.Content.Loading
             if (targetCatalog != null && verifiedFiles.TryGetValue(AggregationConfigPath, out byte[] aggregationBytes))
             {
                 aggregationConfig = LoadAggregationConfig(ParseObject(AggregationConfigPath, aggregationBytes), targetCatalog);
+                if (aggregationConfig != null && !HasErrors())
+                {
+                    aggregationRuntimePlan = CompileAggregationRuntimePlanForLoad(aggregationConfig);
+                }
             }
 
             if (targetCatalog != null && verifiedFiles.TryGetValue(LegislativeConfigPath, out byte[] legislativeBytes))
@@ -336,8 +342,34 @@ namespace VictoriantChile.Content.Loading
                 return new ContentLoadResult(null, _diagnostics);
             }
 
-            ContentPack pack = new ContentPack(manifest, targetConfigs, regions, interestGroups, movements, localization, aggregationConfig, legislativeConfig, effects, events, reforms);
+            ContentPack pack = new ContentPack(manifest, targetConfigs, regions, interestGroups, movements, localization, aggregationConfig, aggregationRuntimePlan, legislativeConfig, effects, events, reforms);
             return new ContentLoadResult(pack, _diagnostics);
+        }
+
+        private AggregationRuntimePlan CompileAggregationRuntimePlanForLoad(AggregationConfig aggregationConfig)
+        {
+            try
+            {
+                return ContentPack.CompileAggregationRuntimePlan(aggregationConfig);
+            }
+            catch (ContentAggregationCompileException exception)
+            {
+                Add(exception.Code, exception.RelativeFile, exception.JsonPath, exception.Message);
+            }
+            catch (ArgumentException)
+            {
+                Add(ContentDiagnosticCode.AggregationPassFieldConflict, AggregationConfigPath, "$", "Aggregation runtime plan validation failed.");
+            }
+            catch (KeyNotFoundException)
+            {
+                Add(ContentDiagnosticCode.AggregationPassFieldConflict, AggregationConfigPath, "$", "Aggregation runtime plan validation failed.");
+            }
+            catch (InvalidOperationException)
+            {
+                Add(ContentDiagnosticCode.AggregationPassFieldConflict, AggregationConfigPath, "$", "Aggregation runtime plan validation failed.");
+            }
+
+            return null;
         }
 
         private ContentManifest LoadManifest(IContentFileSource source, JObject root, Dictionary<string, byte[]> verifiedFiles)

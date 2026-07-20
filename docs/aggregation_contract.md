@@ -91,9 +91,10 @@ Each pass in phases 6, 7, and 8 executes under atomic semantics:
 2. **Full planning:** All outputs and causal contributions are computed and validated against the snapshot before any state is published.
 3. **Single atomic publication:** State mutations and causal contributions are committed as one batch. External observers never see a partial pass.
 4. **Fail-closed:** If validation or execution fails — duplicate target, overlapping reversion group, arithmetic overflow, invalid cause prefix, causal accounting mismatch, or ledger rejection — zero partial state, internals, metrics, or causal contributions are published.
+   > **PR 14.2 scope:** Compile-time validation rejects only *exactly duplicate* pattern strings by canonical `TargetPattern` equality. Arbitrary pattern overlap resolution (e.g. `internals.economy.*` vs `internals.economy.growth`) is not attempted by PR 14.2 and is deferred to the future executor. The executor must expand patterns against concrete targets and reject any real overlap before atomic publication.
 5. **Complete output for next pass:** The next pass in the phase order (6 → 7 → 8a → 8b) observes the full output of the previous pass.
 6. **No cross-observation within pass:** Within the same pass, no rule observes partial outputs of another rule. Rule order is config order; dictionary order is forbidden.
-7. **Fail-closed triggers:** missing target, duplicate target, overlapping reversion group, arithmetic overflow, out-of-range conversion, invalid cause prefix, causal accounting mismatch, ledger rejection.
+7. **Fail-closed triggers:** missing target, duplicate target, overlapping reversion group (executor must resolve pattern overlaps beyond exact duplicates), arithmetic overflow, out-of-range conversion, invalid cause prefix, causal accounting mismatch, ledger rejection.
 8. **Fail-closed guarantees:** zero partial state, zero partial internals, zero partial metrics, zero partial causal contributions.
 
 ## Reversion Formula
