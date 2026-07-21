@@ -64,6 +64,7 @@ EXPECTED_TOP_LEVEL_KEYS = {
     "drift",
     "pull",
     "latency",
+    "causality",
 }
 
 EXPECTED_CANONICAL_ORDER_KEYS = {
@@ -263,6 +264,131 @@ PPM_DEN = 1000000
 ALPHA_PPM = 109101
 CAP_WEEK = 200
 
+EXPECTED_CAUSE_CATEGORY = "SYSTEM"
+EXPECTED_CAUSE_PARENT = None
+EXPECTED_DRIFT_CAUSE_PATTERN = "SYSTEM:REG_DRIFT.regions.{region_id}.{metric}"
+EXPECTED_PULL_PROVENANCE_PATTERN = "SYSTEM:REG_TO_INT.{internal_target}"
+
+EXPECTED_CAUSALITY_KEYS = {
+    "cause_category",
+    "parent",
+    "canonical_key_separator",
+    "canonical_key_separator_count",
+    "identifier_separator",
+    "identifier_policy",
+    "drift",
+    "pull_provenance",
+    "public_aggregation_attribution",
+}
+
+EXPECTED_CAUSALITY_DRIFT_KEYS = {
+    "id_prefix",
+    "canonical_key_pattern",
+    "target_pattern",
+    "target_visibility",
+    "public_ledger",
+    "tick_causal_buffer",
+    "potential_cause_count",
+    "cause_order",
+    "zero_realized_delta_policy",
+}
+
+EXPECTED_CAUSALITY_PULL_KEYS = {
+    "id_prefix",
+    "canonical_key_pattern",
+    "identity_count",
+    "provenance_scope",
+    "target_visibility",
+    "public_ledger",
+    "tick_causal_buffer",
+    "serialized",
+    "stored_in_game_state",
+    "turn_report",
+    "top_n_slot",
+    "lifetime",
+    "public_attribution",
+    "double_counting",
+    "identities",
+}
+
+EXPECTED_CAUSALITY_IDENTITY_KEYS = {
+    "binding_id",
+    "canonical_key",
+    "internal_target",
+}
+
+EXPECTED_CAUSALITY_AGG_KEYS = {
+    "internal_target",
+    "visible_metric",
+    "canonical_key",
+}
+
+EXPECTED_PULL_PROVENANCE_IDENTITIES = [
+    {
+        "binding_id": "support_to_coalition_strength",
+        "canonical_key": "SYSTEM:REG_TO_INT.internals.leg.coalition_strength",
+        "internal_target": "internals.leg.coalition_strength",
+    },
+    {
+        "binding_id": "organization_to_field_ops",
+        "canonical_key": "SYSTEM:REG_TO_INT.internals.party.field_ops",
+        "internal_target": "internals.party.field_ops",
+    },
+    {
+        "binding_id": "tension_to_protest_activity",
+        "canonical_key": "SYSTEM:REG_TO_INT.internals.tension.protest_activity",
+        "internal_target": "internals.tension.protest_activity",
+    },
+    {
+        "binding_id": "rival_presence_to_opposition_obstruction",
+        "canonical_key": "SYSTEM:REG_TO_INT.internals.leg.opposition_obstruction",
+        "internal_target": "internals.leg.opposition_obstruction",
+    },
+    {
+        "binding_id": "tension_to_movement_salience",
+        "canonical_key": "SYSTEM:REG_TO_INT.internals.agenda.movement_salience",
+        "internal_target": "internals.agenda.movement_salience",
+    },
+]
+
+EXPECTED_PUBLIC_AGG_ATTRIBUTION = [
+    {
+        "internal_target": "internals.leg.coalition_strength",
+        "visible_metric": "metrics.legislative_capacity",
+        "canonical_key": "SYSTEM:AGG.metrics.legislative_capacity.internals.leg.coalition_strength",
+    },
+    {
+        "internal_target": "internals.party.field_ops",
+        "visible_metric": "metrics.party_organization",
+        "canonical_key": "SYSTEM:AGG.metrics.party_organization.internals.party.field_ops",
+    },
+    {
+        "internal_target": "internals.tension.protest_activity",
+        "visible_metric": "metrics.social_tension",
+        "canonical_key": "SYSTEM:AGG.metrics.social_tension.internals.tension.protest_activity",
+    },
+    {
+        "internal_target": "internals.leg.opposition_obstruction",
+        "visible_metric": "metrics.legislative_capacity",
+        "canonical_key": "SYSTEM:AGG.metrics.legislative_capacity.internals.leg.opposition_obstruction",
+    },
+    {
+        "internal_target": "internals.agenda.movement_salience",
+        "visible_metric": "metrics.public_agenda",
+        "canonical_key": "SYSTEM:AGG.metrics.public_agenda.internals.agenda.movement_salience",
+    },
+]
+
+EXPECTED_DRIFT_METRIC_NAMES = ["support", "tension", "organization", "rival_presence"]
+
+EXPECTED_AGG_METRIC_NAMES = {
+    "internals.leg.coalition_strength": "metrics.legislative_capacity",
+    "internals.party.field_ops": "metrics.party_organization",
+    "internals.tension.protest_activity": "metrics.social_tension",
+    "internals.leg.opposition_obstruction": "metrics.legislative_capacity",
+    "internals.agenda.movement_salience": "metrics.public_agenda",
+}
+
 
 def load_json(path: Path):
     return json.loads(path.read_text(encoding="utf-8"))
@@ -419,6 +545,63 @@ def compute_pull(
         "finalS": finalS,
         "realized_deltaS": realized_deltaS,
     }
+
+
+def validate_canonical_cause_key(key: str) -> list[str]:
+    errors = []
+    if not isinstance(key, str):
+        errors.append("CauseKey must be a string")
+        return errors
+    if not key:
+        errors.append("CauseKey must not be empty")
+        return errors
+    colon_count = key.count(":")
+    if colon_count != 1:
+        errors.append(
+            f"CauseKey must contain exactly one ':', got {colon_count}"
+        )
+    category, id_part = key.split(":", 1)
+    if category != "SYSTEM":
+        errors.append(
+            f"CauseKey category must be SYSTEM, got {category!r}"
+        )
+    valid_prefixes = (
+        "REG_DRIFT.", "REG_TO_INT.", "AGG.", "REVERSION.",
+        "DERIVED.", "CLAMP", "ROUNDING", "IG_CLOUT_NORMALIZE",
+    )
+    if not id_part:
+        errors.append("CauseKey ID must not be empty")
+    elif not id_part.startswith(valid_prefixes):
+        errors.append(
+            f"CauseKey ID {id_part!r} does not start with a permitted prefix"
+        )
+    if id_part:
+        for i, ch in enumerate(id_part):
+            if ch < " " or ch > "~":
+                errors.append(
+                    f"CauseKey ID contains non-printable-ASCII "
+                    f"character {ord(ch)!r} at position {i}"
+                )
+                break
+        if ":" in id_part:
+            errors.append("CauseKey ID must not contain ':'")
+        if "|" in id_part:
+            errors.append("CauseKey ID must not contain '|'")
+        if any(ch.isspace() for ch in id_part):
+            errors.append("CauseKey ID must not contain whitespace")
+    return errors
+
+
+def build_expected_drift_cause_keys() -> list[str]:
+    keys = []
+    for region_id in EXPECTED_CANONICAL_REGION_ORDER:
+        for metric in EXPECTED_DRIFT_METRIC_NAMES:
+            keys.append(
+                EXPECTED_DRIFT_CAUSE_PATTERN.replace(
+                    "{region_id}", region_id
+                ).replace("{metric}", metric)
+            )
+    return keys
 
 
 def validate_numeric_domain(domain: dict) -> list[str]:
@@ -614,6 +797,148 @@ def validate_latency(latency: dict) -> list[str]:
     return errors
 
 
+def validate_causality(causality: dict) -> list[str]:
+    errors = []
+
+    actual_keys = set(causality.keys())
+    if actual_keys != EXPECTED_CAUSALITY_KEYS:
+        missing = EXPECTED_CAUSALITY_KEYS - actual_keys
+        extra = actual_keys - EXPECTED_CAUSALITY_KEYS
+        if missing:
+            errors.append(f"Missing causality key(s): {sorted(missing)}")
+        if extra:
+            errors.append(f"Unexpected causality key(s): {sorted(extra)}")
+
+    if causality.get("cause_category") != EXPECTED_CAUSE_CATEGORY:
+        errors.append(
+            f"cause_category expected {EXPECTED_CAUSE_CATEGORY!r}, "
+            f"got {causality.get('cause_category')!r}"
+        )
+    if causality.get("parent") is not None:
+        errors.append(f"parent must be None, got {causality.get('parent')!r}")
+    if causality.get("canonical_key_separator") != ":":
+        errors.append(
+            f"canonical_key_separator expected ':', "
+            f"got {causality.get('canonical_key_separator')!r}"
+        )
+    if causality.get("canonical_key_separator_count") != 1:
+        errors.append(
+            f"canonical_key_separator_count expected 1, "
+            f"got {causality.get('canonical_key_separator_count')}"
+        )
+    if causality.get("identifier_policy") != "PRINTABLE_ASCII_NO_WHITESPACE_COLON_PIPE":
+        errors.append(
+            f"identifier_policy mismatch: "
+            f"{causality.get('identifier_policy')}"
+        )
+
+    drift = causality.get("drift", {})
+    drift_keys = set(drift.keys())
+    if drift_keys != EXPECTED_CAUSALITY_DRIFT_KEYS:
+        missing = EXPECTED_CAUSALITY_DRIFT_KEYS - drift_keys
+        extra = drift_keys - EXPECTED_CAUSALITY_DRIFT_KEYS
+        if missing:
+            errors.append(f"Missing causality.drift key(s): {sorted(missing)}")
+        if extra:
+            errors.append(f"Unexpected causality.drift key(s): {sorted(extra)}")
+    if drift.get("id_prefix") != "REG_DRIFT":
+        errors.append(f"drift.id_prefix expected REG_DRIFT, got {drift.get('id_prefix')!r}")
+    if drift.get("canonical_key_pattern") != EXPECTED_DRIFT_CAUSE_PATTERN:
+        errors.append(f"drift.canonical_key_pattern mismatch: {drift.get('canonical_key_pattern')}")
+    if drift.get("target_pattern") != "regions.{region_id}.{metric}":
+        errors.append(f"drift.target_pattern mismatch: {drift.get('target_pattern')}")
+    if drift.get("target_visibility") != "public_visible_target":
+        errors.append(f"drift.target_visibility mismatch: {drift.get('target_visibility')}")
+    if drift.get("public_ledger") is not True:
+        errors.append(f"drift.public_ledger must be True, got {drift.get('public_ledger')}")
+    if drift.get("tick_causal_buffer") is not True:
+        errors.append(f"drift.tick_causal_buffer must be True, got {drift.get('tick_causal_buffer')}")
+    if drift.get("potential_cause_count") != 64:
+        errors.append(f"drift.potential_cause_count expected 64, got {drift.get('potential_cause_count')}")
+    if drift.get("cause_order") != "canonical_region_order_then_drift_metric_order":
+        errors.append(f"drift.cause_order mismatch: {drift.get('cause_order')}")
+    if drift.get("zero_realized_delta_policy") != "omit_contribution":
+        errors.append(f"drift.zero_realized_delta_policy expected omit_contribution, got {drift.get('zero_realized_delta_policy')!r}")
+
+    pull = causality.get("pull_provenance", {})
+    pull_keys = set(pull.keys())
+    if pull_keys != EXPECTED_CAUSALITY_PULL_KEYS:
+        missing = EXPECTED_CAUSALITY_PULL_KEYS - pull_keys
+        extra = pull_keys - EXPECTED_CAUSALITY_PULL_KEYS
+        if missing:
+            errors.append(f"Missing causality.pull_provenance key(s): {sorted(missing)}")
+        if extra:
+            errors.append(f"Unexpected causality.pull_provenance key(s): {sorted(extra)}")
+    if pull.get("id_prefix") != "REG_TO_INT":
+        errors.append(f"pull_provenance.id_prefix expected REG_TO_INT, got {pull.get('id_prefix')!r}")
+    if pull.get("canonical_key_pattern") != EXPECTED_PULL_PROVENANCE_PATTERN:
+        errors.append(f"pull_provenance.canonical_key_pattern mismatch: {pull.get('canonical_key_pattern')}")
+    if pull.get("identity_count") != 5:
+        errors.append(f"pull_provenance.identity_count expected 5, got {pull.get('identity_count')}")
+    if pull.get("provenance_scope") != "ephemeral_execution_plan_only":
+        errors.append(f"pull_provenance.provenance_scope mismatch: {pull.get('provenance_scope')}")
+    if pull.get("target_visibility") != "hidden_internal":
+        errors.append(f"pull_provenance.target_visibility expected hidden_internal, got {pull.get('target_visibility')!r}")
+    if pull.get("public_ledger") is not False:
+        errors.append(f"pull_provenance.public_ledger must be False, got {pull.get('public_ledger')}")
+    if pull.get("tick_causal_buffer") is not False:
+        errors.append(f"pull_provenance.tick_causal_buffer must be False, got {pull.get('tick_causal_buffer')}")
+    if pull.get("serialized") is not False:
+        errors.append(f"pull_provenance.serialized must be False, got {pull.get('serialized')}")
+    if pull.get("stored_in_game_state") is not False:
+        errors.append(f"pull_provenance.stored_in_game_state must be False, got {pull.get('stored_in_game_state')}")
+    if pull.get("turn_report") is not False:
+        errors.append(f"pull_provenance.turn_report must be False, got {pull.get('turn_report')}")
+    if pull.get("top_n_slot") is not False:
+        errors.append(f"pull_provenance.top_n_slot must be False, got {pull.get('top_n_slot')}")
+    if pull.get("lifetime") != "current_phase_10_plan_only":
+        errors.append(f"pull_provenance.lifetime mismatch: {pull.get('lifetime')}")
+    if pull.get("public_attribution") != "next_tick_SYSTEM_AGG":
+        errors.append(f"pull_provenance.public_attribution mismatch: {pull.get('public_attribution')}")
+    if pull.get("double_counting") != "forbidden":
+        errors.append(f"pull_provenance.double_counting expected forbidden, got {pull.get('double_counting')!r}")
+
+    identities = pull.get("identities", [])
+    if len(identities) != 5:
+        errors.append(f"pull_provenance.identities expected 5 entries, got {len(identities)}")
+    else:
+        for i, identity in enumerate(identities):
+            id_keys = set(identity.keys())
+            if id_keys != EXPECTED_CAUSALITY_IDENTITY_KEYS:
+                missing = EXPECTED_CAUSALITY_IDENTITY_KEYS - id_keys
+                extra = id_keys - EXPECTED_CAUSALITY_IDENTITY_KEYS
+                if missing:
+                    errors.append(f"identity[{i}] missing key(s): {sorted(missing)}")
+                if extra:
+                    errors.append(f"identity[{i}] unexpected key(s): {sorted(extra)}")
+            expected = EXPECTED_PULL_PROVENANCE_IDENTITIES[i]
+            if identity != expected:
+                errors.append(
+                    f"identity[{i}] mismatch: expected {expected}, got {identity}"
+                )
+
+    agg = causality.get("public_aggregation_attribution", [])
+    if len(agg) != 5:
+        errors.append(f"public_aggregation_attribution expected 5 entries, got {len(agg)}")
+    else:
+        for i, mapping in enumerate(agg):
+            agg_keys = set(mapping.keys())
+            if agg_keys != EXPECTED_CAUSALITY_AGG_KEYS:
+                missing = EXPECTED_CAUSALITY_AGG_KEYS - agg_keys
+                extra = agg_keys - EXPECTED_CAUSALITY_AGG_KEYS
+                if missing:
+                    errors.append(f"agg_attribution[{i}] missing key(s): {sorted(missing)}")
+                if extra:
+                    errors.append(f"agg_attribution[{i}] unexpected key(s): {sorted(extra)}")
+            expected = EXPECTED_PUBLIC_AGG_ATTRIBUTION[i]
+            if mapping != expected:
+                errors.append(
+                    f"agg_attribution[{i}] mismatch: expected {expected}, got {mapping}"
+                )
+
+    return errors
+
+
 def validate_contract(contract: dict) -> list[str]:
     errors = []
 
@@ -702,6 +1027,9 @@ def validate_contract(contract: dict) -> list[str]:
 
     latency = contract.get("latency", {})
     errors.extend(validate_latency(latency))
+
+    causality = contract.get("causality", {})
+    errors.extend(validate_causality(causality))
 
     return errors
 
@@ -1570,6 +1898,43 @@ class MutationMatrixTest(unittest.TestCase):
             },
             "pull": copy.deepcopy(EXPECTED_PULL),
             "latency": copy.deepcopy(EXPECTED_LATENCY),
+            "causality": {
+                "cause_category": "SYSTEM",
+                "parent": None,
+                "canonical_key_separator": ":",
+                "canonical_key_separator_count": 1,
+                "identifier_separator": ".",
+                "identifier_policy": "PRINTABLE_ASCII_NO_WHITESPACE_COLON_PIPE",
+                "drift": {
+                    "id_prefix": "REG_DRIFT",
+                    "canonical_key_pattern": "SYSTEM:REG_DRIFT.regions.{region_id}.{metric}",
+                    "target_pattern": "regions.{region_id}.{metric}",
+                    "target_visibility": "public_visible_target",
+                    "public_ledger": True,
+                    "tick_causal_buffer": True,
+                    "potential_cause_count": 64,
+                    "cause_order": "canonical_region_order_then_drift_metric_order",
+                    "zero_realized_delta_policy": "omit_contribution",
+                },
+                "pull_provenance": {
+                    "id_prefix": "REG_TO_INT",
+                    "canonical_key_pattern": "SYSTEM:REG_TO_INT.{internal_target}",
+                    "identity_count": 5,
+                    "provenance_scope": "ephemeral_execution_plan_only",
+                    "target_visibility": "hidden_internal",
+                    "public_ledger": False,
+                    "tick_causal_buffer": False,
+                    "serialized": False,
+                    "stored_in_game_state": False,
+                    "turn_report": False,
+                    "top_n_slot": False,
+                    "lifetime": "current_phase_10_plan_only",
+                    "public_attribution": "next_tick_SYSTEM_AGG",
+                    "double_counting": "forbidden",
+                    "identities": copy.deepcopy(EXPECTED_PULL_PROVENANCE_IDENTITIES),
+                },
+                "public_aggregation_attribution": copy.deepcopy(EXPECTED_PUBLIC_AGG_ATTRIBUTION),
+            },
         }
 
     def assert_invalid(self, contract: dict, description: str):
@@ -1877,12 +2242,496 @@ class MutationMatrixTest(unittest.TestCase):
         self.valid["latency"]["next_tick_observation_order"] = order
         self.assert_invalid(self.valid, "next_tick_order reordered")
 
+    def test_causality_extra_key(self):
+        self.valid["causality"]["extra"] = True
+        self.assert_invalid(self.valid, "extra key in causality")
+
+    def test_causality_missing_key(self):
+        self.valid["causality"].pop("cause_category")
+        self.assert_invalid(self.valid, "missing key in causality")
+
+    def test_causality_wrong_category(self):
+        self.valid["causality"]["cause_category"] = "EVENT"
+        self.assert_invalid(self.valid, "cause_category EVENT")
+
+    def test_causality_parent_not_null(self):
+        self.valid["causality"]["parent"] = {}
+        self.assert_invalid(self.valid, "parent not null")
+
+    def test_causality_separator_count_2(self):
+        self.valid["causality"]["canonical_key_separator_count"] = 2
+        self.assert_invalid(self.valid, "separator_count 2")
+
+    def test_causality_identifier_policy_altered(self):
+        self.valid["causality"]["identifier_policy"] = "PRINTABLE_ASCII"
+        self.assert_invalid(self.valid, "identifier_policy altered")
+
+    def test_drift_id_prefix_altered(self):
+        self.valid["causality"]["drift"]["id_prefix"] = "DRIFT"
+        self.assert_invalid(self.valid, "drift.id_prefix DRIFT")
+
+    def test_drift_pattern_with_multiple_colons(self):
+        self.valid["causality"]["drift"]["canonical_key_pattern"] = (
+            "SYSTEM:REG_DRIFT:{region_id}:{metric}"
+        )
+        self.assert_invalid(self.valid, "drift pattern with multiple :")
+
+    def test_drift_public_ledger_false(self):
+        self.valid["causality"]["drift"]["public_ledger"] = False
+        self.assert_invalid(self.valid, "drift.public_ledger False")
+
+    def test_drift_tick_causal_buffer_false(self):
+        self.valid["causality"]["drift"]["tick_causal_buffer"] = False
+        self.assert_invalid(self.valid, "drift.tick_causal_buffer False")
+
+    def test_drift_potential_cause_count_63(self):
+        self.valid["causality"]["drift"]["potential_cause_count"] = 63
+        self.assert_invalid(self.valid, "drift.potential_cause_count 63")
+
+    def test_drift_cause_order_altered(self):
+        self.valid["causality"]["drift"]["cause_order"] = "alphabetical"
+        self.assert_invalid(self.valid, "drift.cause_order altered")
+
+    def test_drift_zero_policy_record_zero(self):
+        self.valid["causality"]["drift"]["zero_realized_delta_policy"] = "record_zero"
+        self.assert_invalid(self.valid, "drift.zero_policy record_zero")
+
+    def test_pull_pattern_with_multiple_colons(self):
+        self.valid["causality"]["pull_provenance"]["canonical_key_pattern"] = (
+            "SYSTEM:REG_TO_INT:{internal}:{target}"
+        )
+        self.assert_invalid(self.valid, "pull pattern with multiple :")
+
+    def test_pull_identity_count_4(self):
+        self.valid["causality"]["pull_provenance"]["identity_count"] = 4
+        self.assert_invalid(self.valid, "pull identity_count 4")
+
+    def test_pull_provenance_scope_persistent(self):
+        self.valid["causality"]["pull_provenance"]["provenance_scope"] = "persistent"
+        self.assert_invalid(self.valid, "pull provenance_scope persistent")
+
+    def test_pull_target_visibility_public(self):
+        self.valid["causality"]["pull_provenance"]["target_visibility"] = (
+            "public_visible_target"
+        )
+        self.assert_invalid(self.valid, "pull target_visibility public")
+
+    def test_pull_public_ledger_true(self):
+        self.valid["causality"]["pull_provenance"]["public_ledger"] = True
+        self.assert_invalid(self.valid, "pull public_ledger True")
+
+    def test_pull_tick_causal_buffer_true(self):
+        self.valid["causality"]["pull_provenance"]["tick_causal_buffer"] = True
+        self.assert_invalid(self.valid, "pull tick_causal_buffer True")
+
+    def test_pull_serialized_true(self):
+        self.valid["causality"]["pull_provenance"]["serialized"] = True
+        self.assert_invalid(self.valid, "pull serialized True")
+
+    def test_pull_stored_in_game_state_true(self):
+        self.valid["causality"]["pull_provenance"]["stored_in_game_state"] = True
+        self.assert_invalid(self.valid, "pull stored_in_game_state True")
+
+    def test_pull_turn_report_true(self):
+        self.valid["causality"]["pull_provenance"]["turn_report"] = True
+        self.assert_invalid(self.valid, "pull turn_report True")
+
+    def test_pull_top_n_slot_true(self):
+        self.valid["causality"]["pull_provenance"]["top_n_slot"] = True
+        self.assert_invalid(self.valid, "pull top_n_slot True")
+
+    def test_pull_lifetime_altered(self):
+        self.valid["causality"]["pull_provenance"]["lifetime"] = "permanent"
+        self.assert_invalid(self.valid, "pull lifetime altered")
+
+    def test_pull_public_attribution_same_tick(self):
+        self.valid["causality"]["pull_provenance"]["public_attribution"] = (
+            "same_tick_REG_TO_INT"
+        )
+        self.assert_invalid(self.valid, "pull public_attribution same_tick")
+
+    def test_pull_double_counting_allowed(self):
+        self.valid["causality"]["pull_provenance"]["double_counting"] = "allowed"
+        self.assert_invalid(self.valid, "pull double_counting allowed")
+
+    def test_pull_identity_omitted(self):
+        self.valid["causality"]["pull_provenance"]["identities"].pop()
+        self.assert_invalid(self.valid, "pull identity omitted")
+
+    def test_pull_identity_extra(self):
+        self.valid["causality"]["pull_provenance"]["identities"].append(
+            {
+                "binding_id": "extra",
+                "canonical_key": "SYSTEM:REG_TO_INT.extra",
+                "internal_target": "extra",
+            }
+        )
+        self.assert_invalid(self.valid, "pull identity extra")
+
+    def test_pull_identities_reordered(self):
+        ids = list(self.valid["causality"]["pull_provenance"]["identities"])
+        ids[0], ids[4] = ids[4], ids[0]
+        self.valid["causality"]["pull_provenance"]["identities"] = ids
+        self.assert_invalid(self.valid, "pull identities reordered")
+
+    def test_pull_identity_canonical_key_wrong(self):
+        self.valid["causality"]["pull_provenance"]["identities"][0][
+            "canonical_key"
+        ] = "SYSTEM:REG_TO_INT.wrong"
+        self.assert_invalid(self.valid, "pull identity canonical_key wrong")
+
+    def test_pull_identity_internal_target_wrong(self):
+        self.valid["causality"]["pull_provenance"]["identities"][0][
+            "internal_target"
+        ] = "wrong"
+        self.assert_invalid(self.valid, "pull identity internal_target wrong")
+
+    def test_agg_mapping_omitted(self):
+        self.valid["causality"]["public_aggregation_attribution"].pop()
+        self.assert_invalid(self.valid, "agg mapping omitted")
+
+    def test_agg_mapping_extra(self):
+        self.valid["causality"]["public_aggregation_attribution"].append(
+            {
+                "internal_target": "extra",
+                "visible_metric": "metrics.extra",
+                "canonical_key": "SYSTEM:AGG.metrics.extra",
+            }
+        )
+        self.assert_invalid(self.valid, "agg mapping extra")
+
+    def test_agg_mappings_reordered(self):
+        mappings = list(
+            self.valid["causality"]["public_aggregation_attribution"]
+        )
+        mappings[0], mappings[4] = mappings[4], mappings[0]
+        self.valid["causality"]["public_aggregation_attribution"] = mappings
+        self.assert_invalid(self.valid, "agg mappings reordered")
+
+    def test_agg_visible_metric_wrong(self):
+        self.valid["causality"]["public_aggregation_attribution"][0][
+            "visible_metric"
+        ] = "metrics.wrong"
+        self.assert_invalid(self.valid, "agg visible_metric wrong")
+
+    def test_agg_canonical_key_wrong(self):
+        self.valid["causality"]["public_aggregation_attribution"][0][
+            "canonical_key"
+        ] = "SYSTEM:AGG.wrong.wrong"
+        self.assert_invalid(self.valid, "agg canonical_key wrong")
+
     def test_valid_contract_passes(self):
         self.assert_valid(self.valid, "valid contract should pass")
 
     def test_valid_contract_structure_passes_full_validation(self):
         errors = validate_contract(self.valid)
         self.assertEqual([], errors)
+
+
+class CausalityTest(unittest.TestCase):
+    """Contractual causality block tests."""
+
+    def setUp(self):
+        self.contract = extract_canonical_block(
+            ROOT / "docs" / "territory_contract.md"
+        )
+        self.causality = self.contract.get("causality", {})
+
+    def test_causality_block_is_exact(self):
+        c = self.causality
+        self.assertEqual("SYSTEM", c.get("cause_category"))
+        self.assertIsNone(c.get("parent"))
+        self.assertEqual(":", c.get("canonical_key_separator"))
+        self.assertEqual(1, c.get("canonical_key_separator_count"))
+        self.assertEqual(
+            "PRINTABLE_ASCII_NO_WHITESPACE_COLON_PIPE",
+            c.get("identifier_policy"),
+        )
+
+    def test_causality_drift_block_is_exact(self):
+        drift = self.causality.get("drift", {})
+        self.assertEqual("REG_DRIFT", drift.get("id_prefix"))
+        self.assertEqual(
+            "SYSTEM:REG_DRIFT.regions.{region_id}.{metric}",
+            drift.get("canonical_key_pattern"),
+        )
+        self.assertEqual("regions.{region_id}.{metric}", drift.get("target_pattern"))
+        self.assertEqual("public_visible_target", drift.get("target_visibility"))
+        self.assertTrue(drift.get("public_ledger"))
+        self.assertTrue(drift.get("tick_causal_buffer"))
+        self.assertEqual(64, drift.get("potential_cause_count"))
+        self.assertEqual(
+            "canonical_region_order_then_drift_metric_order",
+            drift.get("cause_order"),
+        )
+        self.assertEqual("omit_contribution", drift.get("zero_realized_delta_policy"))
+
+    def test_causality_pull_provenance_block_is_exact(self):
+        pull = self.causality.get("pull_provenance", {})
+        self.assertEqual("REG_TO_INT", pull.get("id_prefix"))
+        self.assertEqual(
+            "SYSTEM:REG_TO_INT.{internal_target}",
+            pull.get("canonical_key_pattern"),
+        )
+        self.assertEqual(5, pull.get("identity_count"))
+        self.assertEqual("ephemeral_execution_plan_only", pull.get("provenance_scope"))
+        self.assertEqual("hidden_internal", pull.get("target_visibility"))
+        self.assertFalse(pull.get("public_ledger"))
+        self.assertFalse(pull.get("tick_causal_buffer"))
+        self.assertFalse(pull.get("serialized"))
+        self.assertFalse(pull.get("stored_in_game_state"))
+        self.assertFalse(pull.get("turn_report"))
+        self.assertFalse(pull.get("top_n_slot"))
+        self.assertEqual("current_phase_10_plan_only", pull.get("lifetime"))
+        self.assertEqual("next_tick_SYSTEM_AGG", pull.get("public_attribution"))
+        self.assertEqual("forbidden", pull.get("double_counting"))
+
+    def test_all_64_reg_drift_keys_are_valid_and_unique(self):
+        keys = build_expected_drift_cause_keys()
+        self.assertEqual(64, len(keys))
+        self.assertEqual(64, len(set(keys)))
+
+    def test_reg_drift_key_order_is_region_major(self):
+        keys = build_expected_drift_cause_keys()
+        for region_id in EXPECTED_CANONICAL_REGION_ORDER:
+            prefix = f"SYSTEM:REG_DRIFT.regions.{region_id}."
+            region_keys = [k for k in keys if k.startswith(prefix)]
+            self.assertEqual(4, len(region_keys), f"Expected 4 keys for {region_id}")
+            self.assertEqual(prefix + "support", region_keys[0])
+            self.assertEqual(prefix + "tension", region_keys[1])
+            self.assertEqual(prefix + "organization", region_keys[2])
+            self.assertEqual(prefix + "rival_presence", region_keys[3])
+
+    def test_reg_drift_first_and_last_keys(self):
+        keys = build_expected_drift_cause_keys()
+        self.assertEqual(
+            "SYSTEM:REG_DRIFT.regions.arica_parinacota.support",
+            keys[0],
+        )
+        self.assertEqual(
+            "SYSTEM:REG_DRIFT.regions.magallanes.rival_presence",
+            keys[-1],
+        )
+
+    def test_reg_drift_keys_have_exactly_one_colon(self):
+        keys = build_expected_drift_cause_keys()
+        for key in keys:
+            self.assertEqual(1, key.count(":"))
+
+    def test_reg_drift_keys_are_syntactically_valid(self):
+        keys = build_expected_drift_cause_keys()
+        for key in keys:
+            self.assertEqual([], validate_canonical_cause_key(key))
+
+    def test_five_reg_to_int_identities_are_exact(self):
+        identities = (
+            self.causality.get("pull_provenance", {}).get("identities", [])
+        )
+        self.assertEqual(EXPECTED_PULL_PROVENANCE_IDENTITIES, identities)
+
+    def test_reg_to_int_keys_are_syntactically_valid(self):
+        for identity in EXPECTED_PULL_PROVENANCE_IDENTITIES:
+            key = identity["canonical_key"]
+            self.assertEqual(1, key.count(":"))
+            self.assertEqual([], validate_canonical_cause_key(key))
+
+    def test_public_agg_attribution_is_exact(self):
+        agg = self.causality.get("public_aggregation_attribution", [])
+        self.assertEqual(EXPECTED_PUBLIC_AGG_ATTRIBUTION, agg)
+
+    def test_system_parent_is_null(self):
+        self.assertIsNone(self.causality.get("parent"))
+        drift = self.causality.get("drift", {})
+        pull = self.causality.get("pull_provenance", {})
+        self.assertIsNone(drift.get("parent"))
+        self.assertIsNone(pull.get("parent"))
+
+    def test_zero_delta_policy_is_omit_contribution(self):
+        drift = self.causality.get("drift", {})
+        self.assertEqual("omit_contribution", drift.get("zero_realized_delta_policy"))
+
+    def test_invalid_key_separator_comma_rejected(self):
+        key = "SYSTEM:REG_DRIFT.regions.arica_parinacota.support"
+        self.assertEqual([], validate_canonical_cause_key(key))
+
+    def test_invalid_colon_in_region_id_rejected(self):
+        bad = "SYSTEM:REG_DRIFT:arica_parinacota:support"
+        errors = validate_canonical_cause_key(bad)
+        self.assertTrue(errors, f"Expected errors for {bad}")
+
+    def test_invalid_double_colon_rejected(self):
+        bad = "SYSTEM::REG_DRIFT.regions.arica_parinacota.support"
+        errors = validate_canonical_cause_key(bad)
+        self.assertTrue(errors, f"Expected errors for {bad}")
+
+    def test_invalid_whitespace_in_id_rejected(self):
+        bad = "SYSTEM:REG_DRIFT.regions.arica parinacota.support"
+        errors = validate_canonical_cause_key(bad)
+        self.assertTrue(errors, f"Expected errors for {bad}")
+
+    def test_invalid_pipe_in_id_rejected(self):
+        bad = "SYSTEM:REG_DRIFT.regions.arica|parinacota.support"
+        errors = validate_canonical_cause_key(bad)
+        self.assertTrue(errors, f"Expected errors for {bad}")
+
+    def test_invalid_non_ascii_in_id_rejected(self):
+        bad = "SYSTEM:REG_DRIFT.regions.\u00e1rica.support"
+        errors = validate_canonical_cause_key(bad)
+        self.assertTrue(errors, f"Expected errors for {bad}")
+
+    def test_empty_id_rejected(self):
+        bad = "SYSTEM:"
+        errors = validate_canonical_cause_key(bad)
+        self.assertTrue(errors, f"Expected errors for {bad}")
+
+    def test_wrong_category_rejected(self):
+        bad = "EVENT:REG_DRIFT.regions.arica_parinacota.support"
+        errors = validate_canonical_cause_key(bad)
+        self.assertTrue(errors, f"Expected errors for {bad}")
+
+    def test_reg_drift_categories_must_be_system(self):
+        for key in build_expected_drift_cause_keys():
+            self.assertTrue(
+                key.startswith("SYSTEM:"),
+                f"Expected SYSTEM category in {key}",
+            )
+
+    def test_validate_causality_accepts_valid(self):
+        errors = validate_causality(self.causality)
+        self.assertEqual([], errors)
+
+    def test_causality_passes_full_validation(self):
+        errors = validate_contract(self.contract)
+        self.assertEqual([], errors, f"Expected no errors, got: {errors}")
+
+
+class CausalityParityTest(unittest.TestCase):
+    """Read-only parity checks against C# source and config files."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.root = ROOT
+        cls.aggregation_config = load_json(
+            cls.root
+            / "Assets"
+            / "StreamingAssets"
+            / "content"
+            / "rules"
+            / "aggregation_config.json"
+        )
+        cls.causal_models_path = (
+            cls.root
+            / "Assets"
+            / "VictoriantChile"
+            / "Simulation"
+            / "Core"
+            / "Causality"
+            / "CausalModels.cs"
+        )
+        cls.ledger_path = (
+            cls.root
+            / "Assets"
+            / "VictoriantChile"
+            / "Simulation"
+            / "Core"
+            / "Causality"
+            / "CausalLedger.cs"
+        )
+        cls.catalog_path = (
+            cls.root
+            / "Assets"
+            / "VictoriantChile"
+            / "Simulation"
+            / "Core"
+            / "Causality"
+            / "VisibleTargetCatalog.cs"
+        )
+
+    def test_cause_ref_constructs_category_plus_colon_plus_id(self):
+        source = self.causal_models_path.read_text(encoding="utf-8")
+        self.assertIn('CategoryToString(category) + ":" + id', source)
+        self.assertIn('return "SYSTEM"', source)
+        self.assertIn('return "EVENT"', source)
+        self.assertIn('return "DECISION"', source)
+        self.assertIn('return "REFORM"', source)
+        self.assertIn('return "MOVEMENT"', source)
+        self.assertIn('return "MODIFIER"', source)
+
+    def test_cause_ref_rejects_colon_pipe_whitespace_control_non_ascii(self):
+        source = self.causal_models_path.read_text(encoding="utf-8")
+        self.assertIn("char.IsWhiteSpace(value)", source)
+        self.assertIn("char.IsControl(value)", source)
+        self.assertIn("value > 127", source)
+        self.assertIn("value == ':'", source)
+        self.assertIn("value == '|'", source)
+
+    def test_cause_ref_prohibits_parent_for_system(self):
+        source = self.causal_models_path.read_text(encoding="utf-8")
+        self.assertIn("if (parent != null)", source)
+        self.assertIn(
+            "Only modifier causes may have a parent in causal ledger v1",
+            source,
+        )
+
+    def test_tick_causal_buffer_requires_visible_targets(self):
+        source = self.ledger_path.read_text(encoding="utf-8")
+        self.assertIn("RequireVisible(target)", source)
+
+    def test_record_contribution_omits_zero(self):
+        source = self.ledger_path.read_text(encoding="utf-8")
+        self.assertIn("if (realizedDeltaS == 0)", source)
+        self.assertIn("return;", source)
+
+    def test_visible_catalog_contains_regional_targets(self):
+        source = self.catalog_path.read_text(encoding="utf-8")
+        self.assertIn('"support"', source)
+        self.assertIn('"tension"', source)
+        self.assertIn('"organization"', source)
+        self.assertIn('"rival_presence"', source)
+
+    def test_visible_catalog_does_not_add_internals(self):
+        source = self.catalog_path.read_text(encoding="utf-8")
+        self.assertNotIn("internals", source)
+
+    def test_agg_contract_defines_hidden_internals(self):
+        agg_contract_path = self.root / "docs" / "aggregation_contract.md"
+        text = agg_contract_path.read_text(encoding="utf-8")
+        self.assertIn("`internals.*`", text)
+        self.assertIn("hidden", text)
+
+    def test_agg_contract_defines_ephemeral_execution_plan_only(self):
+        agg_contract_path = self.root / "docs" / "aggregation_contract.md"
+        text = agg_contract_path.read_text(encoding="utf-8")
+        self.assertIn("ephemeral_execution_plan_only", text)
+
+    def test_agg_contract_attribution_uses_system_agg(self):
+        agg_contract_path = self.root / "docs" / "aggregation_contract.md"
+        text = agg_contract_path.read_text(encoding="utf-8")
+        self.assertIn("SYSTEM:AGG", text)
+
+    def test_public_agg_mappings_match_aggregation_config(self):
+        for mapping in EXPECTED_PUBLIC_AGG_ATTRIBUTION:
+            internal = mapping["internal_target"]
+            expected_metric = mapping["visible_metric"]
+            found = False
+            for p in self.aggregation_config.get("passes", []):
+                if p.get("type") != "METRIC_AGGREGATION":
+                    continue
+                for m in p.get("metrics", []):
+                    for c in m.get("components", []):
+                        if c.get("target") == internal:
+                            self.assertEqual(
+                                expected_metric,
+                                m["metric"],
+                                f"Mismatch for {internal}: "
+                                f"expected {expected_metric}, "
+                                f"got {m['metric']}",
+                            )
+                            found = True
+                            break
+            self.assertTrue(
+                found, f"Internal target {internal} not found in aggregation_config"
+            )
 
 
 if __name__ == "__main__":

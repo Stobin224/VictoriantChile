@@ -267,6 +267,95 @@ one-tick latency.
       "AggregateNationalMetrics"
     ],
     "regional_feedback_first_visible_in_metrics": "tick_plus_1_phase_8"
+  },
+  "causality": {
+    "cause_category": "SYSTEM",
+    "parent": null,
+    "canonical_key_separator": ":",
+    "canonical_key_separator_count": 1,
+    "identifier_separator": ".",
+    "identifier_policy": "PRINTABLE_ASCII_NO_WHITESPACE_COLON_PIPE",
+    "drift": {
+      "id_prefix": "REG_DRIFT",
+      "canonical_key_pattern": "SYSTEM:REG_DRIFT.regions.{region_id}.{metric}",
+      "target_pattern": "regions.{region_id}.{metric}",
+      "target_visibility": "public_visible_target",
+      "public_ledger": true,
+      "tick_causal_buffer": true,
+      "potential_cause_count": 64,
+      "cause_order": "canonical_region_order_then_drift_metric_order",
+      "zero_realized_delta_policy": "omit_contribution"
+    },
+    "pull_provenance": {
+      "id_prefix": "REG_TO_INT",
+      "canonical_key_pattern": "SYSTEM:REG_TO_INT.{internal_target}",
+      "identity_count": 5,
+      "provenance_scope": "ephemeral_execution_plan_only",
+      "target_visibility": "hidden_internal",
+      "public_ledger": false,
+      "tick_causal_buffer": false,
+      "serialized": false,
+      "stored_in_game_state": false,
+      "turn_report": false,
+      "top_n_slot": false,
+      "lifetime": "current_phase_10_plan_only",
+      "public_attribution": "next_tick_SYSTEM_AGG",
+      "double_counting": "forbidden",
+      "identities": [
+        {
+          "binding_id": "support_to_coalition_strength",
+          "canonical_key": "SYSTEM:REG_TO_INT.internals.leg.coalition_strength",
+          "internal_target": "internals.leg.coalition_strength"
+        },
+        {
+          "binding_id": "organization_to_field_ops",
+          "canonical_key": "SYSTEM:REG_TO_INT.internals.party.field_ops",
+          "internal_target": "internals.party.field_ops"
+        },
+        {
+          "binding_id": "tension_to_protest_activity",
+          "canonical_key": "SYSTEM:REG_TO_INT.internals.tension.protest_activity",
+          "internal_target": "internals.tension.protest_activity"
+        },
+        {
+          "binding_id": "rival_presence_to_opposition_obstruction",
+          "canonical_key": "SYSTEM:REG_TO_INT.internals.leg.opposition_obstruction",
+          "internal_target": "internals.leg.opposition_obstruction"
+        },
+        {
+          "binding_id": "tension_to_movement_salience",
+          "canonical_key": "SYSTEM:REG_TO_INT.internals.agenda.movement_salience",
+          "internal_target": "internals.agenda.movement_salience"
+        }
+      ]
+    },
+    "public_aggregation_attribution": [
+      {
+        "internal_target": "internals.leg.coalition_strength",
+        "visible_metric": "metrics.legislative_capacity",
+        "canonical_key": "SYSTEM:AGG.metrics.legislative_capacity.internals.leg.coalition_strength"
+      },
+      {
+        "internal_target": "internals.party.field_ops",
+        "visible_metric": "metrics.party_organization",
+        "canonical_key": "SYSTEM:AGG.metrics.party_organization.internals.party.field_ops"
+      },
+      {
+        "internal_target": "internals.tension.protest_activity",
+        "visible_metric": "metrics.social_tension",
+        "canonical_key": "SYSTEM:AGG.metrics.social_tension.internals.tension.protest_activity"
+      },
+      {
+        "internal_target": "internals.leg.opposition_obstruction",
+        "visible_metric": "metrics.legislative_capacity",
+        "canonical_key": "SYSTEM:AGG.metrics.legislative_capacity.internals.leg.opposition_obstruction"
+      },
+      {
+        "internal_target": "internals.agenda.movement_salience",
+        "visible_metric": "metrics.public_agenda",
+        "canonical_key": "SYSTEM:AGG.metrics.public_agenda.internals.agenda.movement_salience"
+      }
+    ]
   }
 }
 ```
@@ -541,5 +630,74 @@ The simulation tick order relevant to territorial feedback:
    Re-executing phase 8 in T would incorrectly publish T+1 metrics
    one tick early.
 7. Scheduler phases 9 and 10 remain no-op in the product; this
-   contract defines their semantics but does not activate runtime
-   execution.
+    contract defines their semantics but does not activate runtime
+    execution.
+
+### Territorial causality and hidden provenance
+
+Causal attribution of territorial changes follows a two-tier system:
+public REG_DRIFT causes for visible regional targets, and ephemeral
+REG_TO_INT provenance for hidden internal writes.
+
+**CauseRef grammar**: Every `CauseRef` combines a `CauseCategory` and
+an `ID` separated by exactly one colon (`:`) — `CATEGORY:ID`. The
+category is one of `DECISION`, `EVENT`, `REFORM`, `MOVEMENT`,
+`MODIFIER`, or `SYSTEM`. The ID must be printable ASCII without
+whitespace, control characters, colons, or pipes. Only `MODIFIER`
+causes may have a non-null parent. All SYSTEM causes have `parent =
+null`.
+
+**64 potential REG_DRIFT causes**: Each territorial drift output
+generates a cause key of the form
+`SYSTEM:REG_DRIFT.regions.{region_id}.{metric}`. With 16 regions and
+4 metrics (support, tension, organization, rival_presence), there are
+64 unique potential cause identities. A potential cause does not imply
+an emitted entry: if a drift output has `realized_deltaS == 0`, the
+contribution is omitted from the causal ledger.
+
+**Five ephemeral REG_TO_INT identities**: The phase 10 pull bindings
+produce exactly five transient identities of the form
+`SYSTEM:REG_TO_INT.{internal_target}`. These exist only during the
+current phase 10 execution plan. They are:
+
+- `SYSTEM:REG_TO_INT.internals.leg.coalition_strength`
+- `SYSTEM:REG_TO_INT.internals.party.field_ops`
+- `SYSTEM:REG_TO_INT.internals.tension.protest_activity`
+- `SYSTEM:REG_TO_INT.internals.leg.opposition_obstruction`
+- `SYSTEM:REG_TO_INT.internals.agenda.movement_salience`
+
+REG_TO_INT identities:
+
+- are syntactically valid SYSTEM CauseKeys with `parent = null`;
+- target `internals.*`, which is excluded from the public visible
+  target catalog;
+- do not enter `TickCausalBuffer`;
+- are not serialized;
+- are not stored in `GameState`;
+- do not appear in `TurnReport`;
+- do not consume Top-N projection slots;
+- have a lifetime limited to the current phase 10 plan;
+- are never registered publicly alongside `SYSTEM:AGG`.
+
+**Public attribution through SYSTEM:AGG**: When a hidden internal
+influences a visible metric in tick T+1 phase 8, the visible
+attribution appears as:
+
+`SYSTEM:AGG.{visible_metric}.{internal_target}`
+
+For example, `SYSTEM:REG_TO_INT.internals.leg.coalition_strength`
+remains ephemeral; the public causal record shows
+`SYSTEM:AGG.metrics.legislative_capacity.internals.leg.coalition_strength`
+instead.
+
+**Double-counting prohibition**: The same influence must not be
+registered as both REG_TO_INT and SYSTEM:AGG simultaneously. The
+ephemeral REG_TO_INT exists only during phase 10; phase 8 in the next
+tick records the same influence under SYSTEM:AGG attribution.
+
+**Zero contributions**: If `realized_deltaS == 0`, the contribution is
+omitted from the causal ledger entirely (no record, no throw).
+
+**Scheduler phases**: Phases 9 and 10 remain no-op in the product;
+this contract defines their causal semantics but does not activate
+runtime execution.
