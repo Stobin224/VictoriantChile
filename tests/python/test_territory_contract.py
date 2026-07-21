@@ -1315,6 +1315,24 @@ class LatencyVectorTest(unittest.TestCase):
                     return g["alpha_ppm"]
         self.fail("internals.leg.* reversion group not found")
 
+    @staticmethod
+    def _find_derived_internal_targets(
+        aggregation_config: dict,
+    ) -> set[str]:
+        targets: set[str] = set()
+        found_pass = False
+        for pass_config in aggregation_config.get("passes", []):
+            if pass_config.get("type") != "DERIVED_INTERNALS":
+                continue
+            found_pass = True
+            for rule in pass_config.get("rules", []):
+                target = rule.get("target")
+                if target is not None:
+                    targets.add(target)
+        if not found_pass:
+            raise AssertionError("DERIVED_INTERNALS pass not found")
+        return targets
+
     def test_tt1_latency_vector(self):
         # --- Validate aggregation_config.json constants ---
         leg_alpha, leg_cap = self._find_legislative_capacity_config()
@@ -1403,6 +1421,17 @@ class LatencyVectorTest(unittest.TestCase):
         self.assertEqual(5005, agg_target_t1)
         self.assertEqual(5000, legislative_capacity_T)
         self.assertEqual(5001, legislative_capacity_T1)
+
+    def test_phase7_derived_internals_do_not_write_latency_targets(self):
+        targets = self._find_derived_internal_targets(self.aggregation_config)
+        self.assertNotIn(
+            "internals.leg.coalition_strength",
+            targets,
+        )
+        self.assertNotIn(
+            "metrics.legislative_capacity",
+            targets,
+        )
 
 
 class ContractIntegrityTest(unittest.TestCase):
