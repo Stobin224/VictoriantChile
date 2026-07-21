@@ -30,10 +30,12 @@ PR 8 is documentation, contract, and test only. It does not implement gameplay, 
 | MVP-010-turn-report-top-n | Turn-report causal limit | approved |
 | MVP-011-active-movements | Active movements | approved |
 | MVP-012-national-aggregation | National aggregation contract | approved |
+| MVP-013-territorial-feedback | Territorial feedback contract | approved |
 
 ## Canonical JSON
 
 ```json
+
 {
   "schema_version": 2,
   "register_status": "frozen",
@@ -1080,6 +1082,455 @@ PR 8 is documentation, contract, and test only. It does not implement gameplay, 
         }
       },
       "rationale": "National aggregation now has one fixed-point execution order, one pre-aggregation derived snapshot, one exact telescoping causal allocation, pass-execution semantics for atomic snapshots and fail-closed guarantees, materialization rules for cause_prefix, and ephemeral provenance scope for hidden internals."
+    },
+    {
+      "id": "MVP-013-territorial-feedback",
+      "topic": "Territorial feedback contract",
+      "question": "What exact region order, dynamic targets, static resources, numeric domain, drift formulas, pull mechanics, latency, causality grammar, hidden provenance, and atomicity rules define territorial feedback?",
+      "status": "approved",
+      "resolution": {
+        "canonical_region_order": {
+          "authority": "content_pack_declaration_order",
+          "source_path": "Assets/StreamingAssets/content/core/regions.json",
+          "region_count": 16,
+          "ordered_region_ids": [
+            "arica_parinacota",
+            "tarapaca",
+            "antofagasta",
+            "atacama",
+            "coquimbo",
+            "valparaiso",
+            "metropolitana",
+            "ohiggins",
+            "maule",
+            "nuble",
+            "biobio",
+            "araucania",
+            "los_rios",
+            "los_lagos",
+            "aysen",
+            "magallanes"
+          ],
+          "weight_ppm_each": 62500,
+          "weight_ppm_sum_required": 1000000,
+          "forbidden_order_sources": [
+            "GameState.Regions",
+            "RegionsById.Values",
+            "dictionary_iteration",
+            "lexicographic_sort"
+          ]
+        },
+        "regional_dynamic_targets": [
+          "support",
+          "tension",
+          "organization",
+          "rival_presence"
+        ],
+        "static_regional_resources": {
+          "admin_capS": 5000,
+          "industry_capS": 5000,
+          "extractive_capS": 5000,
+          "social_capS": 5000,
+          "populationS": 5000
+        },
+        "numeric_domain": {
+          "scale": 100,
+          "hundredS": 10000,
+          "midS": 5000,
+          "ppm_denominator": 1000000,
+          "stored_type": "int",
+          "intermediate_type": "checked_long",
+          "rounding": "HALF_AWAY_FROM_ZERO",
+          "rounding_authority": "FixedMath.RoundDivide",
+          "target_clamp_authority": "TargetConfig",
+          "publication_operation": "SET",
+          "forbidden_numeric_types": [
+            "float",
+            "double",
+            "decimal"
+          ],
+          "forbidden_behaviors": [
+            "Math.Round",
+            "divide_before_weighted_sum_complete",
+            "round_per_component",
+            "silent_saturation",
+            "unchecked_overflow",
+            "unchecked_cast",
+            "hardcoded_target_clamp"
+          ]
+        },
+        "drift": {
+          "phase": 9,
+          "phase_name": "DriftNationalToRegions",
+          "snapshot": "post_phase_8",
+          "region_order_source": "canonical_region_order.ordered_region_ids",
+          "metric_order": [
+            "support",
+            "tension",
+            "organization",
+            "rival_presence"
+          ],
+          "region_count": 16,
+          "outputs_per_region": 4,
+          "output_count": 64,
+          "half_life_weeks_metadata": 6,
+          "alpha_ppm": 109101,
+          "cap_per_weekS": 200,
+          "target_baseS": 5000,
+          "target_denominator": 1000000,
+          "all_sources_read_from": "phase_input_snapshot",
+          "rival_support_read_from": "phase_input_snapshot_pre_drift",
+          "target_formulas": {
+            "support": {
+              "target": "regions.{region_id}.support",
+              "terms": [
+                {
+                  "source": "metrics.legitimacy",
+                  "transform": "value_minus_mid",
+                  "coefficient_ppm": 600000
+                },
+                {
+                  "source": "metrics.party_organization",
+                  "transform": "value_minus_mid",
+                  "coefficient_ppm": 300000
+                },
+                {
+                  "source": "metrics.social_tension",
+                  "transform": "value_minus_mid",
+                  "coefficient_ppm": -400000
+                }
+              ]
+            },
+            "tension": {
+              "target": "regions.{region_id}.tension",
+              "terms": [
+                {
+                  "source": "metrics.economy",
+                  "transform": "mid_minus_value",
+                  "coefficient_ppm": 500000
+                },
+                {
+                  "source": "metrics.security",
+                  "transform": "mid_minus_value",
+                  "coefficient_ppm": 400000
+                },
+                {
+                  "source": "metrics.public_agenda",
+                  "transform": "value_minus_mid",
+                  "coefficient_ppm": 300000
+                }
+              ]
+            },
+            "organization": {
+              "target": "regions.{region_id}.organization",
+              "terms": [
+                {
+                  "source": "metrics.party_organization",
+                  "transform": "value_minus_mid",
+                  "coefficient_ppm": 800000
+                }
+              ]
+            },
+            "rival_presence": {
+              "target": "regions.{region_id}.rival_presence",
+              "terms": [
+                {
+                  "source": "regions.{region_id}.support",
+                  "transform": "mid_minus_value",
+                  "coefficient_ppm": 700000
+                },
+                {
+                  "source": "metrics.internal_cohesion",
+                  "transform": "mid_minus_value",
+                  "coefficient_ppm": 200000
+                }
+              ]
+            }
+          },
+          "common_pipeline": [
+            "construct_target_numerator_in_checked_long",
+            "round_target_offset_once",
+            "add_mid",
+            "target_config_clamp_target",
+            "distance_target_minus_current",
+            "multiply_distance_by_alpha_in_checked_long",
+            "round_elastic_delta_once",
+            "clamp_delta_to_weekly_cap",
+            "add_delta_to_current",
+            "target_config_clamp_final",
+            "realized_delta_final_minus_current"
+          ]
+        },
+        "pull": {
+          "phase": 10,
+          "phase_name": "PullRegionsToInternals",
+          "snapshot": "post_phase_9",
+          "region_order_source": "canonical_region_order.ordered_region_ids",
+          "weight_source": "content_pack_region.weight_ppm",
+          "weight_sum_required": 1000000,
+          "weighted_average_denominator": 1000000,
+          "weighted_average_intermediate_type": "checked_long",
+          "weighted_average_rounding": "HALF_AWAY_FROM_ZERO",
+          "weighted_average_division_count": 1,
+          "all_sources_read_from": "phase_input_snapshot",
+          "binding_chaining": "forbidden",
+          "alpha_ppm": 206299,
+          "cap_per_weekS": 400,
+          "output_count": 5,
+          "binding_order": [
+            "support_to_coalition_strength",
+            "organization_to_field_ops",
+            "tension_to_protest_activity",
+            "rival_presence_to_opposition_obstruction",
+            "tension_to_movement_salience"
+          ],
+          "bindings": [
+            {
+              "id": "support_to_coalition_strength",
+              "regional_source": "support",
+              "destination": "internals.leg.coalition_strength"
+            },
+            {
+              "id": "organization_to_field_ops",
+              "regional_source": "organization",
+              "destination": "internals.party.field_ops"
+            },
+            {
+              "id": "tension_to_protest_activity",
+              "regional_source": "tension",
+              "destination": "internals.tension.protest_activity"
+            },
+            {
+              "id": "rival_presence_to_opposition_obstruction",
+              "regional_source": "rival_presence",
+              "destination": "internals.leg.opposition_obstruction"
+            },
+            {
+              "id": "tension_to_movement_salience",
+              "regional_source": "tension",
+              "destination": "internals.agenda.movement_salience"
+            }
+          ],
+          "common_pipeline": [
+            "construct_complete_weighted_sum_in_checked_long",
+            "round_weighted_average_once",
+            "target_config_clamp_target",
+            "distance_target_minus_current",
+            "multiply_distance_by_alpha_in_checked_long",
+            "round_elastic_delta_once",
+            "clamp_delta_to_weekly_cap",
+            "add_delta_to_current",
+            "target_config_clamp_final",
+            "realized_delta_final_minus_current"
+          ]
+        },
+        "phase_order": {
+          "aggregate_national_metrics": 8,
+          "drift": 9,
+          "pull": 10,
+          "close_causal_report": 15,
+          "detect_blocking": 16
+        },
+        "snapshot_semantics": {
+          "phase_9_input_snapshot": "post_phase_8",
+          "phase_10_input_snapshot": "post_phase_9",
+          "phase_8_observes": "internals_before_current_tick_pull",
+          "snapshot_immutability": "pass_level_snapshot",
+          "cross_phase_observation_forbidden": true,
+          "snapshot_authority": "scheduler_phase_boundary"
+        },
+        "latency": {
+          "feedback_latency_ticks": 1,
+          "phase_8_observes": "internals_before_current_tick_pull",
+          "phase_9_writes": "regional_dynamic_targets",
+          "phase_10_writes": "five_internal_targets",
+          "same_tick_phase_8_reexecution": false,
+          "next_tick_observation_order": [
+            "RevertInternals",
+            "DeriveInternals",
+            "AggregateNationalMetrics"
+          ],
+          "regional_feedback_first_visible_in_metrics": "tick_plus_1_phase_8"
+        },
+        "cause_key_grammar": {
+          "cause_category": "SYSTEM",
+          "parent": null,
+          "canonical_key_separator": ":",
+          "canonical_key_separator_count": 1,
+          "identifier_separator": ".",
+          "identifier_policy": "PRINTABLE_ASCII_NO_WHITESPACE_COLON_PIPE",
+          "drift": {
+            "id_prefix": "REG_DRIFT",
+            "canonical_key_pattern": "SYSTEM:REG_DRIFT.regions.{region_id}.{metric}",
+            "target_pattern": "regions.{region_id}.{metric}",
+            "target_visibility": "public_visible_target",
+            "public_ledger": true,
+            "tick_causal_buffer": true,
+            "potential_cause_count": 64,
+            "cause_order": "canonical_region_order_then_drift_metric_order",
+            "zero_realized_delta_policy": "omit_contribution"
+          }
+        },
+        "hidden_pull_provenance": {
+          "id_prefix": "REG_TO_INT",
+          "canonical_key_pattern": "SYSTEM:REG_TO_INT.{internal_target}",
+          "identity_count": 5,
+          "provenance_scope": "ephemeral_execution_plan_only",
+          "target_visibility": "hidden_internal",
+          "public_ledger": false,
+          "tick_causal_buffer": false,
+          "serialized": false,
+          "stored_in_game_state": false,
+          "turn_report": false,
+          "top_n_slot": false,
+          "lifetime": "current_phase_10_plan_only",
+          "public_attribution": "next_tick_SYSTEM_AGG",
+          "double_counting": "forbidden",
+          "identities": [
+            {
+              "binding_id": "support_to_coalition_strength",
+              "canonical_key": "SYSTEM:REG_TO_INT.internals.leg.coalition_strength",
+              "internal_target": "internals.leg.coalition_strength"
+            },
+            {
+              "binding_id": "organization_to_field_ops",
+              "canonical_key": "SYSTEM:REG_TO_INT.internals.party.field_ops",
+              "internal_target": "internals.party.field_ops"
+            },
+            {
+              "binding_id": "tension_to_protest_activity",
+              "canonical_key": "SYSTEM:REG_TO_INT.internals.tension.protest_activity",
+              "internal_target": "internals.tension.protest_activity"
+            },
+            {
+              "binding_id": "rival_presence_to_opposition_obstruction",
+              "canonical_key": "SYSTEM:REG_TO_INT.internals.leg.opposition_obstruction",
+              "internal_target": "internals.leg.opposition_obstruction"
+            },
+            {
+              "binding_id": "tension_to_movement_salience",
+              "canonical_key": "SYSTEM:REG_TO_INT.internals.agenda.movement_salience",
+              "internal_target": "internals.agenda.movement_salience"
+            }
+          ]
+        },
+        "pass_execution_semantics": {
+          "scope": {
+            "phase_9_and_phase_10": "separate_atomic_passes",
+            "pass_atomicity": "executor_responsibility",
+            "observable_tick_atomicity": "scheduler_result_boundary",
+            "runtime_tick_fail_closed_verification": "PR_15_4"
+          },
+          "execution_sequence": [
+            "capture_immutable_snapshot",
+            "validate_all_bindings_and_inputs",
+            "compute_all_outputs",
+            "compute_all_applicable_causes_or_provenance",
+            "validate_deltas_ranges_and_causal_accounting",
+            "construct_complete_candidate",
+            "publish_once"
+          ],
+          "phase_9_drift": {
+            "phase": 9,
+            "snapshot": "post_phase_8_immutable",
+            "planned_output_count": 64,
+            "candidate": "complete_regional_state_and_visible_causal_batch",
+            "publication": "single_atomic_state_and_causal_batch",
+            "partial_publication": false,
+            "cross_output_observation": false,
+            "failure_behavior": "discard_candidate_and_publish_nothing"
+          },
+          "phase_10_pull": {
+            "phase": 10,
+            "snapshot": "post_phase_9_immutable",
+            "planned_output_count": 5,
+            "candidate": "complete_internal_state_with_ephemeral_provenance",
+            "publication": "single_atomic_internal_state_batch",
+            "public_causal_publication": "none",
+            "ephemeral_provenance_publication": "none",
+            "partial_publication": false,
+            "binding_chaining": false,
+            "failure_behavior": "discard_candidate_and_publish_nothing"
+          },
+          "fail_closed_triggers": [
+            "missing_region",
+            "duplicate_region",
+            "inconsistent_canonical_order",
+            "region_count_mismatch",
+            "weight_sum_mismatch",
+            "non_positive_weight",
+            "missing_regional_field",
+            "missing_internal_destination",
+            "missing_target_config",
+            "set_not_allowed",
+            "invalid_cause_ref",
+            "duplicate_output",
+            "duplicate_coupling",
+            "multiplication_overflow",
+            "sum_overflow",
+            "addition_overflow",
+            "long_to_int_out_of_range",
+            "invalid_denominator",
+            "invalid_clamp_or_invariant",
+            "causal_batch_rejection",
+            "visible_delta_causal_sum_mismatch"
+          ],
+          "fail_closed_guarantees": [
+            "zero_partial_game_state",
+            "zero_partial_regions",
+            "zero_partial_internals",
+            "zero_partial_causal_contributions"
+          ],
+          "observable_tick_failure": {
+            "scenario": "phase_9_succeeds_phase_10_fails",
+            "advance_one_tick_result": "not_returned",
+            "original_game_state": "unchanged",
+            "phase_9_snapshot_exposed": false,
+            "partial_causal_ledger_exposed": false,
+            "sealed_causal_ledger_exposed": false,
+            "scheduler_working_state": "local_only",
+            "scheduler_causal_buffer": "local_only_until_phase_15_seal",
+            "runtime_test_owner": "PR_15_4"
+          },
+          "non_guarantees": [
+            "phases_9_and_10_are_not_one_super_pass",
+            "PR_15_1_does_not_implement_runtime_transactions",
+            "PR_15_1_does_not_activate_scheduler_phases_9_or_10"
+          ]
+        },
+        "active_reform_bias_exclusion": {
+          "active_reform_bias": "excluded",
+          "implementation_owner": "PR_19_4"
+        },
+        "vectors": {
+          "fixture_owner": "PR_15_1_J",
+          "oracle_owner": "PR_15_1_K"
+        },
+        "scope": [
+          "regional_feedback_territorial_simulation",
+          "region_identity_and_order",
+          "regional_dynamic_targets",
+          "static_regional_resources",
+          "fixed_point_arithmetic_domain",
+          "phase_9_drift_formulas",
+          "phase_10_pull_mechanics",
+          "phase_latency_model",
+          "causal_key_grammar",
+          "hidden_internal_provenance",
+          "execution_atomicity_and_fail_closed"
+        ],
+        "non_scope": [
+          "UI_display_names_or_polygon_data",
+          "non_simulation_state",
+          "demographic_or_economic_weighting_beyond_uniform_weights",
+          "runtime_implementation_of_scheduler_phases_9_or_10",
+          "runtime_tick_fail_closed_verification",
+          "execution_vectors_fixture_oracle",
+          "active_reform_bias",
+          "PR_15_2_through_15_4_implementation_work"
+        ]
+      },
+      "rationale": "The territorial feedback contract now freezes the complete regional authority, drift, pull, latency, causality, and atomicity rules from the canonical territory contract. The cause_key_grammar and hidden_pull_provenance are structural copies of territory_contract.causality without reinterpretation. pass_execution_semantics is territory.atomicity. active_reform_bias is explicitly excluded and owned by PR 19.4. Execution vectors are assigned to PR 15.1-J (fixture) and PR 15.1-K (oracle)."
     }
   ]
 }
@@ -1625,6 +2076,31 @@ PR 8 is documentation, contract, and test only. It does not implement gameplay, 
     - social_tension F(V0..4): `5000, 5056, 5095, 5056, 5032`, deltas: `0, +56, +39, -39, -24`, sum = 32
 - Rationale: National aggregation now has one fixed-point execution order, one pre-aggregation derived snapshot, one exact telescoping causal allocation, pass-execution semantics for atomic snapshots and fail-closed guarantees, materialization rules for cause_prefix, and ephemeral provenance scope for hidden internals.
 - Implementation status: PR 14 phases 6-8 implemented; phases 9-14 remain explicit no-op hooks.
+
+
+## MVP-013-territorial-feedback
+
+- Topic: Territorial feedback contract
+- Question: What exact region order, dynamic targets, static resources, numeric domain, drift formulas, pull mechanics, latency, causality grammar, hidden provenance, and atomicity rules define territorial feedback?
+- Status: approved
+- Resolution:
+  - canonical_region_order: `16 regions in content_pack_declaration_order`, weight_ppm_each = `62500`, weight_ppm_sum_required = `1000000`
+  - regional_dynamic_targets: `support`, `tension`, `organization`, `rival_presence`
+  - static_regional_resources: all five fields at `5000` per region
+  - numeric_domain: `scale = 100`, `hundredS = 10000`, `midS = 5000`, `stored_type = int`, `intermediate_type = checked_long`, `rounding = HALF_AWAY_FROM_ZERO` via `FixedMath.RoundDivide`
+  - drift: phase 9 `DriftNationalToRegions`, 64 regional outputs, `alpha_ppm = 109101`, `cap_per_weekS = 200`, 4 target formulas (support, tension, organization, rival_presence)
+  - pull: phase 10 `PullRegionsToInternals`, 5 weighted-average bindings, `alpha_ppm = 206299`, `cap_per_weekS = 400`, binding chaining forbidden
+  - phase_order: `aggregate_national_metrics = 8`, `drift = 9`, `pull = 10`, `close_causal_report = 15`, `detect_blocking = 16`
+  - snapshot_semantics: `phase_9_input_snapshot = post_phase_8`, `phase_10_input_snapshot = post_phase_9`, pass-level immutability, cross-phase observation forbidden
+  - latency: `feedback_latency_ticks = 1`, regional feedback first visible in `tick_plus_1_phase_8`
+  - cause_key_grammar: structural copy of `territory_contract.causality` excluding pull_provenance and public_aggregation_attribution; `cause_category = SYSTEM`, `canonical_key_separator = :`, `identifier_separator = .`, 64 `REG_DRIFT` potential causes, zero delta policy = `omit_contribution`
+  - hidden_pull_provenance: structural copy of `territory_contract.causality.pull_provenance`; 5 `REG_TO_INT` identities, ephemeral lifetime, no serialization, public attribution through `SYSTEM:AGG`
+  - pass_execution_semantics: structural copy of `territory_contract.atomicity`; separate atomic passes for phase 9 and phase 10, executor responsibility, 21 fail-closed triggers, 4 fail-closed guarantees
+  - active_reform_bias_exclusion: `active_reform_bias = excluded`, `implementation_owner = PR_19_4`
+  - vectors: `fixture_owner = PR_15_1_J`, `oracle_owner = PR_15_1_K`
+  - scope: territorial feedback simulation, region identity, dynamic targets, static resources, fixed-point arithmetic, drift, pull, latency, causality, provenance, atomicity
+  - non_scope: UI data, non-simulation state, non-uniform weighting, runtime implementation (phases 9/10), tick fail-closed verification, execution vectors, active reform bias, PR 15.2-15.4 implementation
+- Rationale: The territorial feedback contract now freezes the complete regional authority, drift, pull, latency, causality, and atomicity rules from the canonical territory contract.
 
 ## No-MVP Boundary
 
