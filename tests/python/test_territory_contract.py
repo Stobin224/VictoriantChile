@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 import unittest
 from pathlib import Path
@@ -385,6 +386,21 @@ class ContentPackAgainstContractTest(unittest.TestCase):
         )
         self.assertEqual([], errors, "\n".join(errors))
 
+    def test_one_region_with_different_weight_is_rejected(self):
+        mutated = copy.deepcopy(self.regions_data)
+        mutated["regions"][0]["weight_ppm"] = 62499
+        errors = validate_content_pack_against_contract(
+            self.contract, mutated
+        )
+        self.assertTrue(errors)
+        self.assertTrue(
+            any("weight_ppm" in error for error in errors), errors
+        )
+        self.assertEqual(
+            62500,
+            self.regions_data["regions"][0]["weight_ppm"],
+        )
+
 
 class ContractIntegrityTest(unittest.TestCase):
     """Validates the contract document is structurally sound."""
@@ -524,9 +540,9 @@ class MutationMatrixTest(unittest.TestCase):
         self.valid["canonical_region_order"]["weight_ppm_each"] = 62499
         self.assert_invalid(self.valid, "weight_ppm_each = 62499")
 
-    def test_one_region_with_different_weight(self):
+    def test_uniform_contract_weight_wrong(self):
         self.valid["canonical_region_order"]["weight_ppm_each"] = 1
-        self.assert_invalid(self.valid, "one region has weight_ppm != 62500")
+        self.assert_invalid(self.valid, "uniform contract weight wrong")
 
     def test_sum_not_1000000(self):
         self.valid["canonical_region_order"]["weight_ppm_sum_required"] = 999999
