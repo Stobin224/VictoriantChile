@@ -410,6 +410,33 @@ def extract_csharp_method_body(source: str, signature: str) -> str:
     return ""
 
 
+def extract_csharp_braced_block_after(source: str, marker: str) -> str:
+    marker_index = source.find(marker)
+    if marker_index == -1:
+        return ""
+
+    body_start = source.find("{", marker_index + len(marker))
+    if body_start == -1:
+        return ""
+
+    depth = 0
+    position = body_start
+
+    while position < len(source):
+        character = source[position]
+
+        if character == "{":
+            depth += 1
+        elif character == "}":
+            depth -= 1
+            if depth == 0:
+                return source[marker_index:position + 1]
+
+        position += 1
+
+    return ""
+
+
 EXPECTED_DRIFT_METRIC_NAMES = ["support", "tension", "organization", "rival_presence"]
 
 EXPECTED_AGG_METRIC_NAMES = {
@@ -2737,9 +2764,34 @@ class CausalityParityTest(unittest.TestCase):
 
     def test_record_contribution_omits_zero(self):
         source = self.ledger_path.read_text(encoding="utf-8")
-        body = extract_csharp_method_body(source, "public void RecordContribution(TargetPath target, CauseRef cause, long realizedDeltaS)")
-        self.assertIn("if (realizedDeltaS == 0)", body)
-        self.assertIn("return;", body)
+
+        method_body = extract_csharp_method_body(
+            source,
+            (
+                "public void RecordContribution("
+                "TargetPath target, CauseRef cause, long realizedDeltaS)"
+            ),
+        )
+
+        self.assertTrue(
+            method_body,
+            "RecordContribution method body not found",
+        )
+
+        zero_delta_block = extract_csharp_braced_block_after(
+            method_body,
+            "if (realizedDeltaS == 0)",
+        )
+
+        self.assertTrue(
+            zero_delta_block,
+            "realizedDeltaS == 0 block not found",
+        )
+
+        self.assertIn(
+            "return;",
+            zero_delta_block,
+        )
 
     def test_visible_catalog_contains_regional_targets(self):
         source = self.catalog_path.read_text(encoding="utf-8")
@@ -2791,6 +2843,23 @@ class CausalityParityTest(unittest.TestCase):
             self.assertTrue(
                 found, f"Internal target {internal} not found in aggregation_config"
             )
+
+    def test_extract_csharp_braced_block_excludes_later_return(self):
+        source = """
+if (realizedDeltaS == 0)
+{
+    DoNothing();
+}
+
+return;
+"""
+        block = extract_csharp_braced_block_after(
+            source,
+            "if (realizedDeltaS == 0)",
+        )
+        self.assertTrue(block)
+        self.assertIn("DoNothing();", block)
+        self.assertNotIn("return;", block)
 
 
 if __name__ == "__main__":
