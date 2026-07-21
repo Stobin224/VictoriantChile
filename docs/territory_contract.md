@@ -2,15 +2,17 @@
 
 ## Contract status
 
-This revision freezes the canonical regional authority and ordering rules
-defined by PR 15.1-C. It does not activate scheduler phases 9 or 10.
+This revision freezes the canonical regional authority, ordering rules,
+numeric domain, and phase 9 drift formulas defined by PR 15.1-C and
+PR 15.1-D. It does not activate scheduler phases 9 or 10.
 
 ## Canonical regional authority
 
-The following JSON block defines the binding regional authority for all
-territorial computation in this project. It is the single source of truth
-for region identity, count, order, weight, dynamic targets, and static
-resources.
+The following JSON block defines the binding regional authority and
+numeric computation rules for all territorial computation in this
+project. It is the single source of truth for region identity, count,
+order, weight, dynamic targets, static resources, numeric domain, and
+phase 9 drift formulas.
 
 <!-- BEGIN CANONICAL REGION AUTHORITY -->
 ```json
@@ -58,6 +60,134 @@ resources.
     "extractive_capS": 5000,
     "social_capS": 5000,
     "populationS": 5000
+  },
+  "numeric_domain": {
+    "scale": 100,
+    "hundredS": 10000,
+    "midS": 5000,
+    "ppm_denominator": 1000000,
+    "stored_type": "int",
+    "intermediate_type": "checked_long",
+    "rounding": "HALF_AWAY_FROM_ZERO",
+    "rounding_authority": "FixedMath.RoundDivide",
+    "target_clamp_authority": "TargetConfig",
+    "publication_operation": "SET",
+    "forbidden_numeric_types": [
+      "float",
+      "double",
+      "decimal"
+    ],
+    "forbidden_behaviors": [
+      "Math.Round",
+      "divide_before_weighted_sum_complete",
+      "round_per_component",
+      "silent_saturation",
+      "unchecked_overflow",
+      "unchecked_cast",
+      "hardcoded_target_clamp"
+    ]
+  },
+  "drift": {
+    "phase": 9,
+    "phase_name": "DriftNationalToRegions",
+    "snapshot": "post_phase_8",
+    "region_order_source": "canonical_region_order.ordered_region_ids",
+    "metric_order": [
+      "support",
+      "tension",
+      "organization",
+      "rival_presence"
+    ],
+    "region_count": 16,
+    "outputs_per_region": 4,
+    "output_count": 64,
+    "half_life_weeks_metadata": 6,
+    "alpha_ppm": 109101,
+    "cap_per_weekS": 200,
+    "target_baseS": 5000,
+    "target_denominator": 1000000,
+    "all_sources_read_from": "phase_input_snapshot",
+    "rival_support_read_from": "phase_input_snapshot_pre_drift",
+    "target_formulas": {
+      "support": {
+        "target": "regions.{region_id}.support",
+        "terms": [
+          {
+            "source": "metrics.legitimacy",
+            "transform": "value_minus_mid",
+            "coefficient_ppm": 600000
+          },
+          {
+            "source": "metrics.party_organization",
+            "transform": "value_minus_mid",
+            "coefficient_ppm": 300000
+          },
+          {
+            "source": "metrics.social_tension",
+            "transform": "value_minus_mid",
+            "coefficient_ppm": -400000
+          }
+        ]
+      },
+      "tension": {
+        "target": "regions.{region_id}.tension",
+        "terms": [
+          {
+            "source": "metrics.economy",
+            "transform": "mid_minus_value",
+            "coefficient_ppm": 500000
+          },
+          {
+            "source": "metrics.security",
+            "transform": "mid_minus_value",
+            "coefficient_ppm": 400000
+          },
+          {
+            "source": "metrics.public_agenda",
+            "transform": "value_minus_mid",
+            "coefficient_ppm": 300000
+          }
+        ]
+      },
+      "organization": {
+        "target": "regions.{region_id}.organization",
+        "terms": [
+          {
+            "source": "metrics.party_organization",
+            "transform": "value_minus_mid",
+            "coefficient_ppm": 800000
+          }
+        ]
+      },
+      "rival_presence": {
+        "target": "regions.{region_id}.rival_presence",
+        "terms": [
+          {
+            "source": "regions.{region_id}.support",
+            "transform": "mid_minus_value",
+            "coefficient_ppm": 700000
+          },
+          {
+            "source": "metrics.internal_cohesion",
+            "transform": "mid_minus_value",
+            "coefficient_ppm": 200000
+          }
+        ]
+      }
+    },
+    "common_pipeline": [
+      "construct_target_numerator_in_checked_long",
+      "round_target_offset_once",
+      "add_mid",
+      "target_config_clamp_target",
+      "distance_target_minus_current",
+      "multiply_distance_by_alpha_in_checked_long",
+      "round_elastic_delta_once",
+      "clamp_delta_to_weekly_cap",
+      "add_delta_to_current",
+      "target_config_clamp_final",
+      "realized_delta_final_minus_current"
+    ]
   }
 }
 ```
@@ -101,18 +231,143 @@ resources.
    and any non-simulation state are outside the scope of this
    contract.
 
-7. **Scheduler phases**: Scheduler phases 9
+7. **Numeric domain**: All territorial computation uses integer
+   fixed-point arithmetic with `Scale = 100`, `HundredS = 10000`,
+   `MidS = 5000`, `PpmDenominator = 1000000`. Intermediate results
+   use `checked long`. Rounding uses `HALF_AWAY_FROM_ZERO` via
+   `FixedMath.RoundDivide`. No `float`, `double`, or `Decimal` types
+   are permitted. Target clamping is delegated to `TargetConfig.Clamp`.
+   Future territorial publication uses the `SET` operation.
+
+8. **Scheduler phases**: Scheduler phases 9
    (`DriftNationalToRegions`) and 10 (`PullRegionsToInternals`)
    remain no-op. This contract does not activate or implement them.
 
 ## Contract boundaries with later PRs
 
-- PR 15.1-D will freeze drift formulas (support, tension,
+- PR 15.1-D freezes drift formulas (support, tension,
   organization, rival_presence), `alpha_ppm`, caps, rounding, and
-  snapshot semantics.
+  snapshot semantics. This revision completes that freeze.
 - PR 15.1-E will freeze pull mechanics, weighted average regional,
   bindings, and latency.
 - PR 15.1-F will freeze causal keys `REG_DRIFT` and ephemeral
   `REG_TO_INT` identities.
 - PR 15.1-G will freeze atomicity and fail-closed contractual rules.
 - PR 15.2 through 15.4 will implement the productive runtime plan.
+
+## Numeric domain and phase 9 drift
+
+### Support
+
+```
+numerator =
+      600000 * (metrics.legitimacy - 5000)
+    + 300000 * (metrics.party_organization - 5000)
+    - 400000 * (metrics.social_tension - 5000)
+
+offsetS =
+    FixedMath.RoundDivide(numerator, 1000000)
+
+target_unclampedS =
+    5000 + offsetS
+
+targetS =
+    TargetConfig(regions.{region_id}.support).Clamp(target_unclampedS)
+```
+
+### Tension
+
+```
+numerator =
+      500000 * (5000 - metrics.economy)
+    + 400000 * (5000 - metrics.security)
+    + 300000 * (metrics.public_agenda - 5000)
+
+offsetS =
+    FixedMath.RoundDivide(numerator, 1000000)
+
+target_unclampedS =
+    5000 + offsetS
+
+targetS =
+    TargetConfig(regions.{region_id}.tension).Clamp(target_unclampedS)
+```
+
+### Organization
+
+```
+numerator =
+    800000 * (metrics.party_organization - 5000)
+
+offsetS =
+    FixedMath.RoundDivide(numerator, 1000000)
+
+target_unclampedS =
+    5000 + offsetS
+
+targetS =
+    TargetConfig(regions.{region_id}.organization).Clamp(target_unclampedS)
+```
+
+### Rival presence
+
+```
+numerator =
+      700000 * (5000 - snapshot.regions[{region_id}].support)
+    + 200000 * (5000 - metrics.internal_cohesion)
+
+offsetS =
+    FixedMath.RoundDivide(numerator, 1000000)
+
+target_unclampedS =
+    5000 + offsetS
+
+targetS =
+    TargetConfig(regions.{region_id}.rival_presence).Clamp(target_unclampedS)
+```
+
+`snapshot.regions[{region_id}].support` is the pre-drift value from the
+post-phase-8 snapshot. It must not be replaced by the planned or published
+support value from the same phase 9 execution.
+
+### Common pipeline
+
+```
+distanceS =
+    targetS - currentS
+
+elastic_numerator =
+    distanceS * 109101
+
+elastic_deltaS =
+    FixedMath.RoundDivide(elastic_numerator, 1000000)
+
+capped_deltaS =
+    clamp(elastic_deltaS, -200, +200)
+
+pre_finalS =
+    currentS + capped_deltaS
+
+finalS =
+    TargetConfig(target).Clamp(pre_finalS)
+
+realized_deltaS =
+    finalS - currentS
+```
+
+Contractual pipeline order:
+
+1. construct numerator complete in checked long;
+2. round once to obtain offsetS;
+3. add MID_S;
+4. apply target clamp;
+5. calculate distanceS;
+6. multiply by alpha in checked long;
+7. round once the elasticity;
+8. apply weekly cap;
+9. add to current value;
+10. apply final clamp;
+11. calculate realized_deltaS.
+
+No causes, contributions, or causal publication are part of this pipeline
+definition.
