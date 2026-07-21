@@ -30,11 +30,12 @@ PR 8 is documentation, contract, and test only. It does not implement gameplay, 
 | MVP-010-turn-report-top-n | Turn-report causal limit | approved |
 | MVP-011-active-movements | Active movements | approved |
 | MVP-012-national-aggregation | National aggregation contract | approved |
-| MVP-013-territorial-feedback | Territorial feedback contract | approved |
+| MVP-013-territory-feedback | Territory feedback contract | approved |
 
 ## Canonical JSON
 
 ```json
+
 
 {
   "schema_version": 2,
@@ -520,7 +521,7 @@ PR 8 is documentation, contract, and test only. It does not implement gameplay, 
             "last_addressed_tick": 0
           },
           {
-            "theme": "servicios públicos",
+            "theme": "servicios pÃºblicos",
             "movement_id": "mov_salud_crisis_atencion",
             "enabled": true,
             "initial_intensityS": 3000,
@@ -1084,9 +1085,9 @@ PR 8 is documentation, contract, and test only. It does not implement gameplay, 
       "rationale": "National aggregation now has one fixed-point execution order, one pre-aggregation derived snapshot, one exact telescoping causal allocation, pass-execution semantics for atomic snapshots and fail-closed guarantees, materialization rules for cause_prefix, and ephemeral provenance scope for hidden internals."
     },
     {
-      "id": "MVP-013-territorial-feedback",
-      "topic": "Territorial feedback contract",
-      "question": "What exact region order, dynamic targets, static resources, numeric domain, drift formulas, pull mechanics, latency, causality grammar, hidden provenance, and atomicity rules define territorial feedback?",
+      "id": "MVP-013-territory-feedback",
+      "topic": "Territory feedback contract",
+      "question": "What exact region order, dynamic targets, static resources, numeric domain, drift formulas, pull mechanics, latency, causality grammar, hidden provenance, and atomicity rules define territory feedback?",
       "status": "approved",
       "resolution": {
         "canonical_region_order": {
@@ -1326,18 +1327,18 @@ PR 8 is documentation, contract, and test only. It does not implement gameplay, 
         },
         "phase_order": {
           "aggregate_national_metrics": 8,
-          "drift": 9,
-          "pull": 10,
+          "drift_national_to_regions": 9,
+          "pull_regions_to_internals": 10,
           "close_causal_report": 15,
-          "detect_blocking": 16
+          "detect_and_publish_blocking_decision": 16
         },
         "snapshot_semantics": {
-          "phase_9_input_snapshot": "post_phase_8",
-          "phase_10_input_snapshot": "post_phase_9",
-          "phase_8_observes": "internals_before_current_tick_pull",
-          "snapshot_immutability": "pass_level_snapshot",
-          "cross_phase_observation_forbidden": true,
-          "snapshot_authority": "scheduler_phase_boundary"
+          "phase_9_snapshot": "post_phase_8_immutable",
+          "phase_9_all_outputs_share_snapshot": true,
+          "phase_9_rival_support_source": "phase_input_snapshot_pre_drift",
+          "phase_10_snapshot": "post_phase_9_immutable",
+          "phase_10_all_bindings_share_snapshot": true,
+          "phase_10_binding_chaining": false
         },
         "latency": {
           "feedback_latency_ticks": 1,
@@ -1372,45 +1373,74 @@ PR 8 is documentation, contract, and test only. It does not implement gameplay, 
           }
         },
         "hidden_pull_provenance": {
-          "id_prefix": "REG_TO_INT",
-          "canonical_key_pattern": "SYSTEM:REG_TO_INT.{internal_target}",
-          "identity_count": 5,
-          "provenance_scope": "ephemeral_execution_plan_only",
-          "target_visibility": "hidden_internal",
-          "public_ledger": false,
-          "tick_causal_buffer": false,
-          "serialized": false,
-          "stored_in_game_state": false,
-          "turn_report": false,
-          "top_n_slot": false,
-          "lifetime": "current_phase_10_plan_only",
-          "public_attribution": "next_tick_SYSTEM_AGG",
-          "double_counting": "forbidden",
-          "identities": [
+          "pull_provenance": {
+            "id_prefix": "REG_TO_INT",
+            "canonical_key_pattern": "SYSTEM:REG_TO_INT.{internal_target}",
+            "identity_count": 5,
+            "provenance_scope": "ephemeral_execution_plan_only",
+            "target_visibility": "hidden_internal",
+            "public_ledger": false,
+            "tick_causal_buffer": false,
+            "serialized": false,
+            "stored_in_game_state": false,
+            "turn_report": false,
+            "top_n_slot": false,
+            "lifetime": "current_phase_10_plan_only",
+            "public_attribution": "next_tick_SYSTEM_AGG",
+            "double_counting": "forbidden",
+            "identities": [
+              {
+                "binding_id": "support_to_coalition_strength",
+                "canonical_key": "SYSTEM:REG_TO_INT.internals.leg.coalition_strength",
+                "internal_target": "internals.leg.coalition_strength"
+              },
+              {
+                "binding_id": "organization_to_field_ops",
+                "canonical_key": "SYSTEM:REG_TO_INT.internals.party.field_ops",
+                "internal_target": "internals.party.field_ops"
+              },
+              {
+                "binding_id": "tension_to_protest_activity",
+                "canonical_key": "SYSTEM:REG_TO_INT.internals.tension.protest_activity",
+                "internal_target": "internals.tension.protest_activity"
+              },
+              {
+                "binding_id": "rival_presence_to_opposition_obstruction",
+                "canonical_key": "SYSTEM:REG_TO_INT.internals.leg.opposition_obstruction",
+                "internal_target": "internals.leg.opposition_obstruction"
+              },
+              {
+                "binding_id": "tension_to_movement_salience",
+                "canonical_key": "SYSTEM:REG_TO_INT.internals.agenda.movement_salience",
+                "internal_target": "internals.agenda.movement_salience"
+              }
+            ]
+          },
+          "public_aggregation_attribution": [
             {
-              "binding_id": "support_to_coalition_strength",
-              "canonical_key": "SYSTEM:REG_TO_INT.internals.leg.coalition_strength",
-              "internal_target": "internals.leg.coalition_strength"
+              "internal_target": "internals.leg.coalition_strength",
+              "visible_metric": "metrics.legislative_capacity",
+              "canonical_key": "SYSTEM:AGG.metrics.legislative_capacity.internals.leg.coalition_strength"
             },
             {
-              "binding_id": "organization_to_field_ops",
-              "canonical_key": "SYSTEM:REG_TO_INT.internals.party.field_ops",
-              "internal_target": "internals.party.field_ops"
+              "internal_target": "internals.party.field_ops",
+              "visible_metric": "metrics.party_organization",
+              "canonical_key": "SYSTEM:AGG.metrics.party_organization.internals.party.field_ops"
             },
             {
-              "binding_id": "tension_to_protest_activity",
-              "canonical_key": "SYSTEM:REG_TO_INT.internals.tension.protest_activity",
-              "internal_target": "internals.tension.protest_activity"
+              "internal_target": "internals.tension.protest_activity",
+              "visible_metric": "metrics.social_tension",
+              "canonical_key": "SYSTEM:AGG.metrics.social_tension.internals.tension.protest_activity"
             },
             {
-              "binding_id": "rival_presence_to_opposition_obstruction",
-              "canonical_key": "SYSTEM:REG_TO_INT.internals.leg.opposition_obstruction",
-              "internal_target": "internals.leg.opposition_obstruction"
+              "internal_target": "internals.leg.opposition_obstruction",
+              "visible_metric": "metrics.legislative_capacity",
+              "canonical_key": "SYSTEM:AGG.metrics.legislative_capacity.internals.leg.opposition_obstruction"
             },
             {
-              "binding_id": "tension_to_movement_salience",
-              "canonical_key": "SYSTEM:REG_TO_INT.internals.agenda.movement_salience",
-              "internal_target": "internals.agenda.movement_salience"
+              "internal_target": "internals.agenda.movement_salience",
+              "visible_metric": "metrics.public_agenda",
+              "canonical_key": "SYSTEM:AGG.metrics.public_agenda.internals.agenda.movement_salience"
             }
           ]
         },
@@ -1499,38 +1529,74 @@ PR 8 is documentation, contract, and test only. It does not implement gameplay, 
           ]
         },
         "active_reform_bias_exclusion": {
-          "active_reform_bias": "excluded",
+          "included_in_pr_15_x": false,
+          "runtime_hook": false,
+          "placeholder": false,
+          "neutral_branch": false,
+          "cause_key": null,
           "implementation_owner": "PR_19_4"
         },
         "vectors": {
+          "rounding": [
+            "R-01",
+            "R-02"
+          ],
+          "drift": [
+            "D-00",
+            "D-01",
+            "D-02",
+            "D-03",
+            "D-04",
+            "D-05",
+            "D-06",
+            "D-07",
+            "D-08",
+            "D-08-WRONG",
+            "D-09",
+            "D-10"
+          ],
+          "pull": [
+            "P-00",
+            "P-01",
+            "P-02",
+            "P-03",
+            "P-04",
+            "P-05"
+          ],
+          "latency": [
+            "L-01-T",
+            "L-01-T1-R",
+            "L-01-T1-A",
+            "L-01-CAUSE"
+          ],
+          "ordering": [
+            "O-01",
+            "O-02",
+            "O-03",
+            "O-04",
+            "O-05"
+          ],
           "fixture_owner": "PR_15_1_J",
           "oracle_owner": "PR_15_1_K"
         },
         "scope": [
-          "regional_feedback_territorial_simulation",
-          "region_identity_and_order",
-          "regional_dynamic_targets",
-          "static_regional_resources",
-          "fixed_point_arithmetic_domain",
-          "phase_9_drift_formulas",
-          "phase_10_pull_mechanics",
-          "phase_latency_model",
-          "causal_key_grammar",
-          "hidden_internal_provenance",
-          "execution_atomicity_and_fail_closed"
+          "machine_readable_territory_contract",
+          "human_readable_territory_contract",
+          "execution_vectors",
+          "independent_python_oracle",
+          "contract_parity_and_negative_tests"
         ],
         "non_scope": [
-          "UI_display_names_or_polygon_data",
-          "non_simulation_state",
-          "demographic_or_economic_weighting_beyond_uniform_weights",
-          "runtime_implementation_of_scheduler_phases_9_or_10",
-          "runtime_tick_fail_closed_verification",
-          "execution_vectors_fixture_oracle",
-          "active_reform_bias",
-          "PR_15_2_through_15_4_implementation_work"
+          "runtime_csharp_implementation",
+          "scheduler_phase_activation",
+          "game_state_schema_changes",
+          "content_pack_changes",
+          "persistence_or_migrations",
+          "active_reform_bias_before_PR_19_4",
+          "ui_or_turn_report_changes"
         ]
       },
-      "rationale": "The territorial feedback contract now freezes the complete regional authority, drift, pull, latency, causality, and atomicity rules from the canonical territory contract. The cause_key_grammar and hidden_pull_provenance are structural copies of territory_contract.causality without reinterpretation. pass_execution_semantics is territory.atomicity. active_reform_bias is explicitly excluded and owned by PR 19.4. Execution vectors are assigned to PR 15.1-J (fixture) and PR 15.1-K (oracle)."
+      "rationale": "The territory feedback contract now freezes the complete regional authority, drift, pull, latency, causality, and atomicity rules from the canonical territory_contract.md. The cause_key_grammar and hidden_pull_provenance are structural copies of territory_contract.causality without reinterpretation. pass_execution_semantics is territory.atomicity. active_reform_bias is explicitly excluded and owned by PR 19.4. Execution vectors are assigned to PR 15.1-J (fixture) and PR 15.1-K (oracle)."
     }
   ]
 }
@@ -2078,10 +2144,10 @@ PR 8 is documentation, contract, and test only. It does not implement gameplay, 
 - Implementation status: PR 14 phases 6-8 implemented; phases 9-14 remain explicit no-op hooks.
 
 
-## MVP-013-territorial-feedback
+## MVP-013-territory-feedback
 
-- Topic: Territorial feedback contract
-- Question: What exact region order, dynamic targets, static resources, numeric domain, drift formulas, pull mechanics, latency, causality grammar, hidden provenance, and atomicity rules define territorial feedback?
+- Topic: Territory feedback contract
+- Question: What exact region order, dynamic targets, static resources, numeric domain, drift formulas, pull mechanics, latency, causality grammar, hidden provenance, and atomicity rules define territory feedback?
 - Status: approved
 - Resolution:
   - canonical_region_order: `16 regions in content_pack_declaration_order`, weight_ppm_each = `62500`, weight_ppm_sum_required = `1000000`
@@ -2100,7 +2166,7 @@ PR 8 is documentation, contract, and test only. It does not implement gameplay, 
   - vectors: `fixture_owner = PR_15_1_J`, `oracle_owner = PR_15_1_K`
   - scope: territorial feedback simulation, region identity, dynamic targets, static resources, fixed-point arithmetic, drift, pull, latency, causality, provenance, atomicity
   - non_scope: UI data, non-simulation state, non-uniform weighting, runtime implementation (phases 9/10), tick fail-closed verification, execution vectors, active reform bias, PR 15.2-15.4 implementation
-- Rationale: The territorial feedback contract now freezes the complete regional authority, drift, pull, latency, causality, and atomicity rules from the canonical territory contract.
+- Rationale: The territory feedback contract now freezes the complete regional authority, drift, pull, latency, causality, and atomicity rules from the canonical territory contract.
 
 ## No-MVP Boundary
 
