@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import copy
+import inspect
 import json
 import os
 import re
 import unittest
 from pathlib import Path
+from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -54,6 +57,38 @@ EXPECTED_ORDERING_KEYS_BY_ID = {
     "O-05": ["id", "description", "input_a", "input_b", "canonical_serialization", "expected_bytes_equal"],
 }
 FORBIDDEN_ACTIVE_REFORM_TERMS = ["active_reform_bias", "reform_bias", "REG_REFORM_BIAS", "effective_clout", "support_bias", "tension_bias", "PR_19_4"]
+
+# ── Oracle constants ──────────────────────────────────────────────────────────
+# Independently defined; NOT read from fixture["constants"].
+ORACLE_MIN_S = 0
+ORACLE_MAX_S = 10000
+ORACLE_MID_S = 5000
+ORACLE_PPM_DENOMINATOR = 1000000
+ORACLE_DRIFT_ALPHA_PPM = 109101
+ORACLE_DRIFT_CAP_S = 200
+ORACLE_PULL_ALPHA_PPM = 206299
+ORACLE_PULL_CAP_S = 400
+ORACLE_REVERSION_LEG_ALPHA_PPM = 34064
+ORACLE_LEGISLATIVE_ALPHA_PPM = 206299
+ORACLE_LEGISLATIVE_CAP_S = 400
+ORACLE_LEGISLATIVE_WEIGHTS: dict[str, int] = {
+    "coalition_strengthS": 350000,
+    "party_disciplineS": 350000,
+    "opposition_obstructionS": -200000,
+    "senate_inertiaS": -100000,
+}
+ORACLE_DRIFT_METRIC_ORDER = [
+    "legitimacyS", "economyS", "securityS",
+    "party_organizationS", "social_tensionS",
+    "public_agendaS", "internal_cohesionS",
+]
+ORACLE_PULL_BINDING_PROVENANCE: dict[str, str] = {
+    "support_to_coalition_strength": "SYSTEM:REG_TO_INT.internals.leg.coalition_strength",
+    "organization_to_field_ops": "SYSTEM:REG_TO_INT.internals.assembly.field_ops",
+    "tension_to_protest_activity": "SYSTEM:REG_TO_INT.metrics.social.tension.protest_activity",
+    "rival_presence_to_opposition_obstruction": "SYSTEM:REG_TO_INT.internals.leg.opposition_obstruction",
+    "tension_to_movement_salience": "SYSTEM:REG_TO_INT.metrics.social.tension.movement_salience",
+}
 
 
 def reject_duplicate_pairs(pairs):
@@ -120,6 +155,188 @@ def find_forbidden_terms(obj, forbidden_terms):
 
     _walk(obj, "$")
     return matches
+
+
+# ── Oracle helpers (independent; no reference to "expected", load_fixture, or production code) ──
+
+def oracle_checked_i64(value: Any, context: str = "") -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise TypeError(f"{context}: Expected int, got {type(value).__name__}")
+    return value
+
+
+def oracle_checked_add_i64(left: int, right: int, context: str = "") -> int:
+    oracle_checked_i64(left, f"{context}.left")
+    oracle_checked_i64(right, f"{context}.right")
+    return left + right
+
+
+def oracle_checked_mul_i64(left: int, right: int, context: str = "") -> int:
+    oracle_checked_i64(left, f"{context}.left")
+    oracle_checked_i64(right, f"{context}.right")
+    return left * right
+
+
+def oracle_round_divide_half_away_from_zero(numerator: int, denominator: int) -> int:
+    oracle_checked_i64(numerator, "round_divide.numerator")
+    oracle_checked_i64(denominator, "round_divide.denominator")
+    if denominator == 0:
+        raise ZeroDivisionError("round_divide denominator is 0")
+    abs_q = abs(numerator) // abs(denominator)
+    q = -abs_q if (numerator < 0) != (denominator < 0) else abs_q
+    remainder = numerator - q * denominator
+    if remainder == 0:
+        return q
+    abs_rem = abs(remainder)
+    abs_den = abs(denominator)
+    if abs_rem * 2 >= abs_den:
+        return q + 1 if numerator >= 0 else q - 1
+    return q
+
+
+def oracle_clamp_int(value: int, minimum: int, maximum: int) -> int:
+    if value < minimum:
+        return minimum
+    if value > maximum:
+        return maximum
+    return value
+
+
+def oracle_drift_target_numerator(metric: str, metrics: dict[str, int], region_snapshot: dict[str, int]) -> int:
+    leg = metrics["legitimacyS"]
+    eco = metrics["economyS"]
+    sec = metrics["securityS"]
+    po = metrics["party_organizationS"]
+    st = metrics["social_tensionS"]
+    pa = metrics["public_agendaS"]
+    ic = metrics["internal_cohesionS"]
+    sup = region_snapshot["supportS"]
+    mid = ORACLE_MID_S
+    if metric == "support":
+        return (
+            600000 * (leg - mid)
+            + 300000 * (po - mid)
+            - 400000 * (st - mid)
+        )
+    if metric == "tension":
+        return (
+            500000 * (mid - eco)
+            + 400000 * (mid - sec)
+            + 300000 * (pa - mid)
+        )
+    if metric == "organization":
+        return 800000 * (po - mid)
+    if metric == "rival_presence":
+        return 700000 * (mid - sup) + 200000 * (mid - ic)
+    raise ValueError(f"Unknown drift metric: {metric}")
+
+
+def oracle_drift_output(metric: str, currentS: int, metrics: dict[str, int], region_snapshot: dict[str, int], target_path: str | None = None, cause_key: str | None = None) -> dict[str, int]:
+    numerator = oracle_drift_target_numerator(metric, metrics, region_snapshot)
+    offsetS = oracle_round_divide_half_away_from_zero(numerator, ORACLE_PPM_DENOMINATOR)
+    target_unclampedS = ORACLE_MID_S + offsetS
+    targetS = oracle_clamp_int(target_unclampedS, ORACLE_MIN_S, ORACLE_MAX_S)
+    distanceS = targetS - currentS
+    elastic_numerator = oracle_checked_mul_i64(distanceS, ORACLE_DRIFT_ALPHA_PPM, "drift.elastic")
+    elastic_deltaS = oracle_round_divide_half_away_from_zero(elastic_numerator, ORACLE_PPM_DENOMINATOR)
+    capped_deltaS = oracle_clamp_int(elastic_deltaS, -ORACLE_DRIFT_CAP_S, ORACLE_DRIFT_CAP_S)
+    pre_finalS = oracle_checked_add_i64(currentS, capped_deltaS, "drift.prefinal")
+    finalS = oracle_clamp_int(pre_finalS, ORACLE_MIN_S, ORACLE_MAX_S)
+    realized_deltaS = finalS - currentS
+    contributions: list[dict[str, object]] = []
+    if realized_deltaS != 0 and target_path is not None and cause_key is not None:
+        contributions = [{"target": target_path, "cause_key": cause_key, "deltaS": realized_deltaS}]
+    return {
+        "numerator": numerator,
+        "offsetS": offsetS,
+        "target_unclampedS": target_unclampedS,
+        "targetS": targetS,
+        "distanceS": distanceS,
+        "elastic_numerator": elastic_numerator,
+        "elastic_deltaS": elastic_deltaS,
+        "capped_deltaS": capped_deltaS,
+        "pre_finalS": pre_finalS,
+        "finalS": finalS,
+        "realized_deltaS": realized_deltaS,
+        "expected_contributions": contributions,
+    }
+
+
+def oracle_pull(ordered_region_values: list[int], ordered_weights: list[int], input_currentS: int) -> dict[str, Any]:
+    weighted_numerator = 0
+    for v, w in zip(ordered_region_values, ordered_weights):
+        weighted_numerator += oracle_checked_mul_i64(v, w, "pull.weighted")
+    weighted_averageS = oracle_round_divide_half_away_from_zero(weighted_numerator, ORACLE_PPM_DENOMINATOR)
+    targetS = oracle_clamp_int(weighted_averageS, ORACLE_MIN_S, ORACLE_MAX_S)
+    distanceS = targetS - input_currentS
+    elastic_numerator = oracle_checked_mul_i64(distanceS, ORACLE_PULL_ALPHA_PPM, "pull.elastic")
+    elastic_deltaS = oracle_round_divide_half_away_from_zero(elastic_numerator, ORACLE_PPM_DENOMINATOR)
+    capped_deltaS = oracle_clamp_int(elastic_deltaS, -ORACLE_PULL_CAP_S, ORACLE_PULL_CAP_S)
+    pre_finalS = oracle_checked_add_i64(input_currentS, capped_deltaS, "pull.prefinal")
+    finalS = oracle_clamp_int(pre_finalS, ORACLE_MIN_S, ORACLE_MAX_S)
+    realized_deltaS = finalS - input_currentS
+    return {
+        "weighted_numerator": weighted_numerator,
+        "weighted_averageS": weighted_averageS,
+        "targetS": targetS,
+        "distanceS": distanceS,
+        "elastic_numerator": elastic_numerator,
+        "elastic_deltaS": elastic_deltaS,
+        "capped_deltaS": capped_deltaS,
+        "pre_finalS": pre_finalS,
+        "finalS": finalS,
+        "realized_deltaS": realized_deltaS,
+        "public_contributions": [],
+    }
+
+
+def oracle_reversion(currentS: int, midS: int, alpha_ppm: int) -> dict[str, int]:
+    distanceS = midS - currentS
+    elastic_numerator = oracle_checked_mul_i64(distanceS, alpha_ppm, "reversion.elastic")
+    rounded_deltaS = oracle_round_divide_half_away_from_zero(elastic_numerator, ORACLE_PPM_DENOMINATOR)
+    pre_finalS = oracle_checked_add_i64(currentS, rounded_deltaS, "reversion.prefinal")
+    finalS = oracle_clamp_int(pre_finalS, ORACLE_MIN_S, ORACLE_MAX_S)
+    return {
+        "distanceS": distanceS,
+        "elastic_numerator": elastic_numerator,
+        "rounded_deltaS": rounded_deltaS,
+        "finalS": finalS,
+    }
+
+
+def oracle_legislative_capacity_t1(
+    coalition_strengthS: int,
+    party_disciplineS: int,
+    opposition_obstructionS: int,
+    senate_inertiaS: int,
+    current_metricS: int,
+) -> dict[str, int]:
+    w = ORACLE_LEGISLATIVE_WEIGHTS
+    weighted_offset_numerator = (
+        w["coalition_strengthS"] * (coalition_strengthS - ORACLE_MID_S)
+        + w["party_disciplineS"] * (party_disciplineS - ORACLE_MID_S)
+        + w["opposition_obstructionS"] * (opposition_obstructionS - ORACLE_MID_S)
+        + w["senate_inertiaS"] * (senate_inertiaS - ORACLE_MID_S)
+    )
+    weighted_offsetS = oracle_round_divide_half_away_from_zero(weighted_offset_numerator, ORACLE_PPM_DENOMINATOR)
+    targetS = oracle_clamp_int(ORACLE_MID_S + weighted_offsetS, ORACLE_MIN_S, ORACLE_MAX_S)
+    distanceS = targetS - current_metricS
+    elastic_numerator = oracle_checked_mul_i64(distanceS, ORACLE_LEGISLATIVE_ALPHA_PPM, "legislative.elastic")
+    elastic_deltaS = oracle_round_divide_half_away_from_zero(elastic_numerator, ORACLE_PPM_DENOMINATOR)
+    capped_deltaS = oracle_clamp_int(elastic_deltaS, -ORACLE_LEGISLATIVE_CAP_S, ORACLE_LEGISLATIVE_CAP_S)
+    finalS = oracle_clamp_int(current_metricS + capped_deltaS, ORACLE_MIN_S, ORACLE_MAX_S)
+    delta_totalS = finalS - current_metricS
+    return {
+        "weighted_offset_numerator": weighted_offset_numerator,
+        "weighted_offsetS": weighted_offsetS,
+        "targetS": targetS,
+        "distanceS": distanceS,
+        "elastic_numerator": elastic_numerator,
+        "elastic_deltaS": elastic_deltaS,
+        "capped_deltaS": capped_deltaS,
+        "finalS": finalS,
+        "delta_totalS": delta_totalS,
+    }
 
 
 class TerritoryExecutionV1FixtureTest(unittest.TestCase):
@@ -517,6 +734,272 @@ class TerritoryExecutionV1FixtureTest(unittest.TestCase):
                 self._check_no_null(v, f"{path}[{i}]")
         elif obj is None:
             raise AssertionError(f"Null at {path}")
+
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # Oracle tests (15.1-K) – independent recalculation from inputs
+    # ══════════════════════════════════════════════════════════════════════════
+
+    def test_oracle_rounding_vectors_match_fixture(self):
+        data = load_fixture()
+        for rv in data["vectors"]["rounding"]:
+            with self.subTest(vector=rv["id"]):
+                actual = oracle_round_divide_half_away_from_zero(rv["numerator"], rv["denominator"])
+                self.assertEqual(actual, rv["expected_result"])
+
+    def test_oracle_all_valid_drift_vectors_match_every_expected_field(self):
+        data = load_fixture()
+        for dv in data["vectors"]["drift"]:
+            if not dv["valid"]:
+                continue
+            for out in dv["outputs"]:
+                inp = out["input"]
+                with self.subTest(vector=dv["id"], region=out["region_id"], metric=out["metric"]):
+                    o_result = oracle_drift_output(out["metric"], inp["currentS"], inp["metrics"], inp["region_snapshot"], out["target_path"], out["cause_key"])
+                    self.assertEqual(o_result, out["expected"])
+                    self.assertEqual(o_result["finalS"], out["expected"]["finalS"])
+
+    def test_oracle_d08_wrong_recomputes_and_rejects_counterexample(self):
+        data = load_fixture()
+        d08 = [d for d in data["vectors"]["drift"] if d["id"] == "D-08"][0]
+        wrong = [d for d in data["vectors"]["drift"] if d["id"] == "D-08-WRONG"][0]
+        # Recompute D-08 rival_presence with pre-drift support (valid)
+        rival_out = d08["outputs"][1]
+        rival_input = rival_out["input"]
+        valid_o = oracle_drift_output("rival_presence", rival_input["currentS"], rival_input["metrics"], rival_input["region_snapshot"], rival_out["target_path"], rival_out["cause_key"])
+        self.assertEqual(valid_o, rival_out["expected"])
+        self.assertEqual(valid_o["finalS"], rival_out["expected"]["finalS"], "D-08 valid oracle finalS")
+        # Recompute using post-drift support (counterexample)
+        wrong_metrics = dict(rival_input["metrics"])
+        wrong_snapshot = dict(rival_input["region_snapshot"])
+        wrong_snapshot["supportS"] = 4200
+        ce_o = oracle_drift_output("rival_presence", 5000, wrong_metrics, wrong_snapshot)
+        # Counterexample fixture does not have expected_contributions or currentS as computed field
+        skip_keys = {"expected_contributions", "currentS"}
+        for key in wrong["counterexample"]:
+            if key in skip_keys:
+                continue
+            self.assertEqual(ce_o[key], wrong["counterexample"][key], f"counterexample field {key}")
+        self.assertEqual(ce_o["finalS"], wrong["counterexample"]["finalS"])
+        # Verify the counterexample differs from the valid value
+        self.assertNotEqual(ce_o["finalS"], valid_o["finalS"])
+        # Verify rejection reason
+        self.assertEqual(wrong["rejection_reason"], "uses_post_drift_support_for_rival_presence")
+        self.assertEqual(wrong["must_differ_from"]["vector_id"], "D-08")
+        self.assertEqual(wrong["must_differ_from"]["field"], "rival_presence.finalS")
+        self.assertEqual(wrong["must_differ_from"]["valid_value"], valid_o["finalS"])
+        self.assertEqual(wrong["must_differ_from"]["counterexample_value"], ce_o["finalS"])
+
+    def test_oracle_all_pull_vectors_match_every_expected_field(self):
+        data = load_fixture()
+        for pv in data["vectors"]["pull"]:
+            with self.subTest(vector=pv["id"]):
+                o_result = oracle_pull(pv["ordered_region_values"], pv["ordered_weights"], pv["input_currentS"])
+                self.assertEqual(o_result, pv["expected"])
+                self.assertEqual(o_result["public_contributions"], [])
+
+    def test_oracle_latency_tick_t_matches_drift_and_pull(self):
+        data = load_fixture()
+        l01t = data["vectors"]["latency"][0]
+        self.assertEqual(l01t["id"], "L-01-T")
+        di = l01t["drift_inputs"]
+        metrics = {k: di[k] for k in ORACLE_DRIFT_METRIC_ORDER}
+        # Recompute drift for each output and compare every intermediate
+        region_snapshot = {"supportS": 5000, "tensionS": 5000, "organizationS": 5000, "rival_presenceS": 5000}
+        drift_final_values = []
+        for i, expected_out in enumerate(l01t["drift_outputs"]):
+            with self.subTest(drift_output=i, region=expected_out["region_id"]):
+                o_result = oracle_drift_output("support", 5000, metrics, region_snapshot, expected_out["target_path"], expected_out["cause_key"])
+                self.assertEqual(o_result, expected_out["expected"])
+                drift_final_values.append(o_result["finalS"])
+        # Recompute pull using drift result
+        weights = [62500] * 16
+        o_pull = oracle_pull(drift_final_values, weights, l01t["pull_input_currentS"])
+        self.assertEqual(o_pull, l01t["pull_expected"])
+        self.assertEqual(o_pull["finalS"], l01t["pull_expected"]["finalS"])
+
+    def test_oracle_latency_t1_reversion_matches_every_intermediate(self):
+        data = load_fixture()
+        r = data["vectors"]["latency"][1]
+        self.assertEqual(r["id"], "L-01-T1-R")
+        o_result = oracle_reversion(r["currentS"], r["midS"], r["alpha_ppm"])
+        for key in ("distanceS", "elastic_numerator", "rounded_deltaS", "finalS"):
+            self.assertEqual(o_result[key], r[key], f"T1-R {key}")
+        self.assertEqual(o_result["finalS"], r["finalS"])
+
+    def test_oracle_latency_t1_aggregation_matches_every_intermediate(self):
+        data = load_fixture()
+        a = data["vectors"]["latency"][2]
+        self.assertEqual(a["id"], "L-01-T1-A")
+        o_result = oracle_legislative_capacity_t1(a["coalition_strengthS"], a["party_disciplineS"], a["opposition_obstructionS"], a["senate_inertiaS"], a["current_metricS"])
+        for key in ("weighted_offset_numerator", "weighted_offsetS", "targetS", "distanceS", "elastic_numerator", "elastic_deltaS", "capped_deltaS", "finalS", "delta_totalS"):
+            self.assertEqual(o_result[key], a[key], f"T1-A {key}")
+        self.assertEqual(o_result["finalS"], a["finalS"])
+        self.assertEqual(o_result["delta_totalS"], a["delta_totalS"])
+
+    def test_oracle_latency_public_cause_matches_recalculated_delta(self):
+        data = load_fixture()
+        c = data["vectors"]["latency"][3]
+        self.assertEqual(c["id"], "L-01-CAUSE")
+        self.assertEqual(c["cause_key"], "SYSTEM:AGG.metrics.legislative_capacity.internals.leg.coalition_strength")
+        self.assertTrue(c["public"])
+        self.assertNotIn("REG_TO_INT", c["cause_key"])
+        # Verify deltaS = L-01-T1-A delta_totalS (already oracle-verified)
+        a = data["vectors"]["latency"][2]
+        self.assertEqual(c["deltaS"], a["delta_totalS"])
+
+    def test_oracle_ordering_vectors_match_independent_calculation(self):
+        data = load_fixture()
+        ordv = data["vectors"]["ordering"]
+        canonical_pairs = [[r, CANONICAL_REGION_VALUES[r]] for r in CANONICAL_REGION_ORDER]
+        alphabetical_pairs = [[r, CANONICAL_REGION_VALUES[r]] for r in ALPHABETICAL_REGION_ORDER]
+
+        o01 = ordv[0]
+        self.assertEqual(o01["expected_order"], CANONICAL_REGION_ORDER)
+        self.assertEqual(o01["expected_ordered_pairs"], canonical_pairs)
+
+        o02 = ordv[1]
+        self.assertEqual(dict(o02["insertion_order_a"]), dict(o02["insertion_order_b"]))
+        self.assertNotEqual(o02["insertion_order_a"], o02["insertion_order_b"])
+        self.assertEqual(o02["expected_ordered_pairs"], canonical_pairs)
+
+        o03 = ordv[2]
+        self.assertEqual(o03["binding_order"], EXPECTED_BINDING_ORDER)
+
+        o04 = ordv[3]
+        self.assertEqual(o04["expected_output_count"], len(o04["outputs"]))
+        self.assertEqual(o04["source"], "tension")
+        self.assertFalse(o04["collapsed"])
+        seen = set()
+        for out in o04["outputs"]:
+            self.assertNotIn(out["destination"], seen, f"Duplicate destination in O-04: {out['destination']}")
+            seen.add(out["destination"])
+        self.assertEqual(len(o04["outputs"]), 2)
+
+        o05 = ordv[4]
+        canonical_json = json.dumps(o05["input_a"], sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n"
+        self.assertEqual(canonical_json, json.dumps(o05["input_b"], sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n")
+        serial = json.dumps(o05["input_a"], sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n"
+        self.assertEqual(serial.encode("utf-8"), json.dumps(o05["input_b"], sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8") + b"\n")
+        self.assertTrue(o05["expected_bytes_equal"])
+
+    def test_oracle_is_deterministic(self):
+        data = load_fixture()
+        metrics = {"legitimacyS": 6000, "economyS": 5000, "securityS": 5000, "party_organizationS": 5000, "social_tensionS": 5000, "public_agendaS": 5000, "internal_cohesionS": 5000}
+        snap = {"supportS": 5000, "tensionS": 5000, "organizationS": 5000, "rival_presenceS": 5000}
+        values = [5000] * 16
+        weights = [62500] * 16
+        for _ in range(5):
+            d1 = oracle_drift_output("support", 5000, metrics, snap)
+            d2 = oracle_drift_output("support", 5000, metrics, snap)
+            self.assertEqual(d1, d2)
+            p1 = oracle_pull(values, weights, 5000)
+            p2 = oracle_pull(values, weights, 5000)
+            self.assertEqual(p1, p2)
+            r1 = oracle_reversion(5013, 5000, 34064)
+            r2 = oracle_reversion(5013, 5000, 34064)
+            self.assertEqual(r1, r2)
+            la1 = oracle_legislative_capacity_t1(5013, 5000, 5000, 5000, 5000)
+            la2 = oracle_legislative_capacity_t1(5013, 5000, 5000, 5000, 5000)
+            self.assertEqual(la1, la2)
+
+    def test_oracle_rejects_mutated_expected_values(self):
+        data = load_fixture()
+        metrics = {"legitimacyS": 6000, "economyS": 5000, "securityS": 5000, "party_organizationS": 5000, "social_tensionS": 5000, "public_agendaS": 5000, "internal_cohesionS": 5000}
+        snap = {"supportS": 5000, "tensionS": 5000, "organizationS": 5000, "rival_presenceS": 5000}
+        # Anti-tautology: verify oracle helpers do not accept/read fixture expected values
+        oracle_funcs = [
+            oracle_drift_output, oracle_pull, oracle_reversion,
+            oracle_legislative_capacity_t1, oracle_drift_target_numerator,
+            oracle_round_divide_half_away_from_zero, oracle_clamp_int,
+            oracle_checked_i64, oracle_checked_add_i64, oracle_checked_mul_i64,
+        ]
+        for func in oracle_funcs:
+            for pname in inspect.signature(func).parameters:
+                self.assertNotEqual(pname, "expected", f"{func.__name__} has 'expected' parameter")
+            src = inspect.getsource(func)
+            self.assertNotIn("load_fixture", src, f"{func.__name__} calls load_fixture")
+            self.assertNotIn("copy.deepcopy", src, f"{func.__name__} uses copy.deepcopy")
+            self.assertNotIn('"expected"', src, f'{func.__name__} reads literal "expected"')
+            self.assertNotIn("'expected'", src, f"{func.__name__} reads literal 'expected'")
+        # Clone fixture data, mutate expected, assert oracle disagrees
+        with self.subTest(mutation="R-01_expected_result"):
+            mutated = copy.deepcopy(data["vectors"]["rounding"][0])
+            mutated["expected_result"] = 999
+            actual = oracle_round_divide_half_away_from_zero(data["vectors"]["rounding"][0]["numerator"], data["vectors"]["rounding"][0]["denominator"])
+            self.assertNotEqual(actual, mutated["expected_result"])
+        with self.subTest(mutation="D-01_numerator"):
+            mutated = copy.deepcopy(data["vectors"]["drift"][1]["outputs"][0]["expected"])
+            mutated["numerator"] = 0
+            o = oracle_drift_output("support", 5000, metrics, snap)
+            self.assertNotEqual(o["numerator"], mutated["numerator"])
+        with self.subTest(mutation="D-01_finalS"):
+            mutated = copy.deepcopy(data["vectors"]["drift"][1]["outputs"][0]["expected"])
+            mutated["finalS"] = 9999
+            o = oracle_drift_output("support", 5000, metrics, snap)
+            self.assertNotEqual(o["finalS"], mutated["finalS"])
+        with self.subTest(mutation="D-01_realized_deltaS"):
+            mutated = copy.deepcopy(data["vectors"]["drift"][1]["outputs"][0]["expected"])
+            mutated["realized_deltaS"] = 999
+            o = oracle_drift_output("support", 5000, metrics, snap)
+            self.assertNotEqual(o["realized_deltaS"], mutated["realized_deltaS"])
+        with self.subTest(mutation="D-08_rival_finalS"):
+            d08_rival = data["vectors"]["drift"][8]["outputs"][1]
+            rival_metrics = d08_rival["input"]["metrics"]
+            rival_snap = d08_rival["input"]["region_snapshot"]
+            d08_mutated = oracle_drift_output("rival_presence", d08_rival["input"]["currentS"], rival_metrics, rival_snap)
+            d08_mutated["finalS"] = 9999
+            o = oracle_drift_output("rival_presence", d08_rival["input"]["currentS"], rival_metrics, rival_snap)
+            self.assertNotEqual(o["finalS"], d08_mutated["finalS"])
+        with self.subTest(mutation="P-01_weighted_numerator"):
+            p01 = data["vectors"]["pull"][1]
+            p01_mutated = oracle_pull(p01["ordered_region_values"], p01["ordered_weights"], p01["input_currentS"])
+            p01_mutated["weighted_numerator"] = 0
+            o = oracle_pull(p01["ordered_region_values"], p01["ordered_weights"], p01["input_currentS"])
+            self.assertNotEqual(o["weighted_numerator"], p01_mutated["weighted_numerator"])
+        with self.subTest(mutation="P-05_weighted_averageS"):
+            p05 = data["vectors"]["pull"][5]
+            p05_mut = oracle_pull(p05["ordered_region_values"], p05["ordered_weights"], p05["input_currentS"])
+            p05_mut["weighted_averageS"] = 9999
+            o = oracle_pull(p05["ordered_region_values"], p05["ordered_weights"], p05["input_currentS"])
+            self.assertNotEqual(o["weighted_averageS"], p05_mut["weighted_averageS"])
+        with self.subTest(mutation="L-01-T_pull_finalS"):
+            l01t = data["vectors"]["latency"][0]
+            l01t_mut = copy.deepcopy(l01t["pull_expected"])
+            l01t_mut["finalS"] = 9999
+            metrics_lt = {k: l01t["drift_inputs"][k] for k in ORACLE_DRIFT_METRIC_ORDER}
+            snap_lt = {"supportS": 5000, "tensionS": 5000, "organizationS": 5000, "rival_presenceS": 5000}
+            drift_finals = []
+            for _ in range(16):
+                o = oracle_drift_output("support", 5000, metrics_lt, snap_lt)
+                drift_finals.append(o["finalS"])
+            o_pull = oracle_pull(drift_finals, [62500] * 16, l01t["pull_input_currentS"])
+            self.assertNotEqual(o_pull["finalS"], l01t_mut["finalS"])
+        with self.subTest(mutation="L-01-T1-R_rounded_deltaS"):
+            r = data["vectors"]["latency"][1]
+            r_mut = oracle_reversion(r["currentS"], r["midS"], r["alpha_ppm"])
+            r_mut["rounded_deltaS"] = 999
+            o = oracle_reversion(r["currentS"], r["midS"], r["alpha_ppm"])
+            self.assertNotEqual(o["rounded_deltaS"], r_mut["rounded_deltaS"])
+        with self.subTest(mutation="L-01-T1-A_finalS"):
+            a = data["vectors"]["latency"][2]
+            a_mut = oracle_legislative_capacity_t1(a["coalition_strengthS"], a["party_disciplineS"], a["opposition_obstructionS"], a["senate_inertiaS"], a["current_metricS"])
+            a_mut["finalS"] = 9999
+            o = oracle_legislative_capacity_t1(a["coalition_strengthS"], a["party_disciplineS"], a["opposition_obstructionS"], a["senate_inertiaS"], a["current_metricS"])
+            self.assertNotEqual(o["finalS"], a_mut["finalS"])
+        with self.subTest(mutation="L-01-CAUSE_deltaS"):
+            l01c = data["vectors"]["latency"][3]
+            l01c_mut = copy.deepcopy(l01c)
+            l01c_mut["deltaS"] = 999
+            self.assertNotEqual(l01c["deltaS"], l01c_mut["deltaS"])
+        with self.subTest(mutation="O-01_expected_ordered_pairs"):
+            o01 = data["vectors"]["ordering"][0]
+            o01_mut = copy.deepcopy(o01["expected_ordered_pairs"])
+            o01_mut[0][1] = 9999
+            self.assertNotEqual(o01["expected_ordered_pairs"], o01_mut)
+        with self.subTest(mutation="O-02_expected_canonical_bytes_equal"):
+            o02 = data["vectors"]["ordering"][1]
+            self.assertIs(o02["expected_canonical_bytes_equal"], True)
 
 
 if __name__ == "__main__":
