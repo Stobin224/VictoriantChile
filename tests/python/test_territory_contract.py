@@ -134,6 +134,9 @@ EXPECTED_DRIFT_METRIC_ORDER = [
 EXPECTED_DRIFT_RIVAL_SUPPORT_SOURCE = "phase_input_snapshot_pre_drift"
 EXPECTED_DRIFT_ALL_SOURCES = "phase_input_snapshot"
 
+EXPECTED_DRIFT_HALF_LIFE_WEEKS_METADATA = 6
+EXPECTED_DRIFT_REGION_ORDER_SOURCE = "canonical_region_order.ordered_region_ids"
+
 EXPECTED_TARGET_FORMULA_ORDER = ["support", "tension", "organization", "rival_presence"]
 
 EXPECTED_TARGET_FORMULAS = {
@@ -359,6 +362,10 @@ def validate_drift(drift: dict) -> list[str]:
         errors.append(f"drift.phase_name expected {EXPECTED_DRIFT_PHASE_NAME!r}, got {drift.get('phase_name')!r}")
     if drift.get("snapshot") != EXPECTED_DRIFT_SNAPSHOT:
         errors.append(f"drift.snapshot expected {EXPECTED_DRIFT_SNAPSHOT!r}, got {drift.get('snapshot')!r}")
+    if drift.get("half_life_weeks_metadata") != EXPECTED_DRIFT_HALF_LIFE_WEEKS_METADATA:
+        errors.append(f"drift.half_life_weeks_metadata expected {EXPECTED_DRIFT_HALF_LIFE_WEEKS_METADATA}, got {drift.get('half_life_weeks_metadata')}")
+    if drift.get("region_order_source") != EXPECTED_DRIFT_REGION_ORDER_SOURCE:
+        errors.append(f"drift.region_order_source expected {EXPECTED_DRIFT_REGION_ORDER_SOURCE!r}, got {drift.get('region_order_source')!r}")
     if drift.get("alpha_ppm") != EXPECTED_DRIFT_ALPHA_PPM:
         errors.append(f"drift.alpha_ppm expected {EXPECTED_DRIFT_ALPHA_PPM}, got {drift.get('alpha_ppm')}")
     if drift.get("cap_per_weekS") != EXPECTED_DRIFT_CAP_PER_WEEKS:
@@ -680,6 +687,12 @@ class CanonicalRegionalAuthorityTest(unittest.TestCase):
             self.contract["drift"]["cap_per_weekS"],
         )
 
+    def test_drift_half_life_weeks_metadata_is_6(self):
+        self.assertEqual(
+            6,
+            self.contract["drift"]["half_life_weeks_metadata"],
+        )
+
     def test_drift_snapshot_is_post_phase_8(self):
         self.assertEqual(
             "post_phase_8",
@@ -694,7 +707,7 @@ class CanonicalRegionalAuthorityTest(unittest.TestCase):
 
     def test_drift_region_order_source_is_canonical(self):
         self.assertEqual(
-            "canonical_region_order.ordered_region_ids",
+            EXPECTED_DRIFT_REGION_ORDER_SOURCE,
             self.contract["drift"]["region_order_source"],
         )
 
@@ -1228,9 +1241,17 @@ class MutationMatrixTest(unittest.TestCase):
         self.valid["drift"]["cap_per_weekS"] = 201
         self.assert_invalid(self.valid, "cap_per_weekS = 201")
 
+    def test_drift_half_life_weeks_metadata_wrong(self):
+        self.valid["drift"]["half_life_weeks_metadata"] = 5
+        self.assert_invalid(self.valid, "half_life_weeks_metadata = 5")
+
     def test_drift_snapshot_post_phase_9(self):
         self.valid["drift"]["snapshot"] = "post_phase_9"
         self.assert_invalid(self.valid, "snapshot = post_phase_9")
+
+    def test_drift_region_order_source_game_state_rejected(self):
+        self.valid["drift"]["region_order_source"] = "GameState.Regions"
+        self.assert_invalid(self.valid, "region_order_source = GameState.Regions")
 
     def test_drift_output_count_63(self):
         self.valid["drift"]["output_count"] = 63
