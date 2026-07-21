@@ -65,6 +65,7 @@ EXPECTED_TOP_LEVEL_KEYS = {
     "pull",
     "latency",
     "causality",
+    "atomicity",
 }
 
 EXPECTED_CANONICAL_ORDER_KEYS = {
@@ -254,6 +255,192 @@ EXPECTED_LATENCY = {
 }
 
 EXPECTED_LATENCY_KEYS = set(EXPECTED_LATENCY.keys())
+
+EXPECTED_ATOMICITY = {
+    "scope": {
+        "phase_9_and_phase_10": "separate_atomic_passes",
+        "pass_atomicity": "executor_responsibility",
+        "observable_tick_atomicity": "scheduler_result_boundary",
+        "runtime_tick_fail_closed_verification": "PR_15_4",
+    },
+    "execution_sequence": [
+        "capture_immutable_snapshot",
+        "validate_all_bindings_and_inputs",
+        "compute_all_outputs",
+        "compute_all_applicable_causes_or_provenance",
+        "validate_deltas_ranges_and_causal_accounting",
+        "construct_complete_candidate",
+        "publish_once",
+    ],
+    "phase_9_drift": {
+        "phase": 9,
+        "snapshot": "post_phase_8_immutable",
+        "planned_output_count": 64,
+        "candidate": "complete_regional_state_and_visible_causal_batch",
+        "publication": "single_atomic_state_and_causal_batch",
+        "partial_publication": False,
+        "cross_output_observation": False,
+        "failure_behavior": "discard_candidate_and_publish_nothing",
+    },
+    "phase_10_pull": {
+        "phase": 10,
+        "snapshot": "post_phase_9_immutable",
+        "planned_output_count": 5,
+        "candidate": "complete_internal_state_with_ephemeral_provenance",
+        "publication": "single_atomic_internal_state_batch",
+        "public_causal_publication": "none",
+        "ephemeral_provenance_publication": "none",
+        "partial_publication": False,
+        "binding_chaining": False,
+        "failure_behavior": "discard_candidate_and_publish_nothing",
+    },
+    "fail_closed_triggers": [
+        "missing_region",
+        "duplicate_region",
+        "inconsistent_canonical_order",
+        "region_count_mismatch",
+        "weight_sum_mismatch",
+        "non_positive_weight",
+        "missing_regional_field",
+        "missing_internal_destination",
+        "missing_target_config",
+        "set_not_allowed",
+        "invalid_cause_ref",
+        "duplicate_output",
+        "duplicate_coupling",
+        "multiplication_overflow",
+        "sum_overflow",
+        "addition_overflow",
+        "long_to_int_out_of_range",
+        "invalid_denominator",
+        "invalid_clamp_or_invariant",
+        "causal_batch_rejection",
+        "visible_delta_causal_sum_mismatch",
+    ],
+    "fail_closed_guarantees": [
+        "zero_partial_game_state",
+        "zero_partial_regions",
+        "zero_partial_internals",
+        "zero_partial_causal_contributions",
+    ],
+    "observable_tick_failure": {
+        "scenario": "phase_9_succeeds_phase_10_fails",
+        "advance_one_tick_result": "not_returned",
+        "original_game_state": "unchanged",
+        "phase_9_snapshot_exposed": False,
+        "partial_causal_ledger_exposed": False,
+        "sealed_causal_ledger_exposed": False,
+        "scheduler_working_state": "local_only",
+        "scheduler_causal_buffer": "local_only_until_phase_15_seal",
+        "runtime_test_owner": "PR_15_4",
+    },
+    "non_guarantees": [
+        "phases_9_and_10_are_not_one_super_pass",
+        "PR_15_1_does_not_implement_runtime_transactions",
+        "PR_15_1_does_not_activate_scheduler_phases_9_or_10",
+    ],
+}
+
+EXPECTED_ATOMICITY_KEYS = {
+    "scope",
+    "execution_sequence",
+    "phase_9_drift",
+    "phase_10_pull",
+    "fail_closed_triggers",
+    "fail_closed_guarantees",
+    "observable_tick_failure",
+    "non_guarantees",
+}
+
+EXPECTED_ATOMICITY_SCOPE_KEYS = {
+    "phase_9_and_phase_10",
+    "pass_atomicity",
+    "observable_tick_atomicity",
+    "runtime_tick_fail_closed_verification",
+}
+
+EXPECTED_ATOMICITY_PHASE_9_KEYS = {
+    "phase",
+    "snapshot",
+    "planned_output_count",
+    "candidate",
+    "publication",
+    "partial_publication",
+    "cross_output_observation",
+    "failure_behavior",
+}
+
+EXPECTED_ATOMICITY_PHASE_10_KEYS = {
+    "phase",
+    "snapshot",
+    "planned_output_count",
+    "candidate",
+    "publication",
+    "public_causal_publication",
+    "ephemeral_provenance_publication",
+    "partial_publication",
+    "binding_chaining",
+    "failure_behavior",
+}
+
+EXPECTED_ATOMICITY_TICK_FAILURE_KEYS = {
+    "scenario",
+    "advance_one_tick_result",
+    "original_game_state",
+    "phase_9_snapshot_exposed",
+    "partial_causal_ledger_exposed",
+    "sealed_causal_ledger_exposed",
+    "scheduler_working_state",
+    "scheduler_causal_buffer",
+    "runtime_test_owner",
+}
+
+EXPECTED_ATOMICITY_EXECUTION_SEQUENCE = [
+    "capture_immutable_snapshot",
+    "validate_all_bindings_and_inputs",
+    "compute_all_outputs",
+    "compute_all_applicable_causes_or_provenance",
+    "validate_deltas_ranges_and_causal_accounting",
+    "construct_complete_candidate",
+    "publish_once",
+]
+
+EXPECTED_FAIL_CLOSED_TRIGGERS = [
+    "missing_region",
+    "duplicate_region",
+    "inconsistent_canonical_order",
+    "region_count_mismatch",
+    "weight_sum_mismatch",
+    "non_positive_weight",
+    "missing_regional_field",
+    "missing_internal_destination",
+    "missing_target_config",
+    "set_not_allowed",
+    "invalid_cause_ref",
+    "duplicate_output",
+    "duplicate_coupling",
+    "multiplication_overflow",
+    "sum_overflow",
+    "addition_overflow",
+    "long_to_int_out_of_range",
+    "invalid_denominator",
+    "invalid_clamp_or_invariant",
+    "causal_batch_rejection",
+    "visible_delta_causal_sum_mismatch",
+]
+
+EXPECTED_FAIL_CLOSED_GUARANTEES = [
+    "zero_partial_game_state",
+    "zero_partial_regions",
+    "zero_partial_internals",
+    "zero_partial_causal_contributions",
+]
+
+EXPECTED_ATOMICITY_NON_GUARANTEES = [
+    "phases_9_and_10_are_not_one_super_pass",
+    "PR_15_1_does_not_implement_runtime_transactions",
+    "PR_15_1_does_not_activate_scheduler_phases_9_or_10",
+]
 
 PULL_ALPHA = 206299
 PULL_CAP = 400
@@ -848,6 +1035,170 @@ def validate_latency(latency: dict) -> list[str]:
     return errors
 
 
+def validate_atomicity(atomicity: dict) -> list[str]:
+    errors = []
+
+    actual_keys = set(atomicity.keys())
+    if actual_keys != EXPECTED_ATOMICITY_KEYS:
+        missing = EXPECTED_ATOMICITY_KEYS - actual_keys
+        extra = actual_keys - EXPECTED_ATOMICITY_KEYS
+        if missing:
+            errors.append(f"Missing atomicity key(s): {sorted(missing)}")
+        if extra:
+            errors.append(f"Unexpected atomicity key(s): {sorted(extra)}")
+
+    scope = atomicity.get("scope", {})
+    scope_keys = set(scope.keys())
+    if scope_keys != EXPECTED_ATOMICITY_SCOPE_KEYS:
+        missing = EXPECTED_ATOMICITY_SCOPE_KEYS - scope_keys
+        extra = scope_keys - EXPECTED_ATOMICITY_SCOPE_KEYS
+        if missing:
+            errors.append(f"Missing atomicity.scope key(s): {sorted(missing)}")
+        if extra:
+            errors.append(f"Unexpected atomicity.scope key(s): {sorted(extra)}")
+    if scope != EXPECTED_ATOMICITY["scope"]:
+        errors.append(f"atomicity.scope mismatch: {scope!r}")
+
+    execution_sequence = atomicity.get("execution_sequence", [])
+    if execution_sequence != EXPECTED_ATOMICITY_EXECUTION_SEQUENCE:
+        errors.append(
+            "atomicity.execution_sequence mismatch: "
+            f"{execution_sequence!r}"
+        )
+
+    phase_9 = atomicity.get("phase_9_drift", {})
+    phase_9_keys = set(phase_9.keys())
+    if phase_9_keys != EXPECTED_ATOMICITY_PHASE_9_KEYS:
+        missing = EXPECTED_ATOMICITY_PHASE_9_KEYS - phase_9_keys
+        extra = phase_9_keys - EXPECTED_ATOMICITY_PHASE_9_KEYS
+        if missing:
+            errors.append(f"Missing atomicity.phase_9_drift key(s): {sorted(missing)}")
+        if extra:
+            errors.append(f"Unexpected atomicity.phase_9_drift key(s): {sorted(extra)}")
+    if phase_9 != EXPECTED_ATOMICITY["phase_9_drift"]:
+        errors.append(f"atomicity.phase_9_drift mismatch: {phase_9!r}")
+    if phase_9.get("phase") != 9:
+        errors.append(f"atomicity.phase_9_drift.phase expected 9, got {phase_9.get('phase')!r}")
+    if phase_9.get("snapshot") != "post_phase_8_immutable":
+        errors.append(
+            "atomicity.phase_9_drift.snapshot expected "
+            "'post_phase_8_immutable', got "
+            f"{phase_9.get('snapshot')!r}"
+        )
+    if phase_9.get("planned_output_count") != 64:
+        errors.append(
+            "atomicity.phase_9_drift.planned_output_count expected 64, "
+            f"got {phase_9.get('planned_output_count')!r}"
+        )
+    if phase_9.get("candidate") != "complete_regional_state_and_visible_causal_batch":
+        errors.append("atomicity.phase_9_drift.candidate mismatch")
+    if phase_9.get("publication") != "single_atomic_state_and_causal_batch":
+        errors.append("atomicity.phase_9_drift.publication mismatch")
+    if phase_9.get("partial_publication") is not False:
+        errors.append(
+            "atomicity.phase_9_drift.partial_publication expected False, "
+            f"got {phase_9.get('partial_publication')!r}"
+        )
+    if phase_9.get("cross_output_observation") is not False:
+        errors.append(
+            "atomicity.phase_9_drift.cross_output_observation expected False, "
+            f"got {phase_9.get('cross_output_observation')!r}"
+        )
+    if phase_9.get("failure_behavior") != "discard_candidate_and_publish_nothing":
+        errors.append("atomicity.phase_9_drift.failure_behavior mismatch")
+
+    phase_10 = atomicity.get("phase_10_pull", {})
+    phase_10_keys = set(phase_10.keys())
+    if phase_10_keys != EXPECTED_ATOMICITY_PHASE_10_KEYS:
+        missing = EXPECTED_ATOMICITY_PHASE_10_KEYS - phase_10_keys
+        extra = phase_10_keys - EXPECTED_ATOMICITY_PHASE_10_KEYS
+        if missing:
+            errors.append(f"Missing atomicity.phase_10_pull key(s): {sorted(missing)}")
+        if extra:
+            errors.append(f"Unexpected atomicity.phase_10_pull key(s): {sorted(extra)}")
+    if phase_10 != EXPECTED_ATOMICITY["phase_10_pull"]:
+        errors.append(f"atomicity.phase_10_pull mismatch: {phase_10!r}")
+    if phase_10.get("phase") != 10:
+        errors.append(f"atomicity.phase_10_pull.phase expected 10, got {phase_10.get('phase')!r}")
+    if phase_10.get("snapshot") != "post_phase_9_immutable":
+        errors.append(
+            "atomicity.phase_10_pull.snapshot expected "
+            "'post_phase_9_immutable', got "
+            f"{phase_10.get('snapshot')!r}"
+        )
+    if phase_10.get("planned_output_count") != 5:
+        errors.append(
+            "atomicity.phase_10_pull.planned_output_count expected 5, "
+            f"got {phase_10.get('planned_output_count')!r}"
+        )
+    if phase_10.get("candidate") != "complete_internal_state_with_ephemeral_provenance":
+        errors.append("atomicity.phase_10_pull.candidate mismatch")
+    if phase_10.get("publication") != "single_atomic_internal_state_batch":
+        errors.append("atomicity.phase_10_pull.publication mismatch")
+    if phase_10.get("public_causal_publication") != "none":
+        errors.append("atomicity.phase_10_pull.public_causal_publication mismatch")
+    if phase_10.get("ephemeral_provenance_publication") != "none":
+        errors.append("atomicity.phase_10_pull.ephemeral_provenance_publication mismatch")
+    if phase_10.get("partial_publication") is not False:
+        errors.append(
+            "atomicity.phase_10_pull.partial_publication expected False, "
+            f"got {phase_10.get('partial_publication')!r}"
+        )
+    if phase_10.get("binding_chaining") is not False:
+        errors.append(
+            "atomicity.phase_10_pull.binding_chaining expected False, "
+            f"got {phase_10.get('binding_chaining')!r}"
+        )
+    if phase_10.get("failure_behavior") != "discard_candidate_and_publish_nothing":
+        errors.append("atomicity.phase_10_pull.failure_behavior mismatch")
+
+    triggers = atomicity.get("fail_closed_triggers", [])
+    if triggers != EXPECTED_FAIL_CLOSED_TRIGGERS:
+        errors.append(
+            "atomicity.fail_closed_triggers mismatch: "
+            f"{triggers!r}"
+        )
+    if len(triggers) != 21:
+        errors.append(
+            f"atomicity.fail_closed_triggers expected 21 entries, got {len(triggers)}"
+        )
+    if len(set(triggers)) != len(triggers):
+        errors.append("atomicity.fail_closed_triggers entries are not unique")
+
+    guarantees = atomicity.get("fail_closed_guarantees", [])
+    if guarantees != EXPECTED_FAIL_CLOSED_GUARANTEES:
+        errors.append(
+            "atomicity.fail_closed_guarantees mismatch: "
+            f"{guarantees!r}"
+        )
+    if len(guarantees) != 4:
+        errors.append(
+            f"atomicity.fail_closed_guarantees expected 4 entries, got {len(guarantees)}"
+        )
+    if len(set(guarantees)) != len(guarantees):
+        errors.append("atomicity.fail_closed_guarantees entries are not unique")
+
+    observable = atomicity.get("observable_tick_failure", {})
+    observable_keys = set(observable.keys())
+    if observable_keys != EXPECTED_ATOMICITY_TICK_FAILURE_KEYS:
+        missing = EXPECTED_ATOMICITY_TICK_FAILURE_KEYS - observable_keys
+        extra = observable_keys - EXPECTED_ATOMICITY_TICK_FAILURE_KEYS
+        if missing:
+            errors.append(f"Missing atomicity.observable_tick_failure key(s): {sorted(missing)}")
+        if extra:
+            errors.append(f"Unexpected atomicity.observable_tick_failure key(s): {sorted(extra)}")
+    if observable != EXPECTED_ATOMICITY["observable_tick_failure"]:
+        errors.append(f"atomicity.observable_tick_failure mismatch: {observable!r}")
+
+    if atomicity.get("non_guarantees", []) != EXPECTED_ATOMICITY_NON_GUARANTEES:
+        errors.append(
+            "atomicity.non_guarantees mismatch: "
+            f"{atomicity.get('non_guarantees', [])!r}"
+        )
+
+    return errors
+
+
 def validate_causality(causality: dict) -> list[str]:
     errors = []
 
@@ -1087,6 +1438,9 @@ def validate_contract(contract: dict) -> list[str]:
 
     causality = contract.get("causality", {})
     errors.extend(validate_causality(causality))
+
+    atomicity = contract.get("atomicity", {})
+    errors.extend(validate_atomicity(atomicity))
 
     return errors
 
@@ -1852,8 +2206,7 @@ class ContractIntegrityTest(unittest.TestCase):
         self.assertGreater(json_start, begin_pos)
         self.assertLess(json_end, end_pos)
         parsed = json.loads(text[json_start:json_end])
-        for key in EXPECTED_TOP_LEVEL_KEYS:
-            self.assertIn(key, parsed)
+        self.assertEqual(EXPECTED_TOP_LEVEL_KEYS, set(parsed.keys()))
 
     def test_contract_parses_as_valid_json(self):
         text = self.contract_path.read_text(encoding="utf-8")
@@ -1862,8 +2215,7 @@ class ContractIntegrityTest(unittest.TestCase):
         json_start = text.index("{", begin)
         json_end = text.rindex("}", 0, end) + 1
         parsed = json.loads(text[json_start:json_end])
-        for key in EXPECTED_TOP_LEVEL_KEYS:
-            self.assertIn(key, parsed)
+        self.assertEqual(EXPECTED_TOP_LEVEL_KEYS, set(parsed.keys()))
 
     def test_contract_has_no_trailing_whitespace_lines(self):
         for i, line in enumerate(
@@ -1896,20 +2248,20 @@ class MutationMatrixTest(unittest.TestCase):
                 "authority": "content_pack_declaration_order",
                 "source_path": "Assets/StreamingAssets/content/core/regions.json",
                 "region_count": 16,
-                "ordered_region_ids": list(EXPECTED_CANONICAL_REGION_ORDER),
+                "ordered_region_ids": copy.deepcopy(EXPECTED_CANONICAL_REGION_ORDER),
                 "weight_ppm_each": 62500,
                 "weight_ppm_sum_required": 1000000,
-                "forbidden_order_sources": list(EXPECTED_FORBIDDEN_SOURCES),
+                "forbidden_order_sources": copy.deepcopy(EXPECTED_FORBIDDEN_SOURCES),
             },
-            "regional_dynamic_targets": list(EXPECTED_DYNAMIC_TARGETS),
-            "static_regional_resources": dict(EXPECTED_STATIC_RESOURCES),
-            "numeric_domain": dict(EXPECTED_NUMERIC_DOMAIN),
-            "drift": {
+            "regional_dynamic_targets": copy.deepcopy(EXPECTED_DYNAMIC_TARGETS),
+            "static_regional_resources": copy.deepcopy(EXPECTED_STATIC_RESOURCES),
+            "numeric_domain": copy.deepcopy(EXPECTED_NUMERIC_DOMAIN),
+            "drift": copy.deepcopy({
                 "phase": 9,
                 "phase_name": "DriftNationalToRegions",
                 "snapshot": "post_phase_8",
                 "region_order_source": "canonical_region_order.ordered_region_ids",
-                "metric_order": list(EXPECTED_DRIFT_METRIC_ORDER),
+                "metric_order": copy.deepcopy(EXPECTED_DRIFT_METRIC_ORDER),
                 "region_count": 16,
                 "outputs_per_region": 4,
                 "output_count": 64,
@@ -1951,11 +2303,11 @@ class MutationMatrixTest(unittest.TestCase):
                         ],
                     },
                 },
-                "common_pipeline": list(EXPECTED_DRIFT_PIPELINE),
-            },
+                "common_pipeline": copy.deepcopy(EXPECTED_DRIFT_PIPELINE),
+            }),
             "pull": copy.deepcopy(EXPECTED_PULL),
             "latency": copy.deepcopy(EXPECTED_LATENCY),
-            "causality": {
+            "causality": copy.deepcopy({
                 "cause_category": "SYSTEM",
                 "parent": None,
                 "canonical_key_separator": ":",
@@ -1991,7 +2343,8 @@ class MutationMatrixTest(unittest.TestCase):
                     "identities": copy.deepcopy(EXPECTED_PULL_PROVENANCE_IDENTITIES),
                 },
                 "public_aggregation_attribution": copy.deepcopy(EXPECTED_PUBLIC_AGG_ATTRIBUTION),
-            },
+            }),
+            "atomicity": copy.deepcopy(EXPECTED_ATOMICITY),
         }
 
     def assert_invalid(self, contract: dict, description: str):
@@ -2487,6 +2840,495 @@ class MutationMatrixTest(unittest.TestCase):
     def test_valid_contract_structure_passes_full_validation(self):
         errors = validate_contract(self.valid)
         self.assertEqual([], errors)
+
+    def test_atomicity_top_level_and_scope_mutations(self):
+        cases = [
+            (
+                "atomicity extra top-level key",
+                lambda contract: contract["atomicity"].__setitem__("extra_key", True),
+            ),
+            (
+                "atomicity key omitted",
+                lambda contract: contract["atomicity"].pop("non_guarantees"),
+            ),
+            (
+                "scope key extra",
+                lambda contract: contract["atomicity"]["scope"].__setitem__("extra_key", "extra"),
+            ),
+            (
+                "scope key omitted",
+                lambda contract: contract["atomicity"]["scope"].pop("runtime_tick_fail_closed_verification"),
+            ),
+            (
+                "separate_atomic_passes altered",
+                lambda contract: contract["atomicity"]["scope"].__setitem__("phase_9_and_phase_10", "one_super_pass"),
+            ),
+            (
+                "executor_responsibility altered",
+                lambda contract: contract["atomicity"]["scope"].__setitem__("pass_atomicity", "scheduler_responsibility"),
+            ),
+            (
+                "scheduler_result_boundary altered",
+                lambda contract: contract["atomicity"]["scope"].__setitem__("observable_tick_atomicity", "executor_boundary"),
+            ),
+            (
+                "PR_15_4 altered",
+                lambda contract: contract["atomicity"]["scope"].__setitem__("runtime_tick_fail_closed_verification", "PR_15_3"),
+            ),
+            (
+                "phases_9_and_10_are_not_one_super_pass eliminated",
+                lambda contract: contract["atomicity"]["non_guarantees"].pop(0),
+            ),
+            (
+                "runtime transaction marked implemented",
+                lambda contract: contract["atomicity"]["non_guarantees"].__setitem__(1, "PR_15_1_implements_runtime_transactions"),
+            ),
+            (
+                "phases 9 or 10 marked active",
+                lambda contract: contract["atomicity"]["non_guarantees"].__setitem__(2, "PR_15_1_activates_scheduler_phases_9_or_10"),
+            ),
+        ]
+
+        for description, mutator in cases:
+            with self.subTest(description=description):
+                candidate = copy.deepcopy(self.valid)
+                mutator(candidate)
+                self.assert_invalid(candidate, description)
+
+    def test_atomicity_execution_sequence_and_phase_9_mutations(self):
+        cases = [
+            (
+                "step omitted",
+                lambda contract: contract["atomicity"]["execution_sequence"].pop(),
+            ),
+            (
+                "step extra",
+                lambda contract: contract["atomicity"]["execution_sequence"].append("after_publish"),
+            ),
+            (
+                "steps reordered",
+                lambda contract: contract["atomicity"].__setitem__(
+                    "execution_sequence",
+                    [
+                        "validate_all_bindings_and_inputs",
+                        "capture_immutable_snapshot",
+                        "compute_all_outputs",
+                        "compute_all_applicable_causes_or_provenance",
+                        "validate_deltas_ranges_and_causal_accounting",
+                        "construct_complete_candidate",
+                        "publish_once",
+                    ],
+                ),
+            ),
+            (
+                "validate after publish",
+                lambda contract: contract["atomicity"].__setitem__(
+                    "execution_sequence",
+                    [
+                        "capture_immutable_snapshot",
+                        "compute_all_outputs",
+                        "compute_all_applicable_causes_or_provenance",
+                        "construct_complete_candidate",
+                        "publish_once",
+                        "validate_all_bindings_and_inputs",
+                        "validate_deltas_ranges_and_causal_accounting",
+                    ],
+                ),
+            ),
+            (
+                "phase 9 changed to 10",
+                lambda contract: contract["atomicity"]["phase_9_drift"].__setitem__("phase", 10),
+            ),
+            (
+                "snapshot phase 9 changed",
+                lambda contract: contract["atomicity"]["phase_9_drift"].__setitem__("snapshot", "post_phase_7_immutable"),
+            ),
+            (
+                "planned_output_count phase 9 = 63",
+                lambda contract: contract["atomicity"]["phase_9_drift"].__setitem__("planned_output_count", 63),
+            ),
+            (
+                "publication phase 9 not atomic",
+                lambda contract: contract["atomicity"]["phase_9_drift"].__setitem__("publication", "multiple_publications"),
+            ),
+            (
+                "partial_publication phase 9 = true",
+                lambda contract: contract["atomicity"]["phase_9_drift"].__setitem__("partial_publication", True),
+            ),
+            (
+                "cross_output_observation phase 9 = true",
+                lambda contract: contract["atomicity"]["phase_9_drift"].__setitem__("cross_output_observation", True),
+            ),
+            (
+                "failure_behavior phase 9 altered",
+                lambda contract: contract["atomicity"]["phase_9_drift"].__setitem__("failure_behavior", "publish_partial_candidate"),
+            ),
+        ]
+
+        for description, mutator in cases:
+            with self.subTest(description=description):
+                candidate = copy.deepcopy(self.valid)
+                mutator(candidate)
+                self.assert_invalid(candidate, description)
+
+    def test_atomicity_phase_10_mutations(self):
+        cases = [
+            (
+                "phase 10 changed to 9",
+                lambda contract: contract["atomicity"]["phase_10_pull"].__setitem__("phase", 9),
+            ),
+            (
+                "snapshot phase 10 changed",
+                lambda contract: contract["atomicity"]["phase_10_pull"].__setitem__("snapshot", "post_phase_8_immutable"),
+            ),
+            (
+                "planned_output_count phase 10 = 4",
+                lambda contract: contract["atomicity"]["phase_10_pull"].__setitem__("planned_output_count", 4),
+            ),
+            (
+                "publication phase 10 not atomic",
+                lambda contract: contract["atomicity"]["phase_10_pull"].__setitem__("publication", "multiple_publications"),
+            ),
+            (
+                "public_causal_publication distinct from none",
+                lambda contract: contract["atomicity"]["phase_10_pull"].__setitem__("public_causal_publication", "published"),
+            ),
+            (
+                "ephemeral_provenance_publication distinct from none",
+                lambda contract: contract["atomicity"]["phase_10_pull"].__setitem__("ephemeral_provenance_publication", "published"),
+            ),
+            (
+                "partial_publication phase 10 = true",
+                lambda contract: contract["atomicity"]["phase_10_pull"].__setitem__("partial_publication", True),
+            ),
+            (
+                "binding_chaining phase 10 = true",
+                lambda contract: contract["atomicity"]["phase_10_pull"].__setitem__("binding_chaining", True),
+            ),
+            (
+                "failure_behavior phase 10 altered",
+                lambda contract: contract["atomicity"]["phase_10_pull"].__setitem__("failure_behavior", "publish_partial_candidate"),
+            ),
+        ]
+
+        for description, mutator in cases:
+            with self.subTest(description=description):
+                candidate = copy.deepcopy(self.valid)
+                mutator(candidate)
+                self.assert_invalid(candidate, description)
+
+    def test_atomicity_fail_closed_list_mutations(self):
+        list_cases = [
+            (
+                "trigger omitted",
+                lambda contract: contract["atomicity"]["fail_closed_triggers"].pop(),
+            ),
+            (
+                "trigger extra",
+                lambda contract: contract["atomicity"]["fail_closed_triggers"].append("extra_trigger"),
+            ),
+            (
+                "triggers reordered",
+                lambda contract: contract["atomicity"]["fail_closed_triggers"].__setitem__(
+                    slice(None),
+                    [
+                        contract["atomicity"]["fail_closed_triggers"][1],
+                        contract["atomicity"]["fail_closed_triggers"][0],
+                    ]
+                    + contract["atomicity"]["fail_closed_triggers"][2:],
+                ),
+            ),
+            (
+                "trigger duplicated",
+                lambda contract: contract["atomicity"]["fail_closed_triggers"].__setitem__(
+                    0,
+                    contract["atomicity"]["fail_closed_triggers"][1],
+                ),
+            ),
+        ]
+
+        for description, mutator in list_cases:
+            with self.subTest(description=description):
+                candidate = copy.deepcopy(self.valid)
+                mutator(candidate)
+                self.assert_invalid(candidate, description)
+
+        for trigger in EXPECTED_FAIL_CLOSED_TRIGGERS:
+            with self.subTest(description=f"remove trigger {trigger}"):
+                candidate = copy.deepcopy(self.valid)
+                candidate["atomicity"]["fail_closed_triggers"].remove(trigger)
+                self.assert_invalid(candidate, f"remove trigger {trigger}")
+
+        guarantee_cases = [
+            (
+                "guarantee omitted",
+                lambda contract: contract["atomicity"]["fail_closed_guarantees"].pop(),
+            ),
+            (
+                "guarantee extra",
+                lambda contract: contract["atomicity"]["fail_closed_guarantees"].append("extra_guarantee"),
+            ),
+            (
+                "guarantees reordered",
+                lambda contract: contract["atomicity"]["fail_closed_guarantees"].__setitem__(
+                    slice(None),
+                    [
+                        contract["atomicity"]["fail_closed_guarantees"][1],
+                        contract["atomicity"]["fail_closed_guarantees"][0],
+                    ]
+                    + contract["atomicity"]["fail_closed_guarantees"][2:],
+                ),
+            ),
+            (
+                "guarantee duplicated",
+                lambda contract: contract["atomicity"]["fail_closed_guarantees"].__setitem__(
+                    0,
+                    contract["atomicity"]["fail_closed_guarantees"][1],
+                ),
+            ),
+        ]
+
+        for description, mutator in guarantee_cases:
+            with self.subTest(description=description):
+                candidate = copy.deepcopy(self.valid)
+                mutator(candidate)
+                self.assert_invalid(candidate, description)
+
+        for guarantee in EXPECTED_FAIL_CLOSED_GUARANTEES:
+            with self.subTest(description=f"remove guarantee {guarantee}"):
+                candidate = copy.deepcopy(self.valid)
+                candidate["atomicity"]["fail_closed_guarantees"].remove(guarantee)
+                self.assert_invalid(candidate, f"remove guarantee {guarantee}")
+
+    def test_atomicity_observable_failure_mutations(self):
+        cases = [
+            (
+                "scenario altered",
+                lambda contract: contract["atomicity"]["observable_tick_failure"].__setitem__("scenario", "phase_9_succeeds_phase_10_succeeds"),
+            ),
+            (
+                "advance_one_tick_result partial_result",
+                lambda contract: contract["atomicity"]["observable_tick_failure"].__setitem__("advance_one_tick_result", "partial_result"),
+            ),
+            (
+                "original_game_state mutated",
+                lambda contract: contract["atomicity"]["observable_tick_failure"].__setitem__("original_game_state", "mutated"),
+            ),
+            (
+                "phase_9_snapshot_exposed true",
+                lambda contract: contract["atomicity"]["observable_tick_failure"].__setitem__("phase_9_snapshot_exposed", True),
+            ),
+            (
+                "partial_causal_ledger_exposed true",
+                lambda contract: contract["atomicity"]["observable_tick_failure"].__setitem__("partial_causal_ledger_exposed", True),
+            ),
+            (
+                "sealed_causal_ledger_exposed true",
+                lambda contract: contract["atomicity"]["observable_tick_failure"].__setitem__("sealed_causal_ledger_exposed", True),
+            ),
+            (
+                "scheduler_working_state externally_visible",
+                lambda contract: contract["atomicity"]["observable_tick_failure"].__setitem__("scheduler_working_state", "externally_visible"),
+            ),
+            (
+                "scheduler_causal_buffer externally_visible",
+                lambda contract: contract["atomicity"]["observable_tick_failure"].__setitem__("scheduler_causal_buffer", "externally_visible"),
+            ),
+            (
+                "runtime_test_owner altered",
+                lambda contract: contract["atomicity"]["observable_tick_failure"].__setitem__("runtime_test_owner", "PR_15_3"),
+            ),
+        ]
+
+        for description, mutator in cases:
+            with self.subTest(description=description):
+                candidate = copy.deepcopy(self.valid)
+                mutator(candidate)
+                self.assert_invalid(candidate, description)
+
+
+class AtomicityContractTest(unittest.TestCase):
+    """Validates the territorial atomicity contract block exactly."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.contract = extract_canonical_block(
+            ROOT / "docs" / "territory_contract.md"
+        )
+
+    def setUp(self):
+        self.atomicity = self.contract["atomicity"]
+
+    def test_atomicity_block_is_exact(self):
+        self.assertEqual(EXPECTED_ATOMICITY, self.atomicity)
+
+    def test_atomicity_scope_distinguishes_pass_and_tick(self):
+        scope = self.atomicity["scope"]
+        self.assertEqual(EXPECTED_ATOMICITY["scope"], scope)
+        self.assertEqual("separate_atomic_passes", scope["phase_9_and_phase_10"])
+        self.assertEqual("executor_responsibility", scope["pass_atomicity"])
+        self.assertEqual("scheduler_result_boundary", scope["observable_tick_atomicity"])
+        self.assertEqual("PR_15_4", scope["runtime_tick_fail_closed_verification"])
+
+    def test_execution_sequence_is_exact(self):
+        self.assertEqual(EXPECTED_ATOMICITY_EXECUTION_SEQUENCE, self.atomicity["execution_sequence"])
+
+    def test_phase9_atomic_candidate_is_exact(self):
+        self.assertEqual(EXPECTED_ATOMICITY["phase_9_drift"], self.atomicity["phase_9_drift"])
+
+    def test_phase10_atomic_candidate_is_exact(self):
+        self.assertEqual(EXPECTED_ATOMICITY["phase_10_pull"], self.atomicity["phase_10_pull"])
+
+    def test_fail_closed_triggers_are_exact_unique_and_ordered(self):
+        triggers = self.atomicity["fail_closed_triggers"]
+        self.assertEqual(EXPECTED_FAIL_CLOSED_TRIGGERS, triggers)
+        self.assertEqual(21, len(triggers))
+        self.assertEqual(21, len(set(triggers)))
+
+    def test_fail_closed_guarantees_are_exact_unique_and_ordered(self):
+        guarantees = self.atomicity["fail_closed_guarantees"]
+        self.assertEqual(EXPECTED_FAIL_CLOSED_GUARANTEES, guarantees)
+        self.assertEqual(4, len(guarantees))
+        self.assertEqual(4, len(set(guarantees)))
+
+    def test_phase9_output_count_matches_drift(self):
+        self.assertEqual(64, self.atomicity["phase_9_drift"]["planned_output_count"])
+
+    def test_phase10_output_count_matches_pull(self):
+        self.assertEqual(5, self.atomicity["phase_10_pull"]["planned_output_count"])
+
+    def test_tick_failure_scenario_is_exact(self):
+        self.assertEqual(
+            EXPECTED_ATOMICITY["observable_tick_failure"],
+            self.atomicity["observable_tick_failure"],
+        )
+
+    def test_phases_are_not_one_super_pass(self):
+        self.assertEqual("separate_atomic_passes", self.atomicity["scope"]["phase_9_and_phase_10"])
+        self.assertEqual(EXPECTED_ATOMICITY_NON_GUARANTEES[0], self.atomicity["non_guarantees"][0])
+
+    def test_runtime_transactions_are_deferred(self):
+        self.assertEqual(EXPECTED_ATOMICITY_NON_GUARANTEES, self.atomicity["non_guarantees"])
+
+    def test_phase9_success_phase10_failure_has_no_observable_tick_result(self):
+        self.assertEqual(
+            EXPECTED_ATOMICITY["observable_tick_failure"],
+            self.atomicity["observable_tick_failure"],
+        )
+        candidate = copy.deepcopy(self.contract)
+        candidate["atomicity"]["observable_tick_failure"]["advance_one_tick_result"] = "partial_result"
+        errors = validate_contract(candidate)
+        self.assertTrue(
+            errors,
+            "advance_one_tick_result=partial_result must fail validate_contract()",
+        )
+
+    def test_atomicity_passes_full_contract_validation(self):
+        errors = validate_contract(self.contract)
+        self.assertEqual([], errors)
+
+
+class AtomicityParityTest(unittest.TestCase):
+    """Read-only parity checks for territorial atomicity semantics."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.root = ROOT
+        cls.aggregation_contract_path = cls.root / "docs" / "aggregation_contract.md"
+        cls.mvp_contract_path = cls.root / "docs" / "mvp_contract_decisions.json"
+        cls.scheduler_engine_path = (
+            cls.root
+            / "Assets"
+            / "VictoriantChile"
+            / "Simulation"
+            / "Core"
+            / "Scheduling"
+            / "SchedulerEngine.cs"
+        )
+
+    @staticmethod
+    def _find_decision(decisions: list[dict], decision_id: str) -> dict:
+        for decision in decisions:
+            if decision.get("id") == decision_id:
+                return decision
+        raise AssertionError(f"Decision {decision_id!r} not found")
+
+    def test_aggregation_contract_mentions_atomic_pass_semantics(self):
+        text = self.aggregation_contract_path.read_text(encoding="utf-8").lower()
+        for phrase in [
+            "immutable snapshot",
+            "full planning",
+            "single atomic publication",
+            "fail-closed",
+            "no cross-observation within pass",
+            "complete output for next pass",
+        ]:
+            self.assertIn(phrase, text)
+
+    def test_mvp_012_resolution_contains_pass_atomicity(self):
+        document = load_json(self.mvp_contract_path)
+        decision = self._find_decision(document.get("decisions", []), "MVP-012-national-aggregation")
+        semantics = decision["resolution"]["pass_execution_semantics"]
+        self.assertEqual("immutable_snapshot_at_pass_start", semantics["input_snapshot"])
+        self.assertEqual(
+            "all_outputs_and_causal_contributions_planned_before_publication",
+            semantics["planning"],
+        )
+        self.assertEqual("single_atomic_batch", semantics["publication"])
+        self.assertEqual("complete_output_of_previous_pass", semantics["next_pass_visibility"])
+        self.assertEqual(
+            "fail_closed_without_partial_state_or_causal_publication",
+            semantics["failure_behavior"],
+        )
+        self.assertTrue(semantics["dictionary_order_forbidden"])
+        self.assertTrue(semantics["internal_reversion"]["atomic_batch"])
+        self.assertTrue(semantics["derived_internals"]["atomic_batch"])
+        self.assertTrue(semantics["metric_aggregation"]["atomic_batch"])
+
+    def test_scheduler_advance_one_tick_keeps_territorial_phases_noop(self):
+        source = self.scheduler_engine_path.read_text(encoding="utf-8")
+        body = extract_csharp_method_body(
+            source,
+            "public TickAdvanceResult AdvanceOneTick(GameState current, Action<SimulationTickPhase> observePhase = null)",
+        )
+        self.assertTrue(body, "AdvanceOneTick body not found")
+        drift_call = "ExecuteNoOpPhase(SimulationTickPhase.DriftNationalToRegions"
+        pull_call = "ExecuteNoOpPhase(SimulationTickPhase.PullRegionsToInternals"
+        self.assertIn(drift_call, body)
+        self.assertIn(pull_call, body)
+        self.assertLess(body.index(drift_call), body.index("CloseAndSeal"))
+        self.assertLess(body.index(pull_call), body.index("CloseAndSeal"))
+
+    def test_scheduler_working_state_and_causal_buffer_are_local(self):
+        source = self.scheduler_engine_path.read_text(encoding="utf-8")
+        body = extract_csharp_method_body(
+            source,
+            "public TickAdvanceResult AdvanceOneTick(GameState current, Action<SimulationTickPhase> observePhase = null)",
+        )
+        self.assertTrue(body, "AdvanceOneTick body not found")
+        self.assertIn("GameState working = IncrementTick(current, phases, observePhase);", body)
+        self.assertIn("TickCausalBuffer causalBuffer = CreateAuditBuffer(working, visibleTargets);", body)
+        self.assertIn("List<PendingBlockingDecision> blockers = new List<PendingBlockingDecision>();", body)
+
+    def test_scheduler_result_is_built_after_sealing(self):
+        source = self.scheduler_engine_path.read_text(encoding="utf-8")
+        body = extract_csharp_method_body(
+            source,
+            "public TickAdvanceResult AdvanceOneTick(GameState current, Action<SimulationTickPhase> observePhase = null)",
+        )
+        self.assertTrue(body, "AdvanceOneTick body not found")
+        self.assertIn("TickCausalSnapshot snapshot = CloseAndSeal(working, causalBuffer, visibleTargets);", body)
+        result_index = body.index("new TickAdvanceResult", body.index("CloseAndSeal"))
+        self.assertLess(body.index("CloseAndSeal"), result_index)
+
+    def test_scheduler_no_intermediate_territorial_result_is_published(self):
+        source = self.scheduler_engine_path.read_text(encoding="utf-8")
+        body = extract_csharp_method_body(
+            source,
+            "public TickAdvanceResult AdvanceOneTick(GameState current, Action<SimulationTickPhase> observePhase = null)",
+        )
+        self.assertTrue(body, "AdvanceOneTick body not found")
+        self.assertNotIn("return new TickAdvanceResult(working, null", body)
 
 
 class CausalityTest(unittest.TestCase):

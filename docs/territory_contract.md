@@ -356,6 +356,90 @@ one-tick latency.
         "canonical_key": "SYSTEM:AGG.metrics.public_agenda.internals.agenda.movement_salience"
       }
     ]
+  },
+  "atomicity": {
+    "scope": {
+      "phase_9_and_phase_10": "separate_atomic_passes",
+      "pass_atomicity": "executor_responsibility",
+      "observable_tick_atomicity": "scheduler_result_boundary",
+      "runtime_tick_fail_closed_verification": "PR_15_4"
+    },
+    "execution_sequence": [
+      "capture_immutable_snapshot",
+      "validate_all_bindings_and_inputs",
+      "compute_all_outputs",
+      "compute_all_applicable_causes_or_provenance",
+      "validate_deltas_ranges_and_causal_accounting",
+      "construct_complete_candidate",
+      "publish_once"
+    ],
+    "phase_9_drift": {
+      "phase": 9,
+      "snapshot": "post_phase_8_immutable",
+      "planned_output_count": 64,
+      "candidate": "complete_regional_state_and_visible_causal_batch",
+      "publication": "single_atomic_state_and_causal_batch",
+      "partial_publication": false,
+      "cross_output_observation": false,
+      "failure_behavior": "discard_candidate_and_publish_nothing"
+    },
+    "phase_10_pull": {
+      "phase": 10,
+      "snapshot": "post_phase_9_immutable",
+      "planned_output_count": 5,
+      "candidate": "complete_internal_state_with_ephemeral_provenance",
+      "publication": "single_atomic_internal_state_batch",
+      "public_causal_publication": "none",
+      "ephemeral_provenance_publication": "none",
+      "partial_publication": false,
+      "binding_chaining": false,
+      "failure_behavior": "discard_candidate_and_publish_nothing"
+    },
+    "fail_closed_triggers": [
+      "missing_region",
+      "duplicate_region",
+      "inconsistent_canonical_order",
+      "region_count_mismatch",
+      "weight_sum_mismatch",
+      "non_positive_weight",
+      "missing_regional_field",
+      "missing_internal_destination",
+      "missing_target_config",
+      "set_not_allowed",
+      "invalid_cause_ref",
+      "duplicate_output",
+      "duplicate_coupling",
+      "multiplication_overflow",
+      "sum_overflow",
+      "addition_overflow",
+      "long_to_int_out_of_range",
+      "invalid_denominator",
+      "invalid_clamp_or_invariant",
+      "causal_batch_rejection",
+      "visible_delta_causal_sum_mismatch"
+    ],
+    "fail_closed_guarantees": [
+      "zero_partial_game_state",
+      "zero_partial_regions",
+      "zero_partial_internals",
+      "zero_partial_causal_contributions"
+    ],
+    "observable_tick_failure": {
+      "scenario": "phase_9_succeeds_phase_10_fails",
+      "advance_one_tick_result": "not_returned",
+      "original_game_state": "unchanged",
+      "phase_9_snapshot_exposed": false,
+      "partial_causal_ledger_exposed": false,
+      "sealed_causal_ledger_exposed": false,
+      "scheduler_working_state": "local_only",
+      "scheduler_causal_buffer": "local_only_until_phase_15_seal",
+      "runtime_test_owner": "PR_15_4"
+    },
+    "non_guarantees": [
+      "phases_9_and_10_are_not_one_super_pass",
+      "PR_15_1_does_not_implement_runtime_transactions",
+      "PR_15_1_does_not_activate_scheduler_phases_9_or_10"
+    ]
   }
 }
 ```
@@ -422,7 +506,8 @@ one-tick latency.
   bindings, and latency. This revision completes that freeze.
 - PR 15.1-F freezes `REG_DRIFT` causal keys and ephemeral
   `REG_TO_INT` identities. This revision completes that freeze.
-- PR 15.1-G will freeze atomicity and fail-closed contractual rules.
+- PR 15.1-G freezes territorial atomicity and fail-closed contractual rules.
+  This revision completes that freeze.
 - PR 15.2 through 15.4 will implement the productive runtime plan.
 
 ## Numeric domain and phase 9 drift
@@ -701,3 +786,18 @@ omitted from the causal ledger entirely (no record, no throw).
 **Scheduler phases**: Phases 9 and 10 remain no-op in the product;
 this contract defines their causal semantics but does not activate
 runtime execution.
+
+## Territorial atomicity and fail-closed semantics
+
+This contract freezes the territorial executor shape without activating the runtime:
+
+1. Phase 9 and phase 10 are separate atomic passes.
+2. Each pass follows snapshot, validate, compute, causal attribution, validation, candidate construction, and single publication.
+3. Phase 9 plans exactly 64 outputs before publication and publishes regional state plus visible causality as one batch.
+4. Phase 10 plans exactly five outputs before publication and publishes five internals as one batch while keeping REG_TO_INT provenance ephemeral and non-public.
+5. Fail-closed handling discards the entire candidate on any trigger, with no partial GameState, regions, internals, or causal publication.
+6. Atomicity inside a pass is executor responsibility; observable tick atomicity is the scheduler result boundary.
+7. A phase 9 success followed by a phase 10 failure does not produce `TickAdvanceResult`, leaves the original `GameState` intact, and exposes neither snapshot nor ledger partials.
+8. The observable rollback case is deferred to PR 15.4.
+9. Phases 9 and 10 remain no-op in the runtime.
+10. Implementation and runtime testing remain deferred to PRs 15.2 through 15.4.
