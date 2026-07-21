@@ -379,6 +379,37 @@ EXPECTED_PUBLIC_AGG_ATTRIBUTION = [
     },
 ]
 
+EXPECTED_IDENTIFIER_SEPARATOR = "."
+
+
+def extract_csharp_method_body(source: str, signature: str) -> str:
+    """Return the body (including braces) of the first C# method matching
+    *signature*.  Uses brace-depth matching; does not freeze formatting."""
+    idx = source.find(signature)
+    if idx == -1:
+        return ""
+    line_start = source.rfind("\n", 0, idx)
+    if line_start == -1:
+        line_start = 0
+    else:
+        line_start += 1
+    body_start = source.find("{", idx)
+    if body_start == -1:
+        return ""
+    depth = 0
+    pos = body_start
+    while pos < len(source):
+        ch = source[pos]
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return source[line_start:pos + 1]
+        pos += 1
+    return ""
+
+
 EXPECTED_DRIFT_METRIC_NAMES = ["support", "tension", "organization", "rival_presence"]
 
 EXPECTED_AGG_METRIC_NAMES = {
@@ -560,21 +591,14 @@ def validate_canonical_cause_key(key: str) -> list[str]:
         errors.append(
             f"CauseKey must contain exactly one ':', got {colon_count}"
         )
+        return errors
     category, id_part = key.split(":", 1)
     if category != "SYSTEM":
         errors.append(
             f"CauseKey category must be SYSTEM, got {category!r}"
         )
-    valid_prefixes = (
-        "REG_DRIFT.", "REG_TO_INT.", "AGG.", "REVERSION.",
-        "DERIVED.", "CLAMP", "ROUNDING", "IG_CLOUT_NORMALIZE",
-    )
     if not id_part:
         errors.append("CauseKey ID must not be empty")
-    elif not id_part.startswith(valid_prefixes):
-        errors.append(
-            f"CauseKey ID {id_part!r} does not start with a permitted prefix"
-        )
     if id_part:
         for i, ch in enumerate(id_part):
             if ch < " " or ch > "~":
@@ -830,6 +854,12 @@ def validate_causality(causality: dict) -> list[str]:
         errors.append(
             f"identifier_policy mismatch: "
             f"{causality.get('identifier_policy')}"
+        )
+
+    if causality.get("identifier_separator") != EXPECTED_IDENTIFIER_SEPARATOR:
+        errors.append(
+            f"identifier_separator expected {EXPECTED_IDENTIFIER_SEPARATOR!r}, "
+            f"got {causality.get('identifier_separator')!r}"
         )
 
     drift = causality.get("drift", {})
@@ -2266,6 +2296,10 @@ class MutationMatrixTest(unittest.TestCase):
         self.valid["causality"]["identifier_policy"] = "PRINTABLE_ASCII"
         self.assert_invalid(self.valid, "identifier_policy altered")
 
+    def test_causality_identifier_separator_altered(self):
+        self.valid["causality"]["identifier_separator"] = "/"
+        self.assert_invalid(self.valid, "identifier_separator altered")
+
     def test_drift_id_prefix_altered(self):
         self.valid["causality"]["drift"]["id_prefix"] = "DRIFT"
         self.assert_invalid(self.valid, "drift.id_prefix DRIFT")
@@ -2550,8 +2584,26 @@ class CausalityTest(unittest.TestCase):
         drift = self.causality.get("drift", {})
         self.assertEqual("omit_contribution", drift.get("zero_realized_delta_policy"))
 
-    def test_invalid_key_separator_comma_rejected(self):
-        key = "SYSTEM:REG_DRIFT.regions.arica_parinacota.support"
+    def test_identifier_separator_is_dot(self):
+        self.assertEqual(
+            EXPECTED_IDENTIFIER_SEPARATOR,
+            self.causality.get("identifier_separator"),
+        )
+
+    def test_comma_separator_key_rejected(self):
+        bad = "SYSTEM,REG_DRIFT.regions.arica_parinacota.support"
+        errors = validate_canonical_cause_key(bad)
+        self.assertTrue(errors, f"Expected errors for {bad}")
+
+    def test_zero_colon_key_rejected_without_exception(self):
+        bad = "SYSTEM.REG_DRIFT.regions.arica_parinacota.support"
+        errors = validate_canonical_cause_key(bad)
+        self.assertTrue(errors, f"Expected errors for {bad}")
+        for e in errors:
+            self.assertNotIsInstance(e, Exception)
+
+    def test_general_system_identifier_matching_cause_ref_grammar_is_valid(self):
+        key = "SYSTEM:CUSTOM.example"
         self.assertEqual([], validate_canonical_cause_key(key))
 
     def test_invalid_colon_in_region_id_rejected(self):
@@ -2673,14 +2725,21 @@ class CausalityParityTest(unittest.TestCase):
             source,
         )
 
-    def test_tick_causal_buffer_requires_visible_targets(self):
+    def test_track_target_requires_visible(self):
         source = self.ledger_path.read_text(encoding="utf-8")
-        self.assertIn("RequireVisible(target)", source)
+        body = extract_csharp_method_body(source, "public void TrackTarget(TargetPath target, int initialValueS)")
+        self.assertIn("_visibleTargets.RequireVisible(target)", body)
+
+    def test_record_contribution_requires_visible(self):
+        source = self.ledger_path.read_text(encoding="utf-8")
+        body = extract_csharp_method_body(source, "public void RecordContribution(TargetPath target, CauseRef cause, long realizedDeltaS)")
+        self.assertIn("_visibleTargets.RequireVisible(target)", body)
 
     def test_record_contribution_omits_zero(self):
         source = self.ledger_path.read_text(encoding="utf-8")
-        self.assertIn("if (realizedDeltaS == 0)", source)
-        self.assertIn("return;", source)
+        body = extract_csharp_method_body(source, "public void RecordContribution(TargetPath target, CauseRef cause, long realizedDeltaS)")
+        self.assertIn("if (realizedDeltaS == 0)", body)
+        self.assertIn("return;", body)
 
     def test_visible_catalog_contains_regional_targets(self):
         source = self.catalog_path.read_text(encoding="utf-8")

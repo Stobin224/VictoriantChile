@@ -420,8 +420,8 @@ one-tick latency.
   snapshot semantics. This revision completes that freeze.
 - PR 15.1-E freezes pull mechanics, weighted average regional,
   bindings, and latency. This revision completes that freeze.
-- PR 15.1-F will freeze causal keys `REG_DRIFT` and ephemeral
-  `REG_TO_INT` identities.
+- PR 15.1-F freezes `REG_DRIFT` causal keys and ephemeral
+  `REG_TO_INT` identities. This revision completes that freeze.
 - PR 15.1-G will freeze atomicity and fail-closed contractual rules.
 - PR 15.2 through 15.4 will implement the productive runtime plan.
 
@@ -633,7 +633,7 @@ The simulation tick order relevant to territorial feedback:
     contract defines their semantics but does not activate runtime
     execution.
 
-### Territorial causality and hidden provenance
+## Territorial causality and hidden provenance
 
 Causal attribution of territorial changes follows a two-tier system:
 public REG_DRIFT causes for visible regional targets, and ephemeral
