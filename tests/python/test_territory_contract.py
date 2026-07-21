@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import json
+import re
 import unittest
 from pathlib import Path
 
@@ -9,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 BEGIN_MARKER = "<!-- BEGIN CANONICAL REGION AUTHORITY -->"
 END_MARKER = "<!-- END CANONICAL REGION AUTHORITY -->"
+TERRITORY_CONTRACT_PATH = ROOT / "docs" / "territory_contract.md"
 
 # Independent frozen contract expected values — NOT derived from Content Pack.
 EXPECTED_CANONICAL_REGION_ORDER = [
@@ -1549,6 +1551,334 @@ def validate_content_pack_against_contract(
                 )
 
     return errors
+
+
+MVP_DECISIONS_PATH = ROOT / "docs" / "mvp_contract_decisions.json"
+
+EXPECTED_MVP_013_RESOLUTION_KEYS = [
+    "canonical_region_order",
+    "regional_dynamic_targets",
+    "static_regional_resources",
+    "numeric_domain",
+    "drift",
+    "pull",
+    "phase_order",
+    "snapshot_semantics",
+    "latency",
+    "cause_key_grammar",
+    "hidden_pull_provenance",
+    "pass_execution_semantics",
+    "active_reform_bias_exclusion",
+    "vectors",
+    "scope",
+    "non_scope",
+]
+
+EXPECTED_MVP_013_HUMAN_CROSSWALK = {
+    "canonical_region_order": "Canonical regional authority",
+    "regional_dynamic_targets": "Normative rules",
+    "static_regional_resources": "Normative rules",
+    "numeric_domain": "Numeric domain and phase 9 drift",
+    "drift": "Numeric domain and phase 9 drift",
+    "pull": "Phase 10 regional pull and one-tick latency",
+    "phase_order": "Phase order and snapshot semantics",
+    "snapshot_semantics": "Phase order and snapshot semantics",
+    "latency": "Phase 10 regional pull and one-tick latency",
+    "cause_key_grammar": "Territorial causality and hidden provenance",
+    "hidden_pull_provenance": "Territorial causality and hidden provenance",
+    "pass_execution_semantics": "Territorial atomicity and fail-closed semantics",
+    "active_reform_bias_exclusion": "Active reform bias exclusion",
+    "vectors": "Execution vector registry",
+    "scope": "Scope and non-scope",
+    "non_scope": "Scope and non-scope",
+}
+
+EXPECTED_PHASE_ORDER = {
+    "aggregate_national_metrics": 8,
+    "drift_national_to_regions": 9,
+    "pull_regions_to_internals": 10,
+    "close_causal_report": 15,
+    "detect_and_publish_blocking_decision": 16,
+}
+
+EXPECTED_SNAPSHOT_SEMANTICS = {
+    "phase_9_snapshot": "post_phase_8_immutable",
+    "phase_9_all_outputs_share_snapshot": True,
+    "phase_9_rival_support_source": "phase_input_snapshot_pre_drift",
+    "phase_10_snapshot": "post_phase_9_immutable",
+    "phase_10_all_bindings_share_snapshot": True,
+    "phase_10_binding_chaining": False,
+}
+
+EXPECTED_ACTIVE_REFORM_BIAS_EXCLUSION = {
+    "included_in_pr_15_x": False,
+    "runtime_hook": False,
+    "placeholder": False,
+    "neutral_branch": False,
+    "cause_key": None,
+    "implementation_owner": "PR_19_4",
+}
+
+EXPECTED_VECTOR_REGISTRY = {
+    "rounding": ["R-01", "R-02"],
+    "drift": [
+        "D-00", "D-01", "D-02", "D-03", "D-04",
+        "D-05", "D-06", "D-07", "D-08", "D-08-WRONG",
+        "D-09", "D-10",
+    ],
+    "pull": ["P-00", "P-01", "P-02", "P-03", "P-04", "P-05"],
+    "latency": ["L-01-T", "L-01-T1-R", "L-01-T1-A", "L-01-CAUSE"],
+    "ordering": ["O-01", "O-02", "O-03", "O-04", "O-05"],
+    "fixture_owner": "PR_15_1_J",
+    "oracle_owner": "PR_15_1_K",
+}
+
+EXPECTED_MVP_013_SCOPE = [
+    "machine_readable_territory_contract",
+    "human_readable_territory_contract",
+    "execution_vectors",
+    "independent_python_oracle",
+    "contract_parity_and_negative_tests",
+]
+
+EXPECTED_MVP_013_NON_SCOPE = [
+    "runtime_csharp_implementation",
+    "scheduler_phase_activation",
+    "game_state_schema_changes",
+    "content_pack_changes",
+    "persistence_or_migrations",
+    "active_reform_bias_before_PR_19_4",
+    "ui_or_turn_report_changes",
+]
+
+
+def read_mvp_013_resolution() -> dict:
+    data = json.loads(MVP_DECISIONS_PATH.read_bytes().decode("utf-8"))
+    mvp_013 = None
+    for d in data["decisions"]:
+        if d["id"] == "MVP-013-territory-feedback":
+            mvp_013 = d
+            break
+    assert mvp_013 is not None, "MVP-013-territory-feedback not found"
+    assert mvp_013["status"] == "approved"
+    assert mvp_013 is data["decisions"][-1], "MVP-013 is not the last decision"
+    return mvp_013["resolution"]
+
+
+def extract_h2_section(text: str, heading: str) -> str:
+    pattern = re.compile(
+        rf"^## {re.escape(heading)}\r?\n(.*?)(?=\n## |\n# |\Z)",
+        re.MULTILINE | re.DOTALL,
+    )
+    match = pattern.search(text)
+    if not match:
+        raise ValueError(f"H2 section '{heading}' not found")
+    return match.group(1).strip()
+
+
+def parse_table_to_dict(table_text: str) -> dict:
+    rows = table_text.strip().split("\n")
+    result = {}
+    for row in rows:
+        row = row.strip()
+        if not row or row.startswith("|---") or row.startswith("|--"):
+            continue
+        if not row.startswith("|"):
+            continue
+        parts = [p.strip() for p in row.split("|")]
+        parts = [p for p in parts if p]
+        if len(parts) >= 2:
+            key = parts[0].strip("`")
+            value = parts[1].strip("`")
+            result[key] = value
+    return result
+
+
+class Mvp013HumanContractTest(unittest.TestCase):
+    """Tests for the MVP-013-territory-feedback human contract representation."""
+
+    def test_mvp_013_resolution_has_exact_ordered_keys(self):
+        resolution = read_mvp_013_resolution()
+        keys = list(resolution.keys())
+        self.assertEqual(keys, EXPECTED_MVP_013_RESOLUTION_KEYS)
+
+    def test_human_correspondence_has_all_16_keys_in_order(self):
+        text = TERRITORY_CONTRACT_PATH.read_text("utf-8")
+        section = extract_h2_section(text, "MVP-013 human-readable correspondence")
+        table_lines = [l for l in section.split("\n") if l.startswith("|") and not l.startswith("|---")]
+        keys_in_order = []
+        for line in table_lines:
+            parts = [p.strip().strip("`") for p in line.split("|")]
+            parts = [p for p in parts if p]
+            if len(parts) >= 1:
+                key = parts[0]
+                if key == "Resolution key":
+                    continue
+                keys_in_order.append(key)
+        self.assertEqual(keys_in_order, EXPECTED_MVP_013_RESOLUTION_KEYS)
+
+    def test_human_correspondence_targets_exact_sections(self):
+        text = TERRITORY_CONTRACT_PATH.read_text("utf-8")
+        section = extract_h2_section(text, "MVP-013 human-readable correspondence")
+        table = parse_table_to_dict(section)
+        for key, expected_section in EXPECTED_MVP_013_HUMAN_CROSSWALK.items():
+            actual = table.get(key, "")
+            self.assertEqual(actual, expected_section, f"Mismatch for key {key}")
+
+    def test_phase_order_human_section_matches_mvp_013(self):
+        resolution = read_mvp_013_resolution()
+        text = TERRITORY_CONTRACT_PATH.read_text("utf-8")
+        section = extract_h2_section(text, "Phase order and snapshot semantics")
+        table = parse_table_to_dict(section)
+        phase_order = resolution["phase_order"]
+        for key, expected_value in phase_order.items():
+            actual_value = int(table.get(key, "-1"))
+            self.assertEqual(actual_value, expected_value, f"Phase {key}")
+
+    def test_snapshot_semantics_human_section_matches_mvp_013(self):
+        resolution = read_mvp_013_resolution()
+        text = TERRITORY_CONTRACT_PATH.read_text("utf-8")
+        section = extract_h2_section(text, "Phase order and snapshot semantics")
+        tables = section.split("|---|---|")
+        if len(tables) < 2:
+            self.fail("Need two tables in phase order section")
+        second_table_text = tables[-1]
+        snapshot_map = {}
+        for line in second_table_text.strip().split("\n"):
+            line = line.strip()
+            if not line or line.startswith("|---") or line.startswith("|--"):
+                continue
+            if not line.startswith("|"):
+                continue
+            parts = [p.strip().strip("`") for p in line.split("|")]
+            parts = [p for p in parts if p]
+            if len(parts) >= 2:
+                key = parts[0]
+                value = parts[1]
+                if value == "true":
+                    value = True
+                elif value == "false":
+                    value = False
+                elif value == "null":
+                    value = None
+                snapshot_map[key] = value
+        self.assertEqual(snapshot_map, resolution["snapshot_semantics"])
+
+    def test_active_reform_bias_exclusion_human_section_matches_mvp_013(self):
+        resolution = read_mvp_013_resolution()
+        text = TERRITORY_CONTRACT_PATH.read_text("utf-8")
+        section = extract_h2_section(text, "Active reform bias exclusion")
+        table = parse_table_to_dict(section)
+        arb = resolution["active_reform_bias_exclusion"]
+        for key, expected_value in arb.items():
+            raw = table.get(key, "MISSING")
+            if expected_value is None:
+                self.assertEqual(raw, "null", f"ARB {key} expected null")
+            elif isinstance(expected_value, bool):
+                self.assertEqual(raw, str(expected_value).lower(), f"ARB {key}")
+            else:
+                self.assertEqual(raw, str(expected_value), f"ARB {key}")
+
+    def test_execution_vector_registry_matches_mvp_013(self):
+        resolution = read_mvp_013_resolution()
+        vectors = resolution["vectors"]
+        text = TERRITORY_CONTRACT_PATH.read_text("utf-8")
+        section = extract_h2_section(text, "Execution vector registry")
+        for category in ("rounding", "drift", "pull", "latency", "ordering"):
+            expected_ids = vectors[category]
+            h3_heading = category.capitalize()
+            h3_pattern = re.compile(
+                rf"### {re.escape(h3_heading)}\n(.*?)(?=\n### |\n## |\Z)",
+                re.DOTALL,
+            )
+            h3_match = h3_pattern.search(section)
+            self.assertIsNotNone(h3_match, f"H3 '{h3_heading}' not found")
+            h3_text = h3_match.group(1)
+            listed_ids = re.findall(r"`([^`]+)`", h3_text)
+            self.assertEqual(listed_ids, expected_ids, f"Vector category {category}")
+        fixture_match = re.search(r"fixture owner: `([^`]+)`", section)
+        self.assertIsNotNone(fixture_match)
+        self.assertEqual(fixture_match.group(1), vectors["fixture_owner"])
+        oracle_match = re.search(r"oracle owner: `([^`]+)`", section)
+        self.assertIsNotNone(oracle_match)
+        self.assertEqual(oracle_match.group(1), vectors["oracle_owner"])
+
+    def test_execution_vector_registry_has_no_p06(self):
+        text = TERRITORY_CONTRACT_PATH.read_text("utf-8")
+        section = extract_h2_section(text, "Execution vector registry")
+        h3_pattern = re.compile(r"### Pull\n(.*?)(?=\n### |\n## |\Z)", re.DOTALL)
+        h3_match = h3_pattern.search(section)
+        self.assertIsNotNone(h3_match)
+        pull_text = h3_match.group(1)
+        self.assertNotIn("P-06", pull_text)
+        resolution = read_mvp_013_resolution()
+        self.assertNotIn("P-06", resolution["vectors"]["pull"])
+
+    def test_scope_human_section_matches_mvp_013(self):
+        resolution = read_mvp_013_resolution()
+        text = TERRITORY_CONTRACT_PATH.read_text("utf-8")
+        section = extract_h2_section(text, "Scope and non-scope")
+        scope_pattern = re.compile(r"### Scope\n(.*?)(?=\n### Non-scope)", re.DOTALL)
+        scope_match = scope_pattern.search(section)
+        self.assertIsNotNone(scope_match)
+        scope_lines = [
+            l.strip().strip("`")
+            for l in scope_match.group(1).strip().split("\n")
+            if l.strip() and not l.strip().startswith("#")
+        ]
+        scope_items = []
+        for line in scope_lines:
+            line = line.strip()
+            if line and line[0].isdigit() and ". " in line:
+                item = line.split(". ", 1)[1].strip("`")
+                scope_items.append(item)
+        self.assertEqual(scope_items, resolution["scope"])
+
+    def test_non_scope_human_section_matches_mvp_013(self):
+        resolution = read_mvp_013_resolution()
+        text = TERRITORY_CONTRACT_PATH.read_text("utf-8")
+        section = extract_h2_section(text, "Scope and non-scope")
+        non_scope_pattern = re.compile(r"### Non-scope\n(.*?)(?=\n## |\Z)", re.DOTALL)
+        non_scope_match = non_scope_pattern.search(section)
+        self.assertIsNotNone(non_scope_match)
+        non_scope_lines = [
+            l.strip().strip("`")
+            for l in non_scope_match.group(1).strip().split("\n")
+            if l.strip() and not l.strip().startswith("#")
+        ]
+        non_scope_items = []
+        for line in non_scope_lines:
+            line = line.strip()
+            if line and line[0].isdigit() and ". " in line:
+                item = line.split(". ", 1)[1].strip("`")
+                non_scope_items.append(item)
+        self.assertEqual(non_scope_items, resolution["non_scope"])
+
+    def test_human_contract_declares_runtime_not_implemented(self):
+        text = TERRITORY_CONTRACT_PATH.read_text("utf-8")
+        self.assertIn("not activate scheduler", text)
+        self.assertIn("deferred to PR 15.2", text)
+        self.assertIn("remain no-op", text)
+
+    def test_human_contract_declares_active_reform_owner_pr_19_4(self):
+        text = TERRITORY_CONTRACT_PATH.read_text("utf-8")
+        self.assertIn("PR_19_4", text)
+        self.assertIn("active reform bias", text.lower())
+
+    def test_human_sections_are_unique(self):
+        text = TERRITORY_CONTRACT_PATH.read_text("utf-8")
+        headings = re.findall(r"^## ([^\n]+)", text, re.MULTILINE)
+        self.assertEqual(len(headings), len(set(headings)))
+
+    def test_contract_contains_no_open_terms(self):
+        text = TERRITORY_CONTRACT_PATH.read_text("utf-8").lower()
+        forbidden = ["todo", "tbd", "por decidir", "preferentemente", "podría", "to be decided", "pending decision", "could be decided"]
+        for term in forbidden:
+            self.assertNotIn(term, text, f"Found forbidden term: {term}")
+
+    def test_contract_contains_no_wrong_mvp_013_id(self):
+        text = TERRITORY_CONTRACT_PATH.read_text("utf-8")
+        self.assertNotIn("MVP-013-territorial-feedback", text)
 
 
 class RoundingHelperTest(unittest.TestCase):

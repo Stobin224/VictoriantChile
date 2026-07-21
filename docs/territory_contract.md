@@ -2,11 +2,17 @@
 
 ## Contract status
 
+The machine-readable authority for the territory feedback contract is
+`MVP-013-territory-feedback`, registered in
+`docs/mvp_contract_decisions.json`. This document is its
+self-contained human representation.
+
 This revision freezes the canonical regional authority, ordering rules,
 numeric domain, phase 9 drift formulas defined by PR 15.1-C and
 PR 15.1-D, and the phase 10 regional pull mechanics, bindings, and
 one-tick latency defined by PR 15.1-E. It does not activate scheduler
-phases 9 or 10.
+phases 9 or 10. Runtime implementation is deferred to PR 15.2 through
+PR 15.4. Active reform bias remains excluded until PR 19.4.
 
 ## Canonical regional authority
 
@@ -499,16 +505,16 @@ one-tick latency.
 
 ## Contract boundaries with later PRs
 
-- PR 15.1-D freezes drift formulas (support, tension,
-  organization, rival_presence), `alpha_ppm`, caps, rounding, and
-  snapshot semantics. This revision completes that freeze.
-- PR 15.1-E freezes pull mechanics, weighted average regional,
-  bindings, and latency. This revision completes that freeze.
-- PR 15.1-F freezes `REG_DRIFT` causal keys and ephemeral
-  `REG_TO_INT` identities. This revision completes that freeze.
-- PR 15.1-G freezes territorial atomicity and fail-closed contractual rules.
-  This revision completes that freeze.
-- PR 15.2 through 15.4 will implement the productive runtime plan.
+- PR 15.1-H registers MVP-013-territory-feedback as the machine-readable
+  authority.
+- PR 15.1-I completes its self-contained human representation with
+  exact correspondence tables, phase order, snapshot semantics,
+  active reform bias exclusion, vector registry, and scope boundaries.
+- PR 15.1-J creates the fixture.
+- PR 15.1-K creates the oracle.
+- PR 15.1-L completes parity and negative tests.
+- PR 15.2 through 15.4 implement the productive runtime plan.
+- PR 19.4 implements active reform bias.
 
 ## Numeric domain and phase 9 drift
 
@@ -835,3 +841,148 @@ Phases 9 and 10 remain separate passes, phase 9 still plans 64 outputs, phase 10
 8. The observable rollback case is deferred to PR 15.4.
 9. Phases 9 and 10 remain no-op in the runtime.
 10. Implementation and runtime testing remain deferred to PRs 15.2 through 15.4.
+
+## MVP-013 human-readable correspondence
+
+The following table maps each of the 16 ordered keys of
+`MVP-013-territory-feedback.resolution` to the corresponding human
+section in this document.
+
+| Resolution key | Human section |
+|---|---|
+| `canonical_region_order` | `Canonical regional authority` |
+| `regional_dynamic_targets` | `Normative rules` |
+| `static_regional_resources` | `Normative rules` |
+| `numeric_domain` | `Numeric domain and phase 9 drift` |
+| `drift` | `Numeric domain and phase 9 drift` |
+| `pull` | `Phase 10 regional pull and one-tick latency` |
+| `phase_order` | `Phase order and snapshot semantics` |
+| `snapshot_semantics` | `Phase order and snapshot semantics` |
+| `latency` | `Phase 10 regional pull and one-tick latency` |
+| `cause_key_grammar` | `Territorial causality and hidden provenance` |
+| `hidden_pull_provenance` | `Territorial causality and hidden provenance` |
+| `pass_execution_semantics` | `Territorial atomicity and fail-closed semantics` |
+| `active_reform_bias_exclusion` | `Active reform bias exclusion` |
+| `vectors` | `Execution vector registry` |
+| `scope` | `Scope and non-scope` |
+| `non_scope` | `Scope and non-scope` |
+
+## Phase order and snapshot semantics
+
+| Resolution key | Phase |
+|---|---:|
+| `aggregate_national_metrics` | 8 |
+| `drift_national_to_regions` | 9 |
+| `pull_regions_to_internals` | 10 |
+| `close_causal_report` | 15 |
+| `detect_and_publish_blocking_decision` | 16 |
+
+| Snapshot rule | Contract value |
+|---|---|
+| `phase_9_snapshot` | `post_phase_8_immutable` |
+| `phase_9_all_outputs_share_snapshot` | `true` |
+| `phase_9_rival_support_source` | `phase_input_snapshot_pre_drift` |
+| `phase_10_snapshot` | `post_phase_9_immutable` |
+| `phase_10_all_bindings_share_snapshot` | `true` |
+| `phase_10_binding_chaining` | `false` |
+
+Phase 9 and phase 10 are separate passes. The 64 outputs of phase 9
+share a single immutable post-phase-8 snapshot. The five bindings of
+phase 10 share a single immutable post-phase-9 snapshot.
+`rival_presence` reads support from the pre-drift snapshot
+(`phase_input_snapshot_pre_drift`), not the post-drift computed value.
+No binding chaining exists within phase 10.
+
+## Active reform bias exclusion
+
+| Field | Value |
+|---|---|
+| `included_in_pr_15_x` | `false` |
+| `runtime_hook` | `false` |
+| `placeholder` | `false` |
+| `neutral_branch` | `false` |
+| `cause_key` | `null` |
+| `implementation_owner` | `PR_19_4` |
+
+PR 15.x does not contain active territorial reform bias. No runtime
+hook exists. No placeholder exists. No neutral branch exists. No
+CauseKey is reserved. The implementation belongs exclusively to
+PR 19.4.
+
+## Execution vector registry
+
+### Rounding
+
+- `R-01`
+- `R-02`
+
+### Drift
+
+- `D-00`
+- `D-01`
+- `D-02`
+- `D-03`
+- `D-04`
+- `D-05`
+- `D-06`
+- `D-07`
+- `D-08`
+- `D-08-WRONG`
+- `D-09`
+- `D-10`
+
+### Pull
+
+- `P-00`
+- `P-01`
+- `P-02`
+- `P-03`
+- `P-04`
+- `P-05`
+
+### Latency
+
+- `L-01-T`
+- `L-01-T1-R`
+- `L-01-T1-A`
+- `L-01-CAUSE`
+
+### Ordering
+
+- `O-01`
+- `O-02`
+- `O-03`
+- `O-04`
+- `O-05`
+
+### Ownership
+
+- fixture owner: `PR_15_1_J`
+- oracle owner: `PR_15_1_K`
+
+This section registers the exact vector IDs and their ownership. It
+does not create expected values, fixtures, or oracles.
+
+## Scope and non-scope
+
+### Scope
+
+1. `machine_readable_territory_contract`
+2. `human_readable_territory_contract`
+3. `execution_vectors`
+4. `independent_python_oracle`
+5. `contract_parity_and_negative_tests`
+
+### Non-scope
+
+1. `runtime_csharp_implementation`
+2. `scheduler_phase_activation`
+3. `game_state_schema_changes`
+4. `content_pack_changes`
+5. `persistence_or_migrations`
+6. `active_reform_bias_before_PR_19_4`
+7. `ui_or_turn_report_changes`
+
+The scope describes the complete PR 15.1 contract, not only commit I.
+Fixture, oracle, and negative tests complete in PR 15.1-J through
+PR 15.1-L. Non-scope items remain prohibited during PR 15.1.
