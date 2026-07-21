@@ -55,6 +55,22 @@ EXPECTED_STATIC_RESOURCES = {
 }
 EXPECTED_STATIC_RESOURCE_NAMES = sorted(EXPECTED_STATIC_RESOURCES.keys())
 
+EXPECTED_TOP_LEVEL_KEYS = {
+    "canonical_region_order",
+    "regional_dynamic_targets",
+    "static_regional_resources",
+}
+
+EXPECTED_CANONICAL_ORDER_KEYS = {
+    "authority",
+    "source_path",
+    "region_count",
+    "ordered_region_ids",
+    "weight_ppm_each",
+    "weight_ppm_sum_required",
+    "forbidden_order_sources",
+}
+
 
 def load_json(path: Path):
     return json.loads(path.read_text(encoding="utf-8"))
@@ -76,6 +92,12 @@ def validate_contract(contract: dict) -> list[str]:
 
     order = contract.get("canonical_region_order", {})
     ids = order.get("ordered_region_ids", [])
+
+    if order.get("region_count") != EXPECTED_REGION_COUNT:
+        errors.append(
+            f"region_count expected {EXPECTED_REGION_COUNT}, "
+            f"got {order.get('region_count')}"
+        )
 
     if len(ids) != EXPECTED_REGION_COUNT:
         errors.append(
@@ -111,6 +133,32 @@ def validate_contract(contract: dict) -> list[str]:
             f"{order.get('forbidden_order_sources')}"
         )
 
+    actual_keys = set(contract.keys())
+    if actual_keys != EXPECTED_TOP_LEVEL_KEYS:
+        missing = EXPECTED_TOP_LEVEL_KEYS - actual_keys
+        extra = actual_keys - EXPECTED_TOP_LEVEL_KEYS
+        if missing:
+            errors.append(
+                f"Missing top-level key(s): {sorted(missing)}"
+            )
+        if extra:
+            errors.append(
+                f"Unexpected top-level key(s): {sorted(extra)}"
+            )
+
+    actual_order_keys = set(order.keys())
+    if actual_order_keys != EXPECTED_CANONICAL_ORDER_KEYS:
+        missing = EXPECTED_CANONICAL_ORDER_KEYS - actual_order_keys
+        extra = actual_order_keys - EXPECTED_CANONICAL_ORDER_KEYS
+        if missing:
+            errors.append(
+                f"Missing canonical_region_order key(s): {sorted(missing)}"
+            )
+        if extra:
+            errors.append(
+                f"Unexpected canonical_region_order key(s): {sorted(extra)}"
+            )
+
     targets = contract.get("regional_dynamic_targets", [])
     if targets != EXPECTED_DYNAMIC_TARGETS:
         errors.append(
@@ -134,7 +182,6 @@ def validate_content_pack_against_contract(
     errors = []
     contract_order = contract["canonical_region_order"]
     contract_ids = contract_order["ordered_region_ids"]
-    source_path = contract_order["source_path"]
 
     if "regions" not in regions_data:
         return ["Content Pack has no 'regions' key"]
@@ -142,13 +189,11 @@ def validate_content_pack_against_contract(
     cp_regions = regions_data["regions"]
     cp_ids = [r["id"] for r in cp_regions]
 
-    # Content Pack declaration order must match contract
     if cp_ids != contract_ids:
         errors.append(
             "Content Pack region order does not match contract canonical order"
         )
 
-    # Each region must have weight_ppm = 62500
     for i, r in enumerate(cp_regions):
         if r.get("weight_ppm") != EXPECTED_WEIGHT_PPM_EACH:
             errors.append(
@@ -156,7 +201,6 @@ def validate_content_pack_against_contract(
                 f"expected {EXPECTED_WEIGHT_PPM_EACH}"
             )
 
-    # Sum of weights must be 1000000
     total_ppm = sum(r.get("weight_ppm", 0) for r in cp_regions)
     if total_ppm != EXPECTED_WEIGHT_PPM_SUM:
         errors.append(
@@ -164,7 +208,6 @@ def validate_content_pack_against_contract(
             f"expected {EXPECTED_WEIGHT_PPM_SUM}"
         )
 
-    # Each region must contain the five static resources at value 5000
     static_names = EXPECTED_STATIC_RESOURCE_NAMES
     for i, r in enumerate(cp_regions):
         rid = r.get("id", f"index_{i}")
@@ -212,6 +255,12 @@ class CanonicalRegionalAuthorityTest(unittest.TestCase):
     def test_contract_has_exactly_16_region_ids(self):
         ids = self.contract["canonical_region_order"]["ordered_region_ids"]
         self.assertEqual(EXPECTED_REGION_COUNT, len(ids))
+
+    def test_region_count_field_is_16(self):
+        self.assertEqual(
+            EXPECTED_REGION_COUNT,
+            self.contract["canonical_region_order"]["region_count"],
+        )
 
     def test_region_ids_are_unique(self):
         ids = self.contract["canonical_region_order"]["ordered_region_ids"]
@@ -345,13 +394,37 @@ class ContractIntegrityTest(unittest.TestCase):
         cls.root = ROOT
         cls.contract_path = cls.root / "docs" / "territory_contract.md"
 
-    def test_contract_has_begin_marker(self):
+    def test_begin_marker_appears_exactly_once(self):
         text = self.contract_path.read_text(encoding="utf-8")
-        self.assertIn(BEGIN_MARKER, text)
+        count = text.count(BEGIN_MARKER)
+        self.assertEqual(1, count, f"BEGIN_MARKER appears {count} times")
 
-    def test_contract_has_end_marker(self):
+    def test_end_marker_appears_exactly_once(self):
         text = self.contract_path.read_text(encoding="utf-8")
-        self.assertIn(END_MARKER, text)
+        count = text.count(END_MARKER)
+        self.assertEqual(1, count, f"END_MARKER appears {count} times")
+
+    def test_begin_marker_before_end_marker(self):
+        text = self.contract_path.read_text(encoding="utf-8")
+        begin_pos = text.index(BEGIN_MARKER)
+        end_pos = text.index(END_MARKER)
+        self.assertLess(
+            begin_pos, end_pos,
+            "BEGIN_MARKER must appear before END_MARKER",
+        )
+
+    def test_json_block_is_between_markers(self):
+        text = self.contract_path.read_text(encoding="utf-8")
+        begin_pos = text.index(BEGIN_MARKER)
+        end_pos = text.index(END_MARKER)
+        json_start = text.index("{", begin_pos)
+        json_end = text.rindex("}", 0, end_pos) + 1
+        self.assertGreater(json_start, begin_pos)
+        self.assertLess(json_end, end_pos)
+        parsed = json.loads(text[json_start:json_end])
+        self.assertIn("canonical_region_order", parsed)
+        self.assertIn("regional_dynamic_targets", parsed)
+        self.assertIn("static_regional_resources", parsed)
 
     def test_contract_parses_as_valid_json(self):
         text = self.contract_path.read_text(encoding="utf-8")
@@ -373,6 +446,18 @@ class ContractIntegrityTest(unittest.TestCase):
                 line.rstrip(),
                 f"Line {i} has trailing whitespace: {line!r}",
             )
+
+    def test_no_utf8_bom(self):
+        raw = self.contract_path.read_bytes()
+        self.assertFalse(raw.startswith(b"\xef\xbb\xbf"), "File must not have UTF-8 BOM")
+
+    def test_no_carriage_return_bytes(self):
+        raw = self.contract_path.read_bytes()
+        self.assertNotIn(b"\r", raw, "File must not contain CR bytes")
+
+    def test_file_is_valid_utf8(self):
+        raw = self.contract_path.read_bytes()
+        raw.decode("utf-8")
 
 
 class MutationMatrixTest(unittest.TestCase):
@@ -488,6 +573,26 @@ class MutationMatrixTest(unittest.TestCase):
             "forbidden_order_sources"
         ] = EXPECTED_FORBIDDEN_SOURCES[:-1]
         self.assert_invalid(self.valid, "forbidden source removed")
+
+    def test_region_count_wrong(self):
+        self.valid["canonical_region_order"]["region_count"] = 15
+        self.assert_invalid(self.valid, "region_count = 15")
+
+    def test_extra_top_level_key(self):
+        self.valid["extra_key"] = "unexpected"
+        self.assert_invalid(self.valid, "extra top-level key")
+
+    def test_missing_top_level_key(self):
+        self.valid.pop("static_regional_resources")
+        self.assert_invalid(self.valid, "missing top-level key")
+
+    def test_extra_canonical_order_key(self):
+        self.valid["canonical_region_order"]["extra_key"] = True
+        self.assert_invalid(self.valid, "extra key in canonical_region_order")
+
+    def test_missing_canonical_order_key(self):
+        self.valid["canonical_region_order"].pop("forbidden_order_sources")
+        self.assert_invalid(self.valid, "missing key in canonical_region_order")
 
     def test_valid_contract_passes(self):
         self.assert_valid(self.valid, "valid contract should pass")
