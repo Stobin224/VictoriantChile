@@ -482,7 +482,7 @@
             "last_addressed_tick": 0
           },
           {
-            "theme": "servicios pÃºblicos",
+            "theme": "servicios públicos",
             "movement_id": "mov_salud_crisis_atencion",
             "enabled": true,
             "initial_intensityS": 3000,

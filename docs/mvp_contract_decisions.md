@@ -35,8 +35,6 @@ PR 8 is documentation, contract, and test only. It does not implement gameplay, 
 ## Canonical JSON
 
 ```json
-
-
 {
   "schema_version": 2,
   "register_status": "frozen",
@@ -521,7 +519,7 @@ PR 8 is documentation, contract, and test only. It does not implement gameplay, 
             "last_addressed_tick": 0
           },
           {
-            "theme": "servicios pÃºblicos",
+            "theme": "servicios públicos",
             "movement_id": "mov_salud_crisis_atencion",
             "enabled": true,
             "initial_intensityS": 3000,
