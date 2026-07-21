@@ -62,6 +62,8 @@ EXPECTED_TOP_LEVEL_KEYS = {
     "static_regional_resources",
     "numeric_domain",
     "drift",
+    "pull",
+    "latency",
 }
 
 EXPECTED_CANONICAL_ORDER_KEYS = {
@@ -187,6 +189,74 @@ EXPECTED_DRIFT_PIPELINE = [
 
 # Known per-target term count
 EXPECTED_TERM_COUNTS = {"support": 3, "tension": 3, "organization": 1, "rival_presence": 2}
+
+EXPECTED_PULL_PIPELINE = [
+    "construct_complete_weighted_sum_in_checked_long",
+    "round_weighted_average_once",
+    "target_config_clamp_target",
+    "distance_target_minus_current",
+    "multiply_distance_by_alpha_in_checked_long",
+    "round_elastic_delta_once",
+    "clamp_delta_to_weekly_cap",
+    "add_delta_to_current",
+    "target_config_clamp_final",
+    "realized_delta_final_minus_current",
+]
+
+EXPECTED_PULL_BINDING_ORDER = [
+    "support_to_coalition_strength",
+    "organization_to_field_ops",
+    "tension_to_protest_activity",
+    "rival_presence_to_opposition_obstruction",
+    "tension_to_movement_salience",
+]
+
+EXPECTED_PULL_BINDINGS = [
+    {"id": "support_to_coalition_strength", "regional_source": "support", "destination": "internals.leg.coalition_strength"},
+    {"id": "organization_to_field_ops", "regional_source": "organization", "destination": "internals.party.field_ops"},
+    {"id": "tension_to_protest_activity", "regional_source": "tension", "destination": "internals.tension.protest_activity"},
+    {"id": "rival_presence_to_opposition_obstruction", "regional_source": "rival_presence", "destination": "internals.leg.opposition_obstruction"},
+    {"id": "tension_to_movement_salience", "regional_source": "tension", "destination": "internals.agenda.movement_salience"},
+]
+
+EXPECTED_PULL = {
+    "phase": 10,
+    "phase_name": "PullRegionsToInternals",
+    "snapshot": "post_phase_9",
+    "region_order_source": "canonical_region_order.ordered_region_ids",
+    "weight_source": "content_pack_region.weight_ppm",
+    "weight_sum_required": 1000000,
+    "weighted_average_denominator": 1000000,
+    "weighted_average_intermediate_type": "checked_long",
+    "weighted_average_rounding": "HALF_AWAY_FROM_ZERO",
+    "weighted_average_division_count": 1,
+    "all_sources_read_from": "phase_input_snapshot",
+    "binding_chaining": "forbidden",
+    "alpha_ppm": 206299,
+    "cap_per_weekS": 400,
+    "output_count": 5,
+    "binding_order": list(EXPECTED_PULL_BINDING_ORDER),
+    "bindings": list(EXPECTED_PULL_BINDINGS),
+    "common_pipeline": list(EXPECTED_PULL_PIPELINE),
+}
+
+EXPECTED_PULL_KEYS = set(EXPECTED_PULL.keys())
+
+EXPECTED_LATENCY = {
+    "feedback_latency_ticks": 1,
+    "phase_8_observes": "internals_before_current_tick_pull",
+    "phase_9_writes": "regional_dynamic_targets",
+    "phase_10_writes": "five_internal_targets",
+    "same_tick_phase_8_reexecution": False,
+    "next_tick_observation_order": ["RevertInternals", "DeriveInternals", "AggregateNationalMetrics"],
+    "regional_feedback_first_visible_in_metrics": "tick_plus_1_phase_8",
+}
+
+EXPECTED_LATENCY_KEYS = set(EXPECTED_LATENCY.keys())
+
+PULL_ALPHA = 206299
+PULL_CAP = 400
+REGIONAL_WEIGHTS = [62500] * 16
 
 MID_S = 5000
 PPM_DEN = 1000000
@@ -315,6 +385,42 @@ def compute_full_drift(
     return result
 
 
+def compute_weighted_average(values: list[int], weights: list[int]) -> int:
+    if len(values) != 16 or len(weights) != 16:
+        raise ValueError("Must provide exactly 16 values and 16 weights")
+    if sum(weights) != 1000000:
+        raise ValueError("Sum of weights must be 1000000")
+    numerator = sum(v * w for v, w in zip(values, weights))
+    return round_div_half_away(numerator, 1000000)
+
+
+def compute_pull(
+    weighted_averageS: int,
+    currentS: int,
+    alpha_ppm: int = PULL_ALPHA,
+    cap: int = PULL_CAP,
+) -> dict:
+    targetS = clamp(weighted_averageS, 0, 10000)
+    distanceS = targetS - currentS
+    elastic_numerator = distanceS * alpha_ppm
+    elastic_deltaS = round_div_half_away(elastic_numerator, 1000000)
+    capped_deltaS = clamp(elastic_deltaS, -cap, cap)
+    pre_finalS = currentS + capped_deltaS
+    finalS = clamp(pre_finalS, 0, 10000)
+    realized_deltaS = finalS - currentS
+    return {
+        "weighted_averageS": weighted_averageS,
+        "targetS": targetS,
+        "distanceS": distanceS,
+        "elastic_numerator": elastic_numerator,
+        "elastic_deltaS": elastic_deltaS,
+        "capped_deltaS": capped_deltaS,
+        "pre_finalS": pre_finalS,
+        "finalS": finalS,
+        "realized_deltaS": realized_deltaS,
+    }
+
+
 def validate_numeric_domain(domain: dict) -> list[str]:
     errors = []
     if domain != EXPECTED_NUMERIC_DOMAIN:
@@ -418,6 +524,96 @@ def validate_drift(drift: dict) -> list[str]:
     return errors
 
 
+def validate_pull(pull: dict) -> list[str]:
+    errors = []
+
+    if pull.get("phase") != 10:
+        errors.append(f"pull.phase expected 10, got {pull.get('phase')}")
+    if pull.get("phase_name") != "PullRegionsToInternals":
+        errors.append(f"pull.phase_name expected 'PullRegionsToInternals', got {pull.get('phase_name')!r}")
+    if pull.get("snapshot") != "post_phase_9":
+        errors.append(f"pull.snapshot expected 'post_phase_9', got {pull.get('snapshot')!r}")
+    if pull.get("alpha_ppm") != 206299:
+        errors.append(f"pull.alpha_ppm expected 206299, got {pull.get('alpha_ppm')}")
+    if pull.get("cap_per_weekS") != 400:
+        errors.append(f"pull.cap_per_weekS expected 400, got {pull.get('cap_per_weekS')}")
+    if pull.get("weight_sum_required") != 1000000:
+        errors.append(f"pull.weight_sum_required expected 1000000, got {pull.get('weight_sum_required')}")
+    if pull.get("weighted_average_division_count") != 1:
+        errors.append(f"pull.weighted_average_division_count expected 1, got {pull.get('weighted_average_division_count')}")
+    if pull.get("weighted_average_intermediate_type") != "checked_long":
+        errors.append(f"pull.weighted_average_intermediate_type expected 'checked_long', got {pull.get('weighted_average_intermediate_type')!r}")
+    if pull.get("weighted_average_rounding") != "HALF_AWAY_FROM_ZERO":
+        errors.append(f"pull.weighted_average_rounding expected 'HALF_AWAY_FROM_ZERO', got {pull.get('weighted_average_rounding')!r}")
+    if pull.get("binding_chaining") != "forbidden":
+        errors.append(f"pull.binding_chaining expected 'forbidden', got {pull.get('binding_chaining')!r}")
+    if pull.get("region_order_source") != "canonical_region_order.ordered_region_ids":
+        errors.append(f"pull.region_order_source expected 'canonical_region_order.ordered_region_ids', got {pull.get('region_order_source')!r}")
+    if pull.get("weight_source") != "content_pack_region.weight_ppm":
+        errors.append(f"pull.weight_source expected 'content_pack_region.weight_ppm', got {pull.get('weight_source')!r}")
+    if pull.get("output_count") != 5:
+        errors.append(f"pull.output_count expected 5, got {pull.get('output_count')}")
+    if pull.get("all_sources_read_from") != "phase_input_snapshot":
+        errors.append(f"pull.all_sources_read_from expected 'phase_input_snapshot', got {pull.get('all_sources_read_from')!r}")
+    if pull.get("weighted_average_denominator") != 1000000:
+        errors.append(f"pull.weighted_average_denominator expected 1000000, got {pull.get('weighted_average_denominator')}")
+    if pull.get("binding_order") != EXPECTED_PULL_BINDING_ORDER:
+        errors.append("pull.binding_order mismatch")
+    if pull.get("common_pipeline") != EXPECTED_PULL_PIPELINE:
+        errors.append("pull.common_pipeline mismatch")
+    if pull.get("bindings") != EXPECTED_PULL_BINDINGS:
+        errors.append("pull.bindings mismatch")
+
+    actual_keys = set(pull.keys())
+    if actual_keys != EXPECTED_PULL_KEYS:
+        missing = EXPECTED_PULL_KEYS - actual_keys
+        extra = actual_keys - EXPECTED_PULL_KEYS
+        if missing:
+            errors.append(f"Missing pull key(s): {sorted(missing)}")
+        if extra:
+            errors.append(f"Unexpected pull key(s): {sorted(extra)}")
+
+    bindings = pull.get("bindings", [])
+    if len(bindings) != 5:
+        errors.append(f"pull.bindings expected 5 entries, got {len(bindings)}")
+    else:
+        ids = [b.get("id") for b in bindings]
+        if len(ids) != len(set(ids)):
+            errors.append("pull.bindings IDs are not unique")
+        destinations = [b.get("destination") for b in bindings]
+        if len(destinations) != len(set(destinations)):
+            errors.append("pull.bindings destinations are not unique")
+        tension_count = sum(1 for b in bindings if b.get("regional_source") == "tension")
+        if tension_count != 2:
+            errors.append(f"pull.bindings expected 2 with regional_source='tension', got {tension_count}")
+        for i, b in enumerate(bindings):
+            b_keys = set(b.keys())
+            if b_keys != {"id", "regional_source", "destination"}:
+                errors.append(f"pull.bindings[{i}] keys are {sorted(b_keys)}, expected ['destination', 'id', 'regional_source']")
+            if b.get("regional_source") not in EXPECTED_DYNAMIC_TARGETS:
+                errors.append(f"pull.bindings[{i}] regional_source '{b.get('regional_source')}' not in dynamic targets")
+
+    return errors
+
+
+def validate_latency(latency: dict) -> list[str]:
+    errors = []
+    actual_keys = set(latency.keys())
+    if actual_keys != EXPECTED_LATENCY_KEYS:
+        missing = EXPECTED_LATENCY_KEYS - actual_keys
+        extra = actual_keys - EXPECTED_LATENCY_KEYS
+        if missing:
+            errors.append(f"Missing latency key(s): {sorted(missing)}")
+        if extra:
+            errors.append(f"Unexpected latency key(s): {sorted(extra)}")
+    for key in EXPECTED_LATENCY_KEYS:
+        if key not in latency:
+            continue
+        if latency[key] != EXPECTED_LATENCY[key]:
+            errors.append(f"latency.{key} expected {EXPECTED_LATENCY[key]!r}, got {latency[key]!r}")
+    return errors
+
+
 def validate_contract(contract: dict) -> list[str]:
     errors = []
 
@@ -500,6 +696,12 @@ def validate_contract(contract: dict) -> list[str]:
 
     drift = contract.get("drift", {})
     errors.extend(validate_drift(drift))
+
+    pull = contract.get("pull", {})
+    errors.extend(validate_pull(pull))
+
+    latency = contract.get("latency", {})
+    errors.extend(validate_latency(latency))
 
     return errors
 
@@ -835,6 +1037,37 @@ class ContentPackAgainstContractTest(unittest.TestCase):
         self.assertEqual(62500, self.regions_data["regions"][0]["weight_ppm"])
 
 
+class PullBindingTargetConfigTest(unittest.TestCase):
+    """Validates that pull binding destinations have correct target_config entries."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.target_config = load_json(
+            ROOT / "Assets" / "StreamingAssets" / "content" / "rules" / "target_config.json"
+        )
+
+    def test_pull_binding_destinations_have_correct_target_config(self):
+        for binding in EXPECTED_PULL_BINDINGS:
+            dest = binding["destination"]
+            found = False
+            for entry in self.target_config:
+                pattern = entry["pattern"]
+                if dest.startswith(pattern.replace("*", "").rstrip(".")) or (
+                    "*" in pattern
+                    and len(dest) >= len(pattern.replace(".*", ""))
+                ):
+                    import fnmatch
+                    if fnmatch.fnmatch(dest, pattern):
+                        self.assertEqual(100, entry["scale"], f"{dest} scale != 100")
+                        self.assertEqual(0, entry["minS"], f"{dest} minS != 0")
+                        self.assertEqual(10000, entry["maxS"], f"{dest} maxS != 10000")
+                        self.assertEqual(5000, entry["defaultS"], f"{dest} defaultS != 5000")
+                        self.assertIn("SET", entry["allow_ops"], f"{dest} does not allow SET")
+                        found = True
+                        break
+            self.assertTrue(found, f"No target_config entry matches pattern for {dest}")
+
+
 class DriftExactVectorsTest(unittest.TestCase):
     """Exact drift computation vectors D-00 through D-10."""
 
@@ -977,6 +1210,117 @@ class DriftExactVectorsTest(unittest.TestCase):
         self.assertNotEqual(r["finalS"], r_200["finalS"])
 
 
+class PullExactVectorsTest(unittest.TestCase):
+    """Exact pull computation vectors P-00 through P-06."""
+
+    def _run(self, regional_values: list[int], current: int) -> dict:
+        wavg = compute_weighted_average(regional_values, REGIONAL_WEIGHTS)
+        return compute_pull(wavg, current)
+
+    def test_p00_neutral(self):
+        result = self._run([5000] * 16, 5000)
+        self.assertEqual(5000, result["weighted_averageS"])
+        self.assertEqual(5000, result["finalS"])
+        self.assertEqual(0, result["realized_deltaS"])
+
+    def test_p01_positive(self):
+        result = self._run([6000] * 16, 5000)
+        self.assertEqual(6000, result["weighted_averageS"])
+        self.assertEqual(1000, result["distanceS"])
+        self.assertEqual(206299000, result["elastic_numerator"])
+        self.assertEqual(206, result["elastic_deltaS"])
+        self.assertEqual(206, result["capped_deltaS"])
+        self.assertEqual(5206, result["finalS"])
+
+    def test_p02_negative(self):
+        result = self._run([4000] * 16, 5000)
+        self.assertEqual(4000, result["weighted_averageS"])
+        self.assertEqual(-1000, result["distanceS"])
+        self.assertEqual(-206299000, result["elastic_numerator"])
+        self.assertEqual(-206, result["elastic_deltaS"])
+        self.assertEqual(4794, result["finalS"])
+
+    def test_p03_cap_positive(self):
+        result = self._run([10000] * 16, 0)
+        self.assertEqual(10000, result["weighted_averageS"])
+        self.assertEqual(2063, result["elastic_deltaS"])
+        self.assertEqual(400, result["capped_deltaS"])
+        self.assertEqual(400, result["finalS"])
+
+    def test_p04_cap_negative(self):
+        result = self._run([0] * 16, 10000)
+        self.assertEqual(0, result["weighted_averageS"])
+        self.assertEqual(-2063, result["elastic_deltaS"])
+        self.assertEqual(-400, result["capped_deltaS"])
+        self.assertEqual(9600, result["finalS"])
+
+    def test_p05_weighted_average_rounding(self):
+        values = [5000] * 16
+        values[0] = 5008
+        numerator = sum(v * w for v, w in zip(values, REGIONAL_WEIGHTS))
+        self.assertEqual(5000500000, numerator)
+        wavg_half_away = round_div_half_away(numerator, 1000000)
+        self.assertEqual(5001, wavg_half_away)
+        wavg_truncate = numerator // 1000000
+        self.assertEqual(5000, wavg_truncate)
+        self.assertNotEqual(wavg_half_away, wavg_truncate)
+        result = compute_pull(wavg_half_away, 5000)
+        self.assertEqual(5001, result["targetS"])
+
+    def test_p06_alpha_sensitivity(self):
+        r_206299 = compute_pull(5000 + 778, 5000, alpha_ppm=206299)
+        r_206298 = compute_pull(5000 + 778, 5000, alpha_ppm=206298)
+        self.assertEqual(161, r_206299["elastic_deltaS"])
+        self.assertEqual(160, r_206298["elastic_deltaS"])
+        self.assertNotEqual(r_206299["elastic_deltaS"], r_206298["elastic_deltaS"])
+
+
+class LatencyVectorTest(unittest.TestCase):
+    """Exact T/T+1 latency vector for pull feedback."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.aggregation_config = load_json(
+            ROOT / "Assets" / "StreamingAssets" / "content" / "rules" / "aggregation_config.json"
+        )
+
+    def _find_legislative_capacity_coalition_weight(self) -> int:
+        for p in self.aggregation_config.get("passes", []):
+            if p.get("type") != "METRIC_AGGREGATION":
+                continue
+            for m in p.get("metrics", []):
+                if m.get("metric") == "metrics.legislative_capacity":
+                    for c in m.get("components", []):
+                        if c.get("target") == "internals.leg.coalition_strength":
+                            return c["weight_ppm"]
+        self.fail("legislative_capacity coalition_strength weight not found")
+
+    def test_tt1_latency_vector(self):
+        weight = self._find_legislative_capacity_coalition_weight()
+        self.assertEqual(350000, weight)
+
+        # --- Tick T ---
+        wavg = compute_weighted_average([5065] * 16, REGIONAL_WEIGHTS)
+        self.assertEqual(5065, wavg)
+        t_pull = compute_pull(wavg, 5000)
+        coalition_T = t_pull["finalS"]
+        self.assertEqual(5013, coalition_T)
+
+        legislative_capacity_T = 5000
+        self.assertEqual(5000, legislative_capacity_T)
+
+        # Counterexample: same-tick reexecution would give 5001
+        numerator = weight * (coalition_T - 5000)
+        target = 5000 + round_div_half_away(numerator, PPM_DEN)
+        same_tick = compute_pull(target, 5000)
+        self.assertEqual(5001, same_tick["finalS"])
+        self.assertNotEqual(legislative_capacity_T, same_tick["finalS"])
+
+        # --- Tick T+1 ---
+        legislative_capacity_T1 = same_tick["finalS"]
+        self.assertEqual(5001, legislative_capacity_T1)
+
+
 class ContractIntegrityTest(unittest.TestCase):
     """Validates the contract document is structurally sound."""
 
@@ -1111,6 +1455,8 @@ class MutationMatrixTest(unittest.TestCase):
                 },
                 "common_pipeline": list(EXPECTED_DRIFT_PIPELINE),
             },
+            "pull": copy.deepcopy(EXPECTED_PULL),
+            "latency": copy.deepcopy(EXPECTED_LATENCY),
         }
 
     def assert_invalid(self, contract: dict, description: str):
@@ -1309,6 +1655,114 @@ class MutationMatrixTest(unittest.TestCase):
     def test_forbidden_numeric_types_without_decimal(self):
         self.valid["numeric_domain"]["forbidden_numeric_types"] = ["float", "double"]
         self.assert_invalid(self.valid, "forbidden without decimal")
+
+    # --- Pull mutations ---
+    def test_pull_extra_key(self):
+        self.valid["pull"]["extra_key"] = True
+        self.assert_invalid(self.valid, "extra key in pull")
+
+    def test_pull_missing_key(self):
+        self.valid["pull"].pop("common_pipeline")
+        self.assert_invalid(self.valid, "missing key in pull")
+
+    def test_pull_phase_9(self):
+        self.valid["pull"]["phase"] = 9
+        self.assert_invalid(self.valid, "pull phase = 9")
+
+    def test_pull_snapshot_post_phase_8(self):
+        self.valid["pull"]["snapshot"] = "post_phase_8"
+        self.assert_invalid(self.valid, "pull snapshot = post_phase_8")
+
+    def test_pull_alpha_206298(self):
+        self.valid["pull"]["alpha_ppm"] = 206298
+        self.assert_invalid(self.valid, "pull alpha = 206298")
+
+    def test_pull_cap_401(self):
+        self.valid["pull"]["cap_per_weekS"] = 401
+        self.assert_invalid(self.valid, "pull cap = 401")
+
+    def test_pull_weight_sum_wrong(self):
+        self.valid["pull"]["weight_sum_required"] = 999999
+        self.assert_invalid(self.valid, "pull weight sum wrong")
+
+    def test_pull_division_count_2(self):
+        self.valid["pull"]["weighted_average_division_count"] = 2
+        self.assert_invalid(self.valid, "division_count = 2")
+
+    def test_pull_region_order_source_game_state(self):
+        self.valid["pull"]["region_order_source"] = "GameState.Regions"
+        self.assert_invalid(self.valid, "pull region_order_source = GameState.Regions")
+
+    def test_pull_binding_omitted(self):
+        self.valid["pull"]["bindings"].pop()
+        self.assert_invalid(self.valid, "pull binding omitted")
+
+    def test_pull_binding_extra(self):
+        self.valid["pull"]["bindings"].append(
+            {"id": "extra_binding", "regional_source": "support", "destination": "internals.extra.dest"}
+        )
+        self.assert_invalid(self.valid, "pull binding extra")
+
+    def test_pull_bindings_reordered(self):
+        b = self.valid["pull"]["bindings"]
+        b[0], b[2] = b[2], b[0]
+        self.assert_invalid(self.valid, "pull bindings reordered")
+
+    def test_pull_binding_id_duplicate(self):
+        self.valid["pull"]["bindings"][0]["id"] = "tension_to_protest_activity"
+        self.assert_invalid(self.valid, "pull binding id duplicate")
+
+    def test_pull_destination_duplicate(self):
+        self.valid["pull"]["bindings"][0]["destination"] = "internals.tension.protest_activity"
+        self.assert_invalid(self.valid, "pull destination duplicate")
+
+    def test_pull_support_wrong_destination(self):
+        self.valid["pull"]["bindings"][0]["destination"] = "internals.wrong.dest"
+        self.assert_invalid(self.valid, "pull support wrong destination")
+
+    def test_pull_one_tension_binding_removed(self):
+        self.valid["pull"]["bindings"] = [
+            b for b in self.valid["pull"]["bindings"]
+            if b["id"] != "tension_to_movement_salience"
+        ]
+        self.assert_invalid(self.valid, "one tension binding removed")
+
+    def test_pull_binding_chaining_allowed(self):
+        self.valid["pull"]["binding_chaining"] = "allowed"
+        self.assert_invalid(self.valid, "binding_chaining = allowed")
+
+    def test_pull_pipeline_step_omitted(self):
+        self.valid["pull"]["common_pipeline"] = EXPECTED_PULL_PIPELINE[:-1]
+        self.assert_invalid(self.valid, "pull pipeline step omitted")
+
+    def test_pull_pipeline_reordered(self):
+        pipe = list(EXPECTED_PULL_PIPELINE)
+        pipe[0], pipe[2] = pipe[2], pipe[0]
+        self.valid["pull"]["common_pipeline"] = pipe
+        self.assert_invalid(self.valid, "pull pipeline reordered")
+
+    # --- Latency mutations ---
+    def test_latency_extra_key(self):
+        self.valid["latency"]["extra_key"] = True
+        self.assert_invalid(self.valid, "extra key in latency")
+
+    def test_latency_missing_key(self):
+        self.valid["latency"].pop("regional_feedback_first_visible_in_metrics")
+        self.assert_invalid(self.valid, "missing key in latency")
+
+    def test_latency_ticks_0(self):
+        self.valid["latency"]["feedback_latency_ticks"] = 0
+        self.assert_invalid(self.valid, "latency ticks = 0")
+
+    def test_latency_same_tick_reexecution_true(self):
+        self.valid["latency"]["same_tick_phase_8_reexecution"] = True
+        self.assert_invalid(self.valid, "same_tick_reexecution = True")
+
+    def test_latency_next_tick_order_reordered(self):
+        order = list(self.valid["latency"]["next_tick_observation_order"])
+        order[0], order[2] = order[2], order[0]
+        self.valid["latency"]["next_tick_observation_order"] = order
+        self.assert_invalid(self.valid, "next_tick_order reordered")
 
     def test_valid_contract_passes(self):
         self.assert_valid(self.valid, "valid contract should pass")

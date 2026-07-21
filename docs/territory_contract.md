@@ -3,16 +3,19 @@
 ## Contract status
 
 This revision freezes the canonical regional authority, ordering rules,
-numeric domain, and phase 9 drift formulas defined by PR 15.1-C and
-PR 15.1-D. It does not activate scheduler phases 9 or 10.
+numeric domain, phase 9 drift formulas defined by PR 15.1-C and
+PR 15.1-D, and the phase 10 regional pull mechanics, bindings, and
+one-tick latency defined by PR 15.1-E. It does not activate scheduler
+phases 9 or 10.
 
 ## Canonical regional authority
 
 The following JSON block defines the binding regional authority and
 numeric computation rules for all territorial computation in this
 project. It is the single source of truth for region identity, count,
-order, weight, dynamic targets, static resources, numeric domain, and
-phase 9 drift formulas.
+order, weight, dynamic targets, static resources, numeric domain,
+phase 9 drift formulas, phase 10 pull mechanics, bindings, and
+one-tick latency.
 
 <!-- BEGIN CANONICAL REGION AUTHORITY -->
 ```json
@@ -188,6 +191,82 @@ phase 9 drift formulas.
       "target_config_clamp_final",
       "realized_delta_final_minus_current"
     ]
+  },
+  "pull": {
+    "phase": 10,
+    "phase_name": "PullRegionsToInternals",
+    "snapshot": "post_phase_9",
+    "region_order_source": "canonical_region_order.ordered_region_ids",
+    "weight_source": "content_pack_region.weight_ppm",
+    "weight_sum_required": 1000000,
+    "weighted_average_denominator": 1000000,
+    "weighted_average_intermediate_type": "checked_long",
+    "weighted_average_rounding": "HALF_AWAY_FROM_ZERO",
+    "weighted_average_division_count": 1,
+    "all_sources_read_from": "phase_input_snapshot",
+    "binding_chaining": "forbidden",
+    "alpha_ppm": 206299,
+    "cap_per_weekS": 400,
+    "output_count": 5,
+    "binding_order": [
+      "support_to_coalition_strength",
+      "organization_to_field_ops",
+      "tension_to_protest_activity",
+      "rival_presence_to_opposition_obstruction",
+      "tension_to_movement_salience"
+    ],
+    "bindings": [
+      {
+        "id": "support_to_coalition_strength",
+        "regional_source": "support",
+        "destination": "internals.leg.coalition_strength"
+      },
+      {
+        "id": "organization_to_field_ops",
+        "regional_source": "organization",
+        "destination": "internals.party.field_ops"
+      },
+      {
+        "id": "tension_to_protest_activity",
+        "regional_source": "tension",
+        "destination": "internals.tension.protest_activity"
+      },
+      {
+        "id": "rival_presence_to_opposition_obstruction",
+        "regional_source": "rival_presence",
+        "destination": "internals.leg.opposition_obstruction"
+      },
+      {
+        "id": "tension_to_movement_salience",
+        "regional_source": "tension",
+        "destination": "internals.agenda.movement_salience"
+      }
+    ],
+    "common_pipeline": [
+      "construct_complete_weighted_sum_in_checked_long",
+      "round_weighted_average_once",
+      "target_config_clamp_target",
+      "distance_target_minus_current",
+      "multiply_distance_by_alpha_in_checked_long",
+      "round_elastic_delta_once",
+      "clamp_delta_to_weekly_cap",
+      "add_delta_to_current",
+      "target_config_clamp_final",
+      "realized_delta_final_minus_current"
+    ]
+  },
+  "latency": {
+    "feedback_latency_ticks": 1,
+    "phase_8_observes": "internals_before_current_tick_pull",
+    "phase_9_writes": "regional_dynamic_targets",
+    "phase_10_writes": "five_internal_targets",
+    "same_tick_phase_8_reexecution": false,
+    "next_tick_observation_order": [
+      "RevertInternals",
+      "DeriveInternals",
+      "AggregateNationalMetrics"
+    ],
+    "regional_feedback_first_visible_in_metrics": "tick_plus_1_phase_8"
   }
 }
 ```
@@ -242,14 +321,16 @@ phase 9 drift formulas.
 8. **Scheduler phases**: Scheduler phases 9
    (`DriftNationalToRegions`) and 10 (`PullRegionsToInternals`)
    remain no-op. This contract does not activate or implement them.
+   The pull mechanics, bindings, and latency are contractually frozen
+   in this revision but are not executed at runtime.
 
 ## Contract boundaries with later PRs
 
 - PR 15.1-D freezes drift formulas (support, tension,
   organization, rival_presence), `alpha_ppm`, caps, rounding, and
   snapshot semantics. This revision completes that freeze.
-- PR 15.1-E will freeze pull mechanics, weighted average regional,
-  bindings, and latency.
+- PR 15.1-E freezes pull mechanics, weighted average regional,
+  bindings, and latency. This revision completes that freeze.
 - PR 15.1-F will freeze causal keys `REG_DRIFT` and ephemeral
   `REG_TO_INT` identities.
 - PR 15.1-G will freeze atomicity and fail-closed contractual rules.
@@ -371,3 +452,94 @@ Contractual pipeline order:
 
 No causes, contributions, or causal publication are part of this pipeline
 definition.
+
+## Phase 10 regional pull and one-tick latency
+
+### Weighted average
+
+For each regional source, the weighted average is computed as a single
+sum over all 16 regions before dividing:
+
+```
+numerator =
+    sum(regions[region_id].source * region.weight_ppm)
+
+weighted_averageS =
+    FixedMath.RoundDivide(numerator, 1000000)
+```
+
+The complete sum is constructed in `checked long` before any division.
+No per-region rounding occurs. Exactly one division is performed per
+weighted average.
+
+### Bindings
+
+| ID | Regional source | Destination |
+|---|---|---|
+| support_to_coalition_strength | support | internals.leg.coalition_strength |
+| organization_to_field_ops | organization | internals.party.field_ops |
+| tension_to_protest_activity | tension | internals.tension.protest_activity |
+| rival_presence_to_opposition_obstruction | rival_presence | internals.leg.opposition_obstruction |
+| tension_to_movement_salience | tension | internals.agenda.movement_salience |
+
+- All five bindings read the same post-phase-9 snapshot.
+- No binding can observe the output of another binding (chaining
+  is forbidden).
+- The two bindings that read `tension` (protest_activity and
+  movement_salience) remain separate outputs.
+- All destinations exist in `target_config.json` under the pattern
+  `internals.*.*` with `scale=100`, `minS=0`, `maxS=10000`,
+  `defaultS=5000`, and `SET` permitted.
+- The five destinations are planned before any future publication.
+
+### Pull math per binding
+
+```
+targetS =
+    TargetConfig(destination).Clamp(weighted_averageS)
+
+distanceS =
+    targetS - current_internalS
+
+elastic_numerator =
+    distanceS * 206299
+
+elastic_deltaS =
+    FixedMath.RoundDivide(elastic_numerator, 1000000)
+
+capped_deltaS =
+    clamp(elastic_deltaS, -400, +400)
+
+pre_finalS =
+    current_internalS + capped_deltaS
+
+finalS =
+    TargetConfig(destination).Clamp(pre_finalS)
+
+realized_deltaS =
+    finalS - current_internalS
+```
+
+### Tick T / T+1 latency
+
+The simulation tick order relevant to territorial feedback:
+
+1. At tick T, phase 8 (metrics aggregation) executes before the
+   territorial phases.
+2. Phase 9 (drift) updates the four regional dynamic targets.
+3. Phase 10 (pull) reads the post-phase-9 snapshot and writes the
+   five internal targets.
+4. National metrics are not re-aggregated during T after the
+   territorial phases complete.
+5. At tick T+1, phases 6-8 observe the internals produced during T:
+   - RevertInternals resets internal deltas to zero;
+   - DeriveInternals recomputes derived targets from the updated
+     internals;
+   - AggregateNationalMetrics recomputes national metrics (e.g.,
+     legislative_capacity) from the updated targets.
+6. Phase 8 is not re-executed in the same tick after phases 9 and 10.
+   Re-executing phase 8 in T would incorrectly publish T+1 metrics
+   one tick early.
+7. Scheduler phases 9 and 10 remain no-op in the product; this
+   contract defines their semantics but does not activate runtime
+   execution.
