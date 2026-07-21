@@ -207,66 +207,97 @@
     "latency_ticks": 1
   },
   "cause_contract": {
-    "drift_key_pattern": "SYSTEM:REG_DRIFT.regions.{region_id}.{metric}",
-    "potential_drift_cause_count": 64,
-    "zero_drift_delta_policy": "omit_contribution",
-    "reg_to_int_identities": [
-      {
-        "binding_id": "support_to_coalition_strength",
-        "canonical_key": "SYSTEM:REG_TO_INT.internals.leg.coalition_strength",
-        "internal_target": "internals.leg.coalition_strength"
-      },
-      {
-        "binding_id": "organization_to_field_ops",
-        "canonical_key": "SYSTEM:REG_TO_INT.internals.party.field_ops",
-        "internal_target": "internals.party.field_ops"
-      },
-      {
-        "binding_id": "tension_to_protest_activity",
-        "canonical_key": "SYSTEM:REG_TO_INT.internals.tension.protest_activity",
-        "internal_target": "internals.tension.protest_activity"
-      },
-      {
-        "binding_id": "rival_presence_to_opposition_obstruction",
-        "canonical_key": "SYSTEM:REG_TO_INT.internals.leg.opposition_obstruction",
-        "internal_target": "internals.leg.opposition_obstruction"
-      },
-      {
-        "binding_id": "tension_to_movement_salience",
-        "canonical_key": "SYSTEM:REG_TO_INT.internals.agenda.movement_salience",
-        "internal_target": "internals.agenda.movement_salience"
+    "cause_key_grammar": {
+      "cause_category": "SYSTEM",
+      "parent": null,
+      "canonical_key_separator": ":",
+      "canonical_key_separator_count": 1,
+      "identifier_separator": ".",
+      "identifier_policy": "PRINTABLE_ASCII_NO_WHITESPACE_COLON_PIPE",
+      "drift": {
+        "id_prefix": "REG_DRIFT",
+        "canonical_key_pattern": "SYSTEM:REG_DRIFT.regions.{region_id}.{metric}",
+        "target_pattern": "regions.{region_id}.{metric}",
+        "target_visibility": "public_visible_target",
+        "public_ledger": true,
+        "tick_causal_buffer": true,
+        "potential_cause_count": 64,
+        "cause_order": "canonical_region_order_then_drift_metric_order",
+        "zero_realized_delta_policy": "omit_contribution"
       }
-    ],
-    "reg_to_int_public_ledger": false,
-    "reg_to_int_tick_causal_buffer": false,
-    "system_agg_mappings": [
-      {
-        "internal_target": "internals.leg.coalition_strength",
-        "visible_metric": "metrics.legislative_capacity",
-        "canonical_key": "SYSTEM:AGG.metrics.legislative_capacity.internals.leg.coalition_strength"
+    },
+    "hidden_pull_provenance": {
+      "pull_provenance": {
+        "id_prefix": "REG_TO_INT",
+        "canonical_key_pattern": "SYSTEM:REG_TO_INT.{internal_target}",
+        "identity_count": 5,
+        "provenance_scope": "ephemeral_execution_plan_only",
+        "target_visibility": "hidden_internal",
+        "public_ledger": false,
+        "tick_causal_buffer": false,
+        "serialized": false,
+        "stored_in_game_state": false,
+        "turn_report": false,
+        "top_n_slot": false,
+        "lifetime": "current_phase_10_plan_only",
+        "public_attribution": "next_tick_SYSTEM_AGG",
+        "double_counting": "forbidden",
+        "identities": [
+          {
+            "binding_id": "support_to_coalition_strength",
+            "canonical_key": "SYSTEM:REG_TO_INT.internals.leg.coalition_strength",
+            "internal_target": "internals.leg.coalition_strength"
+          },
+          {
+            "binding_id": "organization_to_field_ops",
+            "canonical_key": "SYSTEM:REG_TO_INT.internals.party.field_ops",
+            "internal_target": "internals.party.field_ops"
+          },
+          {
+            "binding_id": "tension_to_protest_activity",
+            "canonical_key": "SYSTEM:REG_TO_INT.internals.tension.protest_activity",
+            "internal_target": "internals.tension.protest_activity"
+          },
+          {
+            "binding_id": "rival_presence_to_opposition_obstruction",
+            "canonical_key": "SYSTEM:REG_TO_INT.internals.leg.opposition_obstruction",
+            "internal_target": "internals.leg.opposition_obstruction"
+          },
+          {
+            "binding_id": "tension_to_movement_salience",
+            "canonical_key": "SYSTEM:REG_TO_INT.internals.agenda.movement_salience",
+            "internal_target": "internals.agenda.movement_salience"
+          }
+        ]
       },
-      {
-        "internal_target": "internals.party.field_ops",
-        "visible_metric": "metrics.party_organization",
-        "canonical_key": "SYSTEM:AGG.metrics.party_organization.internals.party.field_ops"
-      },
-      {
-        "internal_target": "internals.tension.protest_activity",
-        "visible_metric": "metrics.social_tension",
-        "canonical_key": "SYSTEM:AGG.metrics.social_tension.internals.tension.protest_activity"
-      },
-      {
-        "internal_target": "internals.leg.opposition_obstruction",
-        "visible_metric": "metrics.legislative_capacity",
-        "canonical_key": "SYSTEM:AGG.metrics.legislative_capacity.internals.leg.opposition_obstruction"
-      },
-      {
-        "internal_target": "internals.agenda.movement_salience",
-        "visible_metric": "metrics.public_agenda",
-        "canonical_key": "SYSTEM:AGG.metrics.public_agenda.internals.agenda.movement_salience"
-      }
-    ],
-    "double_counting": "forbidden"
+      "public_aggregation_attribution": [
+        {
+          "internal_target": "internals.leg.coalition_strength",
+          "visible_metric": "metrics.legislative_capacity",
+          "canonical_key": "SYSTEM:AGG.metrics.legislative_capacity.internals.leg.coalition_strength"
+        },
+        {
+          "internal_target": "internals.party.field_ops",
+          "visible_metric": "metrics.party_organization",
+          "canonical_key": "SYSTEM:AGG.metrics.party_organization.internals.party.field_ops"
+        },
+        {
+          "internal_target": "internals.tension.protest_activity",
+          "visible_metric": "metrics.social_tension",
+          "canonical_key": "SYSTEM:AGG.metrics.social_tension.internals.tension.protest_activity"
+        },
+        {
+          "internal_target": "internals.leg.opposition_obstruction",
+          "visible_metric": "metrics.legislative_capacity",
+          "canonical_key": "SYSTEM:AGG.metrics.legislative_capacity.internals.leg.opposition_obstruction"
+        },
+        {
+          "internal_target": "internals.agenda.movement_salience",
+          "visible_metric": "metrics.public_agenda",
+          "canonical_key": "SYSTEM:AGG.metrics.public_agenda.internals.agenda.movement_salience"
+        }
+      ]
+    }
   },
   "vector_registry": {
     "rounding": [
@@ -4513,6 +4544,138 @@
           "tarapaca",
           "valparaiso"
         ],
+        "values_by_region": [
+          [
+            "arica_parinacota",
+            1001
+          ],
+          [
+            "tarapaca",
+            1002
+          ],
+          [
+            "antofagasta",
+            1003
+          ],
+          [
+            "atacama",
+            1004
+          ],
+          [
+            "coquimbo",
+            1005
+          ],
+          [
+            "valparaiso",
+            1006
+          ],
+          [
+            "metropolitana",
+            1007
+          ],
+          [
+            "ohiggins",
+            1008
+          ],
+          [
+            "maule",
+            1009
+          ],
+          [
+            "nuble",
+            1010
+          ],
+          [
+            "biobio",
+            1011
+          ],
+          [
+            "araucania",
+            1012
+          ],
+          [
+            "los_rios",
+            1013
+          ],
+          [
+            "los_lagos",
+            1014
+          ],
+          [
+            "aysen",
+            1015
+          ],
+          [
+            "magallanes",
+            1016
+          ]
+        ],
+        "stored_alphabetical_pairs": [
+          [
+            "antofagasta",
+            1003
+          ],
+          [
+            "araucania",
+            1012
+          ],
+          [
+            "arica_parinacota",
+            1001
+          ],
+          [
+            "atacama",
+            1004
+          ],
+          [
+            "aysen",
+            1015
+          ],
+          [
+            "biobio",
+            1011
+          ],
+          [
+            "coquimbo",
+            1005
+          ],
+          [
+            "los_lagos",
+            1014
+          ],
+          [
+            "los_rios",
+            1013
+          ],
+          [
+            "magallanes",
+            1016
+          ],
+          [
+            "maule",
+            1009
+          ],
+          [
+            "metropolitana",
+            1007
+          ],
+          [
+            "nuble",
+            1010
+          ],
+          [
+            "ohiggins",
+            1008
+          ],
+          [
+            "tarapaca",
+            1002
+          ],
+          [
+            "valparaiso",
+            1006
+          ]
+        ],
         "expected_order": [
           "arica_parinacota",
           "tarapaca",
@@ -4530,37 +4693,208 @@
           "los_lagos",
           "aysen",
           "magallanes"
-        ]
+        ],
+        "expected_ordered_pairs": [
+          [
+            "arica_parinacota",
+            1001
+          ],
+          [
+            "tarapaca",
+            1002
+          ],
+          [
+            "antofagasta",
+            1003
+          ],
+          [
+            "atacama",
+            1004
+          ],
+          [
+            "coquimbo",
+            1005
+          ],
+          [
+            "valparaiso",
+            1006
+          ],
+          [
+            "metropolitana",
+            1007
+          ],
+          [
+            "ohiggins",
+            1008
+          ],
+          [
+            "maule",
+            1009
+          ],
+          [
+            "nuble",
+            1010
+          ],
+          [
+            "biobio",
+            1011
+          ],
+          [
+            "araucania",
+            1012
+          ],
+          [
+            "los_rios",
+            1013
+          ],
+          [
+            "los_lagos",
+            1014
+          ],
+          [
+            "aysen",
+            1015
+          ],
+          [
+            "magallanes",
+            1016
+          ]
+        ],
+        "expected_result_independent_of_stored_order": true
       },
       {
         "id": "O-02",
         "description": "equivalent maps with different insertion order produce same canonical bytes",
         "insertion_order_a": [
           [
-            "x",
-            1
+            "arica_parinacota",
+            1001
           ],
           [
-            "y",
-            2
+            "tarapaca",
+            1002
           ],
           [
-            "z",
-            3
+            "antofagasta",
+            1003
+          ],
+          [
+            "atacama",
+            1004
+          ],
+          [
+            "coquimbo",
+            1005
+          ],
+          [
+            "valparaiso",
+            1006
+          ],
+          [
+            "metropolitana",
+            1007
+          ],
+          [
+            "ohiggins",
+            1008
+          ],
+          [
+            "maule",
+            1009
+          ],
+          [
+            "nuble",
+            1010
+          ],
+          [
+            "biobio",
+            1011
+          ],
+          [
+            "araucania",
+            1012
+          ],
+          [
+            "los_rios",
+            1013
+          ],
+          [
+            "los_lagos",
+            1014
+          ],
+          [
+            "aysen",
+            1015
+          ],
+          [
+            "magallanes",
+            1016
           ]
         ],
         "insertion_order_b": [
           [
-            "z",
-            3
+            "magallanes",
+            1016
           ],
           [
-            "x",
-            1
+            "aysen",
+            1015
           ],
           [
-            "y",
-            2
+            "los_lagos",
+            1014
+          ],
+          [
+            "los_rios",
+            1013
+          ],
+          [
+            "araucania",
+            1012
+          ],
+          [
+            "biobio",
+            1011
+          ],
+          [
+            "nuble",
+            1010
+          ],
+          [
+            "maule",
+            1009
+          ],
+          [
+            "ohiggins",
+            1008
+          ],
+          [
+            "metropolitana",
+            1007
+          ],
+          [
+            "valparaiso",
+            1006
+          ],
+          [
+            "coquimbo",
+            1005
+          ],
+          [
+            "atacama",
+            1004
+          ],
+          [
+            "antofagasta",
+            1003
+          ],
+          [
+            "tarapaca",
+            1002
+          ],
+          [
+            "arica_parinacota",
+            1001
           ]
         ],
         "canonical_region_order": [
@@ -4583,16 +4917,68 @@
         ],
         "expected_ordered_pairs": [
           [
-            "x",
-            1
+            "arica_parinacota",
+            1001
           ],
           [
-            "y",
-            2
+            "tarapaca",
+            1002
           ],
           [
-            "z",
-            3
+            "antofagasta",
+            1003
+          ],
+          [
+            "atacama",
+            1004
+          ],
+          [
+            "coquimbo",
+            1005
+          ],
+          [
+            "valparaiso",
+            1006
+          ],
+          [
+            "metropolitana",
+            1007
+          ],
+          [
+            "ohiggins",
+            1008
+          ],
+          [
+            "maule",
+            1009
+          ],
+          [
+            "nuble",
+            1010
+          ],
+          [
+            "biobio",
+            1011
+          ],
+          [
+            "araucania",
+            1012
+          ],
+          [
+            "los_rios",
+            1013
+          ],
+          [
+            "los_lagos",
+            1014
+          ],
+          [
+            "aysen",
+            1015
+          ],
+          [
+            "magallanes",
+            1016
           ]
         ],
         "expected_canonical_bytes_equal": true
