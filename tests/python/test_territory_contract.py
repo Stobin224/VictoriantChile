@@ -1284,6 +1284,16 @@ class LatencyVectorTest(unittest.TestCase):
             ROOT / "Assets" / "StreamingAssets" / "content" / "rules" / "aggregation_config.json"
         )
 
+    def _find_legislative_capacity_config(self) -> tuple:
+        """Extract (alpha_ppm, cap_per_weekS) for metrics.legislative_capacity."""
+        for p in self.aggregation_config.get("passes", []):
+            if p.get("type") != "METRIC_AGGREGATION":
+                continue
+            for m in p.get("metrics", []):
+                if m.get("metric") == "metrics.legislative_capacity":
+                    return m["alpha_ppm"], m["cap_per_weekS"]
+        self.fail("metrics.legislative_capacity not found")
+
     def _find_legislative_capacity_coalition_weight(self) -> int:
         for p in self.aggregation_config.get("passes", []):
             if p.get("type") != "METRIC_AGGREGATION":
@@ -1295,29 +1305,103 @@ class LatencyVectorTest(unittest.TestCase):
                             return c["weight_ppm"]
         self.fail("legislative_capacity coalition_strength weight not found")
 
+    def _find_leg_reversion_alpha(self) -> int:
+        """Extract alpha_ppm for internals.leg.* reversion group."""
+        for p in self.aggregation_config.get("passes", []):
+            if p.get("type") != "INTERNAL_REVERSION":
+                continue
+            for g in p.get("groups", []):
+                if g.get("pattern") == "internals.leg.*":
+                    return g["alpha_ppm"]
+        self.fail("internals.leg.* reversion group not found")
+
     def test_tt1_latency_vector(self):
+        # --- Validate aggregation_config.json constants ---
+        leg_alpha, leg_cap = self._find_legislative_capacity_config()
+        self.assertEqual(206299, leg_alpha)
+        self.assertEqual(400, leg_cap)
         weight = self._find_legislative_capacity_coalition_weight()
         self.assertEqual(350000, weight)
+        reversion_alpha = self._find_leg_reversion_alpha()
+        self.assertEqual(34064, reversion_alpha)
 
-        # --- Tick T ---
+        # --- Tick T: pull (phase 10) ---
         wavg = compute_weighted_average([5065] * 16, REGIONAL_WEIGHTS)
         self.assertEqual(5065, wavg)
-        t_pull = compute_pull(wavg, 5000)
-        coalition_T = t_pull["finalS"]
+
+        pull_result = compute_pull(wavg, 5000)
+        self.assertEqual(65, pull_result["distanceS"])
+        self.assertEqual(13409435, pull_result["elastic_numerator"])
+        self.assertEqual(13, pull_result["elastic_deltaS"])
+        self.assertEqual(13, pull_result["capped_deltaS"])
+        self.assertEqual(5013, pull_result["finalS"])
+
+        coalition_T = pull_result["finalS"]
         self.assertEqual(5013, coalition_T)
 
+        # legislative_capacity was already aggregated before pull
         legislative_capacity_T = 5000
         self.assertEqual(5000, legislative_capacity_T)
 
-        # Counterexample: same-tick reexecution would give 5001
-        numerator = weight * (coalition_T - 5000)
-        target = 5000 + round_div_half_away(numerator, PPM_DEN)
-        same_tick = compute_pull(target, 5000)
-        self.assertEqual(5001, same_tick["finalS"])
-        self.assertNotEqual(legislative_capacity_T, same_tick["finalS"])
+        # --- Same-tick phase 8 reexecution counterexample ---
+        agg_num = weight * (coalition_T - 5000)
+        self.assertEqual(4550000, agg_num)
+        agg_offset = round_div_half_away(agg_num, PPM_DEN)
+        self.assertEqual(5, agg_offset)
+        agg_target = 5000 + agg_offset
+        self.assertEqual(5005, agg_target)
 
-        # --- Tick T+1 ---
-        legislative_capacity_T1 = same_tick["finalS"]
+        metric_distance = agg_target - legislative_capacity_T
+        self.assertEqual(5, metric_distance)
+        metric_elastic_num = metric_distance * leg_alpha
+        self.assertEqual(1031495, metric_elastic_num)
+        metric_elastic_delta = round_div_half_away(metric_elastic_num, PPM_DEN)
+        self.assertEqual(1, metric_elastic_delta)
+        same_tick_wrong = legislative_capacity_T + metric_elastic_delta
+        self.assertEqual(5001, same_tick_wrong)
+
+        self.assertEqual(5000, legislative_capacity_T)
+        self.assertEqual(5001, same_tick_wrong)
+        self.assertNotEqual(legislative_capacity_T, same_tick_wrong)
+
+        # --- Tick T+1 phase 6: REVERSION (internals.leg.*) ---
+        reversion_distance = MID_S - coalition_T
+        self.assertEqual(-13, reversion_distance)
+        reversion_num = reversion_distance * reversion_alpha
+        self.assertEqual(-442832, reversion_num)
+        reversion_delta = round_div_half_away(reversion_num, PPM_DEN)
+        self.assertEqual(0, reversion_delta)
+        coalition_after_reversion = coalition_T + reversion_delta
+        self.assertEqual(5013, coalition_after_reversion)
+
+        # --- Tick T+1 phase 7: DERIVED_INTERNALS ---
+        # Does NOT write internals.leg.coalition_strength or
+        # metrics.legislative_capacity
+
+        # --- Tick T+1 phase 8: METRIC_AGGREGATION ---
+        agg_num_t1 = weight * (coalition_after_reversion - MID_S)
+        self.assertEqual(4550000, agg_num_t1)
+        agg_offset_t1 = round_div_half_away(agg_num_t1, PPM_DEN)
+        self.assertEqual(5, agg_offset_t1)
+        agg_target_t1 = MID_S + agg_offset_t1
+        self.assertEqual(5005, agg_target_t1)
+
+        metric_distance_t1 = agg_target_t1 - legislative_capacity_T
+        self.assertEqual(5, metric_distance_t1)
+        metric_elastic_num_t1 = metric_distance_t1 * leg_alpha
+        self.assertEqual(1031495, metric_elastic_num_t1)
+        metric_elastic_delta_t1 = round_div_half_away(metric_elastic_num_t1, PPM_DEN)
+        self.assertEqual(1, metric_elastic_delta_t1)
+        metric_capped_delta_t1 = clamp(metric_elastic_delta_t1, -leg_cap, leg_cap)
+        self.assertEqual(1, metric_capped_delta_t1)
+        legislative_capacity_T1 = legislative_capacity_T + metric_capped_delta_t1
+        self.assertEqual(5001, legislative_capacity_T1)
+
+        # --- Final hardcoded assertions ---
+        self.assertEqual(5013, coalition_T)
+        self.assertEqual(0, reversion_delta)
+        self.assertEqual(5005, agg_target_t1)
+        self.assertEqual(5000, legislative_capacity_T)
         self.assertEqual(5001, legislative_capacity_T1)
 
 
