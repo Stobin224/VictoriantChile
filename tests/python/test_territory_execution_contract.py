@@ -95,7 +95,53 @@ def collect_keys_and_strings(obj, keys, strings):
         pass
 
 
+def find_forbidden_terms(obj, forbidden_terms):
+    matches = []
+    terms_cf = [t.casefold() for t in forbidden_terms]
+
+    def _walk(o, path):
+        if isinstance(o, dict):
+            for k, v in o.items():
+                k_cf = k.casefold()
+                for i, tc in enumerate(terms_cf):
+                    if tc == k_cf or tc in k_cf:
+                        matches.append(f"{path}.{k}")
+                        break
+                _walk(v, f"{path}.{k}")
+        elif isinstance(o, list):
+            for idx, item in enumerate(o):
+                _walk(item, f"{path}[{idx}]")
+        elif isinstance(o, str):
+            s_cf = o.casefold()
+            for i, tc in enumerate(terms_cf):
+                if tc == s_cf or tc in s_cf:
+                    matches.append(f'{path}="{o}"')
+                    break
+
+    _walk(obj, "$")
+    return matches
+
+
 class TerritoryExecutionV1FixtureTest(unittest.TestCase):
+
+    def assert_drift_output_schema_and_contributions(self, output: dict, context: str) -> None:
+        self.assertEqual(list(output.keys()), EXPECTED_DRIFT_OUTPUT_KEYS, f"{context} output keys")
+        inp = output["input"]
+        self.assertEqual(list(inp.keys()), EXPECTED_DRIFT_INPUT_KEYS, f"{context} input keys")
+        self.assertEqual(list(inp["metrics"].keys()), EXPECTED_DRIFT_METRIC_KEYS, f"{context} metrics keys")
+        self.assertEqual(list(inp["region_snapshot"].keys()), EXPECTED_REGION_SNAPSHOT_KEYS, f"{context} snapshot keys")
+        exp = output["expected"]
+        self.assertEqual(list(exp.keys()), EXPECTED_DRIFT_EXPECTED_KEYS, f"{context} expected keys")
+        contributions = exp["expected_contributions"]
+        if exp["realized_deltaS"] == 0:
+            self.assertEqual(contributions, [], f"{context} zero-delta contributions")
+        else:
+            self.assertEqual(len(contributions), 1, f"{context} expected 1 contribution")
+            c = contributions[0]
+            self.assertEqual(list(c.keys()), EXPECTED_CONTRIBUTION_KEYS, f"{context} contribution keys")
+            self.assertEqual(c["target"], output["target_path"], f"{context} contribution target")
+            self.assertEqual(c["cause_key"], output["cause_key"], f"{context} contribution cause_key")
+            self.assertEqual(c["deltaS"], exp["realized_deltaS"], f"{context} contribution deltaS")
 
     def test_strict_json_rejects_duplicates_and_nonfinite_numbers(self):
         for text, label in [
@@ -303,16 +349,8 @@ class TerritoryExecutionV1FixtureTest(unittest.TestCase):
             if not dv["valid"]:
                 continue
             for out in dv["outputs"]:
-                exp = out["expected"]
-                for k in EXPECTED_DRIFT_EXPECTED_KEYS:
-                    self.assertIn(k, exp, f"{dv['id']} missing expected.{k}")
-                if exp["realized_deltaS"] != 0:
-                    self.assertEqual(len(exp["expected_contributions"]), 1, f"{dv['id']} expected 1 contribution")
-                    c = exp["expected_contributions"][0]
-                    self.assertEqual(c["deltaS"], exp["realized_deltaS"], f"{dv['id']} contribution deltaS")
-                    self.assertEqual(c["cause_key"], out["cause_key"], f"{dv['id']} contribution cause_key")
-                else:
-                    self.assertEqual(exp["expected_contributions"], [], f"{dv['id']} zero-delta empty contributions")
+                with self.subTest(vector=dv["id"], region=out["region_id"], metric=out["metric"]):
+                    self.assert_drift_output_schema_and_contributions(out, f"{dv['id']}.{out['region_id']}.{out['metric']}")
 
     def test_d08_uses_pre_drift_support(self):
         data = load_fixture()
@@ -371,9 +409,12 @@ class TerritoryExecutionV1FixtureTest(unittest.TestCase):
         self.assertTrue(lat[3]["public"])
 
     def test_latency_t_has_sixteen_drift_contributions(self):
-        for out in load_fixture()["vectors"]["latency"][0]["drift_outputs"]:
-            self.assertEqual(len(out["expected"]["expected_contributions"]), 1)
-            self.assertEqual(out["expected"]["realized_deltaS"], 65)
+        data = load_fixture()
+        l01t = data["vectors"]["latency"][0]
+        for i, out in enumerate(l01t["drift_outputs"]):
+            with self.subTest(drift_output=i, region=out["region_id"]):
+                self.assert_drift_output_schema_and_contributions(out, f"L-01-T.drift_outputs[{i}]")
+                self.assertEqual(out["expected"]["realized_deltaS"], 65)
 
     def test_latency_cause_is_public_system_agg_only(self):
         l01c = load_fixture()["vectors"]["latency"][3]
@@ -382,28 +423,30 @@ class TerritoryExecutionV1FixtureTest(unittest.TestCase):
         self.assertNotIn("REG_TO_INT", l01c["cause_key"])
 
     def test_ordering_vectors_are_complete(self):
+        canonical_pairs = [[r, CANONICAL_REGION_VALUES[r]] for r in CANONICAL_REGION_ORDER]
+        alphabetical_pairs = [[r, CANONICAL_REGION_VALUES[r]] for r in ALPHABETICAL_REGION_ORDER]
         ordv = load_fixture()["vectors"]["ordering"]
         self.assertEqual(len(ordv), 5)
         o01 = ordv[0]
         self.assertEqual(o01["id"], "O-01")
         self.assertEqual(list(o01.keys()), EXPECTED_ORDERING_KEYS_BY_ID["O-01"])
-        self.assertEqual(len(o01["values_by_region"]), 16)
-        for rid, val in o01["values_by_region"]:
-            self.assertEqual(val, CANONICAL_REGION_VALUES[rid], f"O-01 {rid}")
-        self.assertEqual({p[1] for p in o01["values_by_region"]}, set(range(1001, 1017)), "O-01 unique 1001..1016")
-        for rid, val in o01["stored_alphabetical_pairs"]:
-            self.assertEqual(val, CANONICAL_REGION_VALUES[rid], f"O-01 alpha {rid}")
-        self.assertEqual(o01["expected_ordered_pairs"], o01["values_by_region"])
-        self.assertTrue(o01["expected_result_independent_of_stored_order"])
+        self.assertEqual(o01["canonical_region_order"], CANONICAL_REGION_ORDER)
+        self.assertEqual(o01["stored_alphabetical_order"], ALPHABETICAL_REGION_ORDER)
+        self.assertEqual(o01["values_by_region"], canonical_pairs)
+        self.assertEqual(o01["stored_alphabetical_pairs"], alphabetical_pairs)
+        self.assertEqual(o01["expected_order"], CANONICAL_REGION_ORDER)
+        self.assertEqual(o01["expected_ordered_pairs"], canonical_pairs)
+        self.assertIs(o01["expected_result_independent_of_stored_order"], True)
         o02 = ordv[1]
         self.assertEqual(o02["id"], "O-02")
         self.assertEqual(list(o02.keys()), EXPECTED_ORDERING_KEYS_BY_ID["O-02"])
-        self.assertEqual(len(o02["insertion_order_a"]), 16)
-        self.assertEqual(len(o02["insertion_order_b"]), 16)
+        self.assertEqual(o02["canonical_region_order"], CANONICAL_REGION_ORDER)
+        self.assertEqual(o02["insertion_order_a"], canonical_pairs)
+        self.assertEqual(o02["insertion_order_b"], list(reversed(canonical_pairs)))
+        self.assertEqual(o02["expected_ordered_pairs"], canonical_pairs)
         self.assertEqual(dict(o02["insertion_order_a"]), dict(o02["insertion_order_b"]), "O-02 same mapping")
         self.assertNotEqual(o02["insertion_order_a"], o02["insertion_order_b"], "O-02 orders differ")
-        self.assertEqual(o02["expected_ordered_pairs"], o02["insertion_order_a"])
-        self.assertTrue(o02["expected_canonical_bytes_equal"])
+        self.assertIs(o02["expected_canonical_bytes_equal"], True)
         o03 = ordv[2]
         self.assertEqual(o03["id"], "O-03")
         self.assertEqual(list(o03.keys()), EXPECTED_ORDERING_KEYS_BY_ID["O-03"])
@@ -427,20 +470,28 @@ class TerritoryExecutionV1FixtureTest(unittest.TestCase):
         for key in keys:
             self.assertNotIn(key.lower(), forbidden_lower, f"Forbidden key: {key}")
 
+    def test_active_reform_scan_is_case_insensitive(self):
+        cases = [
+            ({"REG_REFORM_BIAS": True}, "key exact upper"),
+            ({"key": "pr_19_4"}, "string literal lower"),
+            ({"nested": [{"Support_Bias": 1}]}, "nested key mixed case"),
+            ({"ACTIVE_REFORM_BIAS": 0}, "key upper exact"),
+            ({"x": "reg_reform_bias"}, "string lower exact"),
+            ({"x": "PR_19_4"}, "string upper exact"),
+            ({"x": "effective_clout"}, "string lower exact"),
+            ({"x": "support_bias"}, "string lower exact"),
+            ({"x": "tension_bias"}, "string lower exact"),
+        ]
+        for obj, label in cases:
+            with self.subTest(case=label):
+                matches = find_forbidden_terms(obj, FORBIDDEN_ACTIVE_REFORM_TERMS)
+                self.assertGreater(len(matches), 0, f"No match for {label}: {obj}")
+
     def test_fixture_contains_no_active_reform_bias(self):
-        data = load_fixture()
-        keys = set()
-        strings = set()
-        collect_keys_and_strings(data, keys, strings)
-        for term in FORBIDDEN_ACTIVE_REFORM_TERMS:
-            self.assertNotIn(term, keys, f"Key: {term}")
-            self.assertNotIn(term, strings, f"String: {term}")
-        for key in keys:
-            for term in FORBIDDEN_ACTIVE_REFORM_TERMS:
-                self.assertNotIn(term, key.lower(), f"Key contains {term}: {key}")
-        for s in strings:
-            for term in FORBIDDEN_ACTIVE_REFORM_TERMS:
-                self.assertNotIn(term, s.lower(), f"String contains {term}: {s}")
+        self.assertEqual(
+            find_forbidden_terms(load_fixture(), FORBIDDEN_ACTIVE_REFORM_TERMS),
+            [],
+        )
 
     def test_fixture_contains_no_null_p06_or_paths(self):
         data = load_fixture()
