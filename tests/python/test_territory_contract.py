@@ -624,6 +624,19 @@ def extract_csharp_braced_block_after(source: str, marker: str) -> str:
     return ""
 
 
+def extract_markdown_h2_section(source: str, heading: str) -> str:
+    marker = f"## {heading}"
+    start = source.find(marker)
+    if start == -1:
+        return ""
+
+    remainder = source[start:]
+    next_heading = remainder.find("\n## ")
+    if next_heading == -1:
+        return remainder
+    return remainder[:next_heading]
+
+
 EXPECTED_DRIFT_METRIC_NAMES = ["support", "tension", "organization", "rival_presence"]
 
 EXPECTED_AGG_METRIC_NAMES = {
@@ -1035,6 +1048,34 @@ def validate_latency(latency: dict) -> list[str]:
     return errors
 
 
+def validate_no_tick_result_between(
+    source: str,
+    start_marker: str,
+    end_marker: str,
+) -> list[str]:
+    errors = []
+    start_index = source.find(start_marker)
+    if start_index == -1:
+        errors.append(f"Missing start marker: {start_marker}")
+        return errors
+
+    end_index = source.find(end_marker, start_index)
+    if end_index == -1:
+        errors.append(f"Missing end marker: {end_marker}")
+        return errors
+
+    if end_index < start_index:
+        errors.append(
+            f"Markers are inverted: {start_marker} appears after {end_marker}"
+        )
+        return errors
+
+    window = source[start_index:end_index]
+    if "new TickAdvanceResult" in window:
+        errors.append("Unexpected TickAdvanceResult construction inside window")
+    return errors
+
+
 def validate_atomicity(atomicity: dict) -> list[str]:
     errors = []
 
@@ -1441,6 +1482,24 @@ def validate_contract(contract: dict) -> list[str]:
 
     atomicity = contract.get("atomicity", {})
     errors.extend(validate_atomicity(atomicity))
+
+    if (
+        atomicity.get("phase_9_drift", {}).get("planned_output_count")
+        != drift.get("output_count")
+    ):
+        errors.append(
+            "atomicity.phase_9_drift.planned_output_count must match "
+            "drift.output_count"
+        )
+
+    if (
+        atomicity.get("phase_10_pull", {}).get("planned_output_count")
+        != pull.get("output_count")
+    ):
+        errors.append(
+            "atomicity.phase_10_pull.planned_output_count must match "
+            "pull.output_count"
+        )
 
     return errors
 
@@ -3192,10 +3251,20 @@ class AtomicityContractTest(unittest.TestCase):
         self.assertEqual(4, len(set(guarantees)))
 
     def test_phase9_output_count_matches_drift(self):
-        self.assertEqual(64, self.atomicity["phase_9_drift"]["planned_output_count"])
+        self.assertEqual(
+            self.contract["atomicity"]["phase_9_drift"]["planned_output_count"],
+            self.contract["drift"]["output_count"],
+        )
+        self.assertEqual(64, self.contract["atomicity"]["phase_9_drift"]["planned_output_count"])
+        self.assertEqual(64, self.contract["drift"]["output_count"])
 
     def test_phase10_output_count_matches_pull(self):
-        self.assertEqual(5, self.atomicity["phase_10_pull"]["planned_output_count"])
+        self.assertEqual(
+            self.contract["atomicity"]["phase_10_pull"]["planned_output_count"],
+            self.contract["pull"]["output_count"],
+        )
+        self.assertEqual(5, self.contract["atomicity"]["phase_10_pull"]["planned_output_count"])
+        self.assertEqual(5, self.contract["pull"]["output_count"])
 
     def test_tick_failure_scenario_is_exact(self):
         self.assertEqual(
@@ -3221,6 +3290,24 @@ class AtomicityContractTest(unittest.TestCase):
         self.assertTrue(
             errors,
             "advance_one_tick_result=partial_result must fail validate_contract()",
+        )
+
+    def test_atomicity_phase9_count_must_match_drift_count(self):
+        candidate = copy.deepcopy(self.contract)
+        candidate["drift"]["output_count"] = 63
+        errors = validate_contract(candidate)
+        self.assertIn(
+            "atomicity.phase_9_drift.planned_output_count must match drift.output_count",
+            errors,
+        )
+
+    def test_atomicity_phase10_count_must_match_pull_count(self):
+        candidate = copy.deepcopy(self.contract)
+        candidate["pull"]["output_count"] = 4
+        errors = validate_contract(candidate)
+        self.assertIn(
+            "atomicity.phase_10_pull.planned_output_count must match pull.output_count",
+            errors,
         )
 
     def test_atomicity_passes_full_contract_validation(self):
@@ -3264,6 +3351,36 @@ class AtomicityParityTest(unittest.TestCase):
             "complete output for next pass",
         ]:
             self.assertIn(phrase, text)
+
+    def test_atomicity_prose_lists_all_fail_closed_triggers_in_order(self):
+        text = self.root.joinpath("docs", "territory_contract.md").read_text(encoding="utf-8")
+        section = extract_markdown_h2_section(
+            text,
+            "Territorial atomicity and fail-closed semantics",
+        )
+        self.assertTrue(section, "Atomicity prose section not found")
+        positions = []
+        for trigger in EXPECTED_FAIL_CLOSED_TRIGGERS:
+            needle = f"`{trigger}`"
+            position = section.find(needle)
+            self.assertNotEqual(-1, position, f"Missing trigger in prose: {needle}")
+            positions.append(position)
+        self.assertEqual(positions, sorted(positions))
+
+    def test_atomicity_prose_lists_all_fail_closed_guarantees_in_order(self):
+        text = self.root.joinpath("docs", "territory_contract.md").read_text(encoding="utf-8")
+        section = extract_markdown_h2_section(
+            text,
+            "Territorial atomicity and fail-closed semantics",
+        )
+        self.assertTrue(section, "Atomicity prose section not found")
+        positions = []
+        for guarantee in EXPECTED_FAIL_CLOSED_GUARANTEES:
+            needle = f"`{guarantee}`"
+            position = section.find(needle)
+            self.assertNotEqual(-1, position, f"Missing guarantee in prose: {needle}")
+            positions.append(position)
+        self.assertEqual(positions, sorted(positions))
 
     def test_mvp_012_resolution_contains_pass_atomicity(self):
         document = load_json(self.mvp_contract_path)
@@ -3328,7 +3445,59 @@ class AtomicityParityTest(unittest.TestCase):
             "public TickAdvanceResult AdvanceOneTick(GameState current, Action<SimulationTickPhase> observePhase = null)",
         )
         self.assertTrue(body, "AdvanceOneTick body not found")
-        self.assertNotIn("return new TickAdvanceResult(working, null", body)
+        drift_marker = "SimulationTickPhase.DriftNationalToRegions"
+        pull_marker = "SimulationTickPhase.PullRegionsToInternals"
+        seal_marker = "CloseAndSeal"
+        result_marker = "new TickAdvanceResult"
+
+        drift_index = body.find(drift_marker)
+        pull_index = body.find(pull_marker)
+        seal_index = body.find(seal_marker)
+        result_index = body.rfind(result_marker)
+        self.assertNotEqual(-1, drift_index)
+        self.assertNotEqual(-1, pull_index)
+        self.assertNotEqual(-1, seal_index)
+        self.assertNotEqual(-1, result_index)
+        self.assertLess(drift_index, pull_index)
+        self.assertLess(pull_index, seal_index)
+        self.assertLess(seal_index, result_index)
+
+        territorial_window = body[drift_index:seal_index]
+        self.assertNotIn("new TickAdvanceResult", territorial_window)
+        self.assertNotIn("return new TickAdvanceResult", territorial_window)
+
+    def test_no_tick_result_window_accepts_valid_source(self):
+        source = "\n".join(
+            [
+                "DriftNationalToRegions",
+                "PullRegionsToInternals",
+                "CloseAndSeal",
+                "return new TickAdvanceResult(...);",
+            ]
+        )
+        errors = validate_no_tick_result_between(
+            source,
+            "DriftNationalToRegions",
+            "CloseAndSeal",
+        )
+        self.assertEqual([], errors)
+
+    def test_no_tick_result_window_rejects_intermediate_result(self):
+        source = "\n".join(
+            [
+                "DriftNationalToRegions",
+                "return new TickAdvanceResult(...);",
+                "PullRegionsToInternals",
+                "CloseAndSeal",
+            ]
+        )
+        errors = validate_no_tick_result_between(
+            source,
+            "DriftNationalToRegions",
+            "CloseAndSeal",
+        )
+        self.assertTrue(errors)
+        self.assertIn("Unexpected TickAdvanceResult construction inside window", errors)
 
 
 class CausalityTest(unittest.TestCase):

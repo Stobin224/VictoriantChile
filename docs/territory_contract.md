@@ -798,6 +798,40 @@ This contract freezes the territorial executor shape without activating the runt
 5. Fail-closed handling discards the entire candidate on any trigger, with no partial GameState, regions, internals, or causal publication.
 6. Atomicity inside a pass is executor responsibility; observable tick atomicity is the scheduler result boundary.
 7. A phase 9 success followed by a phase 10 failure does not produce `TickAdvanceResult`, leaves the original `GameState` intact, and exposes neither snapshot nor ledger partials.
+
+### Exact fail-closed triggers
+
+1. `missing_region`
+2. `duplicate_region`
+3. `inconsistent_canonical_order`
+4. `region_count_mismatch`
+5. `weight_sum_mismatch`
+6. `non_positive_weight`
+7. `missing_regional_field`
+8. `missing_internal_destination`
+9. `missing_target_config`
+10. `set_not_allowed`
+11. `invalid_cause_ref`
+12. `duplicate_output`
+13. `duplicate_coupling`
+14. `multiplication_overflow`
+15. `sum_overflow`
+16. `addition_overflow`
+17. `long_to_int_out_of_range`
+18. `invalid_denominator`
+19. `invalid_clamp_or_invariant`
+20. `causal_batch_rejection`
+21. `visible_delta_causal_sum_mismatch`
+
+### Exact fail-closed guarantees
+
+1. `zero_partial_game_state`
+2. `zero_partial_regions`
+3. `zero_partial_internals`
+4. `zero_partial_causal_contributions`
+
+Phases 9 and 10 remain separate passes, phase 9 still plans 64 outputs, phase 10 still plans five outputs, no `TickAdvanceResult` is produced on a phase 10 failure, the original `GameState` remains intact, no snapshot or ledger partial is exposed, the runtime test stays deferred to PR 15.4, and phases 9 and 10 remain no-op in the runtime.
+
 8. The observable rollback case is deferred to PR 15.4.
 9. Phases 9 and 10 remain no-op in the runtime.
 10. Implementation and runtime testing remain deferred to PRs 15.2 through 15.4.
