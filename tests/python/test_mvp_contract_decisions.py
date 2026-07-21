@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[2]
 JSON_PATH = ROOT / "docs" / "mvp_contract_decisions.json"
 MARKDOWN_PATH = ROOT / "docs" / "mvp_contract_decisions.md"
 MOVEMENTS_PATH = ROOT / "Assets" / "StreamingAssets" / "content" / "core" / "movements.json"
+TERRITORY_CONTRACT_PATH = ROOT / "docs" / "territory_contract.md"
 
 WINDOWS_ABSOLUTE_PATH_RE = re.compile(r"[A-Za-z]:[\\/]")
 POSIX_ABSOLUTE_PATH_RE = re.compile(r"(^|[^A-Za-z0-9_./-])/(Users|home|tmp|var|etc|opt|mnt|srv|run)(/|$)")
@@ -2090,6 +2091,22 @@ def read_movements_document() -> dict:
     return json.loads(MOVEMENTS_PATH.read_text(encoding="utf-8"))
 
 
+TERRITORY_CONTRACT_CANONICAL_RE = re.compile(
+    r"<!-- BEGIN CANONICAL REGION AUTHORITY -->\s*```json\s+(.*?)\s+```\s*<!-- END CANONICAL REGION AUTHORITY -->",
+    re.DOTALL,
+)
+
+
+def read_territory_contract_block() -> dict:
+    tc_text = TERRITORY_CONTRACT_PATH.read_text("utf-8")
+    matches = TERRITORY_CONTRACT_CANONICAL_RE.findall(tc_text)
+    if len(matches) != 1:
+        raise ValueError(
+            f"Expected exactly 1 canonical block, found {len(matches)}"
+        )
+    return json.loads(matches[0])
+
+
 class MvpContractDecisionsTest(unittest.TestCase):
     def test_files_exist(self) -> None:
         self.assertTrue(JSON_PATH.exists(), JSON_PATH)
@@ -2631,16 +2648,7 @@ class MvpContractDecisionsTest(unittest.TestCase):
         self.assertEqual(len(matches), 1)
 
     def test_mvp_013_core_blocks_match_territory_contract(self) -> None:
-        from pathlib import Path
-        import re
-        tc_path = Path(__file__).resolve().parents[2] / "docs" / "territory_contract.md"
-        tc_text = tc_path.read_text("utf-8")
-        mtc = re.search(
-            r"<!-- BEGIN CANONICAL REGION AUTHORITY -->\s*```json\s*(.*?)\s*```\s*<!-- END CANONICAL REGION AUTHORITY -->",
-            tc_text, re.DOTALL,
-        )
-        self.assertIsNotNone(mtc)
-        tc_block = json.loads(mtc.group(1))
+        tc_block = read_territory_contract_block()
         resolution = read_json_document()["decisions"][12]["resolution"]
         self.assertEqual(resolution["canonical_region_order"], tc_block["canonical_region_order"])
         self.assertEqual(resolution["regional_dynamic_targets"], tc_block["regional_dynamic_targets"])
@@ -2651,15 +2659,7 @@ class MvpContractDecisionsTest(unittest.TestCase):
         self.assertEqual(resolution["latency"], tc_block["latency"])
 
     def test_mvp_013_causality_mapping_matches_territory_contract(self) -> None:
-        from pathlib import Path
-        import re
-        tc_path = Path(__file__).resolve().parents[2] / "docs" / "territory_contract.md"
-        tc_text = tc_path.read_text("utf-8")
-        mtc = re.search(
-            r"<!-- BEGIN CANONICAL REGION AUTHORITY -->\s*```json\s*(.*?)\s*```\s*<!-- END CANONICAL REGION AUTHORITY -->",
-            tc_text, re.DOTALL,
-        )
-        tc_block = json.loads(mtc.group(1))
+        tc_block = read_territory_contract_block()
         c = tc_block["causality"]
         resolution = read_json_document()["decisions"][12]["resolution"]
         expected_grammar = {k: v for k, v in c.items() if k not in ("pull_provenance", "public_aggregation_attribution")}
@@ -2678,12 +2678,9 @@ class MvpContractDecisionsTest(unittest.TestCase):
         self.assertTrue(all("SYSTEM:AGG" in entry["canonical_key"] for entry in agg))
 
     def test_mvp_013_atomicity_matches_territory_contract(self) -> None:
+        tc_block = read_territory_contract_block()
         resolution = read_json_document()["decisions"][12]["resolution"]
-        self.assertEqual(resolution["pass_execution_semantics"]["scope"]["pass_atomicity"], "executor_responsibility")
-        self.assertEqual(resolution["pass_execution_semantics"]["scope"]["observable_tick_atomicity"], "scheduler_result_boundary")
-        self.assertEqual(len(resolution["pass_execution_semantics"]["fail_closed_triggers"]), 21)
-        self.assertEqual(len(resolution["pass_execution_semantics"]["fail_closed_guarantees"]), 4)
-        self.assertEqual(resolution["pass_execution_semantics"]["observable_tick_failure"]["runtime_test_owner"], "PR_15_4")
+        self.assertEqual(resolution["pass_execution_semantics"], tc_block["atomicity"])
 
     def test_mvp_013_phase_order_matches_mvp_004(self) -> None:
         resolution = read_json_document()["decisions"][12]["resolution"]
@@ -2734,8 +2731,13 @@ class MvpContractDecisionsTest(unittest.TestCase):
             self.assertNotEqual(mutated, EXPECTED_MVP_013)
         with self.subTest("mvp013_not_last"):
             mutated = copy.deepcopy(base)
-            mutated["decisions"].append(copy.deepcopy(dec13))
-            self.assertNotEqual(len(mutated["decisions"]), 13)
+            moved = mutated["decisions"].pop()
+            mutated["decisions"].insert(11, moved)
+            ids = [decision["id"] for decision in mutated["decisions"]]
+            self.assertEqual(len(mutated["decisions"]), 13)
+            self.assertEqual(ids.count("MVP-013-territory-feedback"), 1)
+            self.assertNotEqual(ids[-1], "MVP-013-territory-feedback")
+            self.assertNotEqual(mutated, EXPECTED_DOCUMENT)
         with self.subTest("mvp013_duplicated"):
             mutated = copy.deepcopy(base)
             mutated["decisions"].append(copy.deepcopy(dec13))
@@ -2792,7 +2794,10 @@ class MvpContractDecisionsTest(unittest.TestCase):
             match = CANONICAL_JSON_BLOCK_RE.search(markdown)
             self.assertIsNotNone(match)
             embedded = json.loads(match.group(1))
-            self.assertEqual(embedded, read_json_document())
+            mutated_embedded = copy.deepcopy(embedded)
+            mutated_embedded["decisions"][-1]["status"] = "proposed"
+            self.assertNotEqual(mutated_embedded, read_json_document())
+            self.assertNotEqual(mutated_embedded, EXPECTED_DOCUMENT)
 
 
 if __name__ == "__main__":
