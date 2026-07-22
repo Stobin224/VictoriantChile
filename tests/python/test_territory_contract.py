@@ -4354,30 +4354,82 @@ class HumanContractParityTest(unittest.TestCase):
     def test_l_human_mutation_matrix(self):
         text = read_contract_text()
         mvp013 = read_mvp_013_resolution()
+        baseline_json = extract_canonical_block(TERRITORY_CONTRACT_PATH)
+        human_killed = []
+
+        def extract_canonical_block_from_text(contract_text: str) -> dict:
+            begin = contract_text.find(BEGIN_MARKER)
+            end = contract_text.find(END_MARKER)
+            if begin == -1 or end == -1:
+                raise ValueError("Canonical region authority markers not found")
+            json_start = contract_text.index("{", begin)
+            json_end = contract_text.rindex("}", 0, end) + 1
+            return json.loads(contract_text[json_start:json_end])
+
+        def normalize_first_cell(line: str) -> str | None:
+            stripped = line.strip()
+            if not stripped.startswith("|"):
+                return None
+            parts = [p.strip().strip("`") for p in stripped.split("|")]
+            parts = [p for p in parts if p]
+            if not parts:
+                return None
+            return parts[0]
+
+        def replace_exact_h2_section(contract_text: str, heading: str, replacement: str) -> str:
+            pattern = re.compile(
+                rf"(^## {re.escape(heading)}\r?\n.*?)(?=\n## |\n# |\Z)",
+                re.MULTILINE | re.DOTALL,
+            )
+            match = pattern.search(contract_text)
+            if not match:
+                raise ValueError(f"H2 section '{heading}' not found")
+            return contract_text[: match.start()] + f"## {heading}\n{replacement}" + contract_text[match.end() :]
 
         with self.subTest(mutation="L-H01-EXTRA-PHASE-ROW"):
             mutated = text.replace("| `drift_national_to_regions` | 9 |", "| `drift_national_to_regions` | 9 |\n| `extra_phase` | 99 |")
             errors = collect_human_contract_errors(mutated, mvp013)
             self.assertIn("HUMAN_PHASE_ORDER", errors)
+            human_killed.append("L-H01-EXTRA-PHASE-ROW")
 
         with self.subTest(mutation="L-H02-REORDERED-SNAPSHOT-ROW"):
-            lines = text.splitlines()
-            i_a = next(i for i, line in enumerate(lines) if "phase_9_snapshot" in line)
-            i_b = next(i for i, line in enumerate(lines) if "phase_9_all_outputs_share_snapshot" in line)
-            lines[i_a], lines[i_b] = lines[i_b], lines[i_a]
-            mutated = "\n".join(lines)
+            phase_section = extract_h2_section(text, "Phase order and snapshot semantics")
+            phase_lines = phase_section.splitlines()
+            target_keys = {"phase_9_snapshot", "phase_9_all_outputs_share_snapshot"}
+            row_positions: dict[str, int] = {}
+            row_counts: dict[str, int] = {k: 0 for k in target_keys}
+            for idx, line in enumerate(phase_lines):
+                first_cell = normalize_first_cell(line)
+                if first_cell in target_keys:
+                    row_positions[first_cell] = idx
+                    row_counts[first_cell] += 1
+            self.assertEqual(row_counts, {k: 1 for k in target_keys})
+            self.assertEqual(set(row_positions), target_keys)
+            swapped_phase_lines = list(phase_lines)
+            i_a = row_positions["phase_9_snapshot"]
+            i_b = row_positions["phase_9_all_outputs_share_snapshot"]
+            swapped_phase_lines[i_a], swapped_phase_lines[i_b] = swapped_phase_lines[i_b], swapped_phase_lines[i_a]
+            mutated_phase_section = "\n".join(swapped_phase_lines)
+            self.assertNotEqual(mutated_phase_section, phase_section)
+            mutated = replace_exact_h2_section(text, "Phase order and snapshot semantics", mutated_phase_section)
+            self.assertNotEqual(mutated, text)
+            self.assertEqual(extract_canonical_block_from_text(mutated), baseline_json)
+            self.assertEqual(mutated_phase_section.splitlines(), swapped_phase_lines)
             errors = collect_human_contract_errors(mutated, mvp013)
             self.assertIn("HUMAN_SNAPSHOT_ORDER", errors)
+            human_killed.append("L-H02-REORDERED-SNAPSHOT-ROW")
 
         with self.subTest(mutation="L-H03-ACTIVE-REFORM-TRUE"):
             mutated = text.replace("| `included_in_pr_15_x` | `false` |", "| `included_in_pr_15_x` | `true` |")
             errors = collect_human_contract_errors(mutated, mvp013)
             self.assertIn("HUMAN_ACTIVE_REFORM", errors)
+            human_killed.append("L-H03-ACTIVE-REFORM-TRUE")
 
         with self.subTest(mutation="L-H04-P06"):
             mutated_p06 = text.replace("### Pull\n\n", "### Pull\n- `P-06`\n")
             errors = collect_human_contract_errors(mutated_p06, mvp013)
             self.assertIn("HUMAN_VECTOR_REGISTRY", errors)
+            human_killed.append("L-H04-P06")
 
         with self.subTest(mutation="L-H05-DUPLICATE-SECTION"):
             pattern = re.compile(
@@ -4387,24 +4439,44 @@ class HumanContractParityTest(unittest.TestCase):
             match = pattern.search(text)
             self.assertIsNotNone(match)
             block = match.group(1)
+            self.assertIn("| Resolution key | Phase |", block)
+            self.assertIn("| Snapshot rule | Contract value |", block)
             mutated = text[: match.start()] + block + "\n" + block + text[match.end() :]
+            self.assertNotEqual(mutated, text)
+            self.assertEqual(mutated.count("## Phase order and snapshot semantics"), 2)
+            self.assertEqual(mutated.count("| Resolution key | Phase |"), 2)
             errors = collect_human_contract_errors(mutated, mvp013)
             self.assertIn("HUMAN_DUPLICATE_SECTION", errors)
+            human_killed.append("L-H05-DUPLICATE-SECTION")
 
         with self.subTest(mutation="L-H06-WRONG-ID"):
             mutated = text.replace("MVP-013-territory-feedback", "MVP-013-territorial-feedback")
             errors = collect_human_contract_errors(mutated, mvp013)
             self.assertIn("HUMAN_AUTHORITY_ID", errors)
+            human_killed.append("L-H06-WRONG-ID")
 
         with self.subTest(mutation="L-H07-OPEN-TERM"):
             mutated = text + "\nTBD\n"
             errors = collect_human_contract_errors(mutated, mvp013)
             self.assertIn("HUMAN_OPEN_TERM", errors)
+            human_killed.append("L-H07-OPEN-TERM")
 
         with self.subTest(mutation="L-H08-SCOPE-EXTRA"):
             mutated = text.replace("5. `contract_parity_and_negative_tests`", "5. `contract_parity_and_negative_tests`\n6. `extra_item`")
             errors = collect_human_contract_errors(mutated, mvp013)
             self.assertIn("HUMAN_SCOPE", errors)
+            human_killed.append("L-H08-SCOPE-EXTRA")
+
+        self.assertEqual(human_killed, [
+            "L-H01-EXTRA-PHASE-ROW",
+            "L-H02-REORDERED-SNAPSHOT-ROW",
+            "L-H03-ACTIVE-REFORM-TRUE",
+            "L-H04-P06",
+            "L-H05-DUPLICATE-SECTION",
+            "L-H06-WRONG-ID",
+            "L-H07-OPEN-TERM",
+            "L-H08-SCOPE-EXTRA",
+        ])
 
     def test_l_human_validator_anti_tautology(self):
         import inspect
