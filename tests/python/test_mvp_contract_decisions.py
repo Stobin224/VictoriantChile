@@ -1656,6 +1656,8 @@ def collect_mvp013_semantic_errors(doc: dict) -> list[str]:
         errors.append("SCHEMA_VERSION")
     if len(decisions) != 13:
         errors.append("DECISION_COUNT")
+    if sum(1 for d in decisions if d.get("id") == "MVP-013-territory-feedback") != 1:
+        errors.append("MVP013_COUNT")
     mvp013 = None
     for d in decisions:
         if d.get("id") == "MVP-013-territory-feedback":
@@ -1688,6 +1690,17 @@ def collect_mvp013_semantic_errors(doc: dict) -> list[str]:
     pull_cap = resolution.get("pull", {}).get("cap_per_weekS")
     if pull_cap != 400:
         errors.append("PULL_CAP")
+    expected_resolution = EXPECTED_MVP_013["resolution"]
+    if resolution.get("canonical_region_order") != expected_resolution["canonical_region_order"]:
+        errors.append("CANONICAL_REGION_ORDER")
+    if resolution.get("snapshot_semantics") != expected_resolution["snapshot_semantics"]:
+        errors.append("SNAPSHOT_SEMANTICS")
+    if resolution.get("cause_key_grammar") != expected_resolution["cause_key_grammar"]:
+        errors.append("CAUSE_KEY_GRAMMAR")
+    if resolution.get("hidden_pull_provenance") != expected_resolution["hidden_pull_provenance"]:
+        errors.append("HIDDEN_PULL_PROVENANCE")
+    if resolution.get("vectors") != expected_resolution["vectors"]:
+        errors.append("VECTORS")
     arb = resolution.get("active_reform_bias_exclusion", {})
     if arb.get("included_in_pr_15_x") is not False:
         errors.append("MVP013_ACTIVE_REFORM_EXCLUSION")
@@ -1730,18 +1743,14 @@ def collect_mvp013_parity_errors(json_document: dict, markdown_document: dict) -
         return errors
     if jd13.get("id") != "MVP-013-territory-feedback" or md13.get("id") != "MVP-013-territory-feedback":
         errors.append("MVP013_JSON_MARKDOWN_DIVERGENCE")
-    j_res13 = json.dumps(jd13.get("resolution", {}), sort_keys=True)
-    m_res13 = json.dumps(md13.get("resolution", {}), sort_keys=True)
-    if j_res13 != m_res13:
-        errors.append("MVP013_JSON_MARKDOWN_DIVERGENCE")
-    if jd13.get("status") != md13.get("status"):
-        errors.append("MVP013_JSON_MARKDOWN_DIVERGENCE")
+    for key in ("id", "topic", "question", "status", "resolution"):
+        if jd13.get(key) != md13.get(key):
+            errors.append("MVP013_JSON_MARKDOWN_DIVERGENCE")
+            break
     for i in range(12):
         jd = json_decisions[i]
         md = md_decisions[i]
-        j_res = json.dumps(jd.get("resolution", {}), sort_keys=True)
-        m_res = json.dumps(md.get("resolution", {}), sort_keys=True)
-        if j_res != m_res:
+        if jd != md:
             errors.append("PREVIOUS_DECISIONS_CHANGED")
             break
     return errors
@@ -2961,24 +2970,32 @@ class MvpContractDecisionsTest(unittest.TestCase):
 
     def test_l_mutation_matrix(self):
         doc = read_json_document()
+        mvp_killed = []
 
         with self.subTest(mutation="L-M05-SUPPORT-SIGN"):
             mutated = copy.deepcopy(doc)
             mutated["decisions"][12]["resolution"]["drift"]["target_formulas"]["support"]["terms"][0]["coefficient_ppm"] = -600000
             errors = collect_mvp013_semantic_errors(mutated)
             self.assertIn("MVP013_SUPPORT_COEFFICIENT", errors)
+            mvp_killed.append("L-M05-SUPPORT-SIGN")
 
         with self.subTest(mutation="L-M12-ACTIVE-REFORM-BIAS_included"):
             mutated = copy.deepcopy(doc)
             mutated["decisions"][12]["resolution"]["active_reform_bias_exclusion"]["included_in_pr_15_x"] = True
             errors = collect_mvp013_semantic_errors(mutated)
             self.assertIn("MVP013_ACTIVE_REFORM_EXCLUSION", errors)
+            mvp_killed.append("L-M12-ACTIVE-REFORM-BIAS")
 
         with self.subTest(mutation="L-M12-ACTIVE-REFORM-BIAS_runtime"):
             mutated = copy.deepcopy(doc)
             mutated["decisions"][12]["resolution"]["active_reform_bias_exclusion"]["runtime_hook"] = True
             errors = collect_mvp013_semantic_errors(mutated)
             self.assertIn("MVP013_ACTIVE_REFORM_EXCLUSION", errors)
+
+        self.assertEqual(mvp_killed, [
+            "L-M05-SUPPORT-SIGN",
+            "L-M12-ACTIVE-REFORM-BIAS",
+        ])
 
     def test_l_parity_matrix(self):
         json_doc = read_json_document()
@@ -3009,17 +3026,10 @@ class MvpContractDecisionsTest(unittest.TestCase):
         self.assertEqual(MUTATION_OWNER_BY_ID["L-M12-ACTIVE-REFORM-BIAS"], "test_mvp_contract_decisions.py")
         for mid in EXPECTED_L_MUTATION_IDS:
             self.assertIn(mid, MUTATION_OWNER_BY_ID)
-
-    def test_l_zero_survivors(self):
-        mvp_killed = [
-            "L-M05-SUPPORT-SIGN",
-            "L-M12-ACTIVE-REFORM-BIAS",
-        ]
-        self.assertEqual(mvp_killed, [mid for mid in EXPECTED_L_MUTATION_IDS if MUTATION_OWNER_BY_ID[mid] == "test_mvp_contract_decisions.py"])
-        all_killed = set()
-        for mid in EXPECTED_L_MUTATION_IDS:
-            all_killed.add(mid)
-        self.assertEqual(set(EXPECTED_L_MUTATION_IDS), all_killed)
+        mvp_owner_ids = [mid for mid in EXPECTED_L_MUTATION_IDS if MUTATION_OWNER_BY_ID[mid] == "test_mvp_contract_decisions.py"]
+        execution_owner_ids = [mid for mid in EXPECTED_L_MUTATION_IDS if MUTATION_OWNER_BY_ID[mid] == "test_territory_execution_contract.py"]
+        combined_ids = mvp_owner_ids + execution_owner_ids
+        self.assertEqual(sorted(combined_ids, key=EXPECTED_L_MUTATION_IDS.index), EXPECTED_L_MUTATION_IDS)
 
     def test_l_validator_anti_tautology(self):
         import inspect
