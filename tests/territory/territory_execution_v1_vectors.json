@@ -1,0 +1,5039 @@
+{
+  "schema_version": 1,
+  "fixture_id": "territory_execution_v1",
+  "authority_decision_id": "MVP-013-territory-feedback",
+  "numeric_domain": {
+    "scale": 100,
+    "hundredS": 10000,
+    "midS": 5000,
+    "ppm_denominator": 1000000,
+    "stored_type": "int",
+    "intermediate_type": "checked_long",
+    "rounding": "HALF_AWAY_FROM_ZERO",
+    "rounding_authority": "FixedMath.RoundDivide",
+    "target_clamp_authority": "TargetConfig",
+    "publication_operation": "SET",
+    "forbidden_numeric_types": [
+      "float",
+      "double",
+      "decimal"
+    ],
+    "forbidden_behaviors": [
+      "Math.Round",
+      "divide_before_weighted_sum_complete",
+      "round_per_component",
+      "silent_saturation",
+      "unchecked_overflow",
+      "unchecked_cast",
+      "hardcoded_target_clamp"
+    ]
+  },
+  "canonical_region_order": [
+    "arica_parinacota",
+    "tarapaca",
+    "antofagasta",
+    "atacama",
+    "coquimbo",
+    "valparaiso",
+    "metropolitana",
+    "ohiggins",
+    "maule",
+    "nuble",
+    "biobio",
+    "araucania",
+    "los_rios",
+    "los_lagos",
+    "aysen",
+    "magallanes"
+  ],
+  "regions": [
+    {
+      "region_id": "arica_parinacota",
+      "weight_ppm": 62500,
+      "admin_capS": 5000,
+      "industry_capS": 5000,
+      "extractive_capS": 5000,
+      "social_capS": 5000,
+      "populationS": 5000
+    },
+    {
+      "region_id": "tarapaca",
+      "weight_ppm": 62500,
+      "admin_capS": 5000,
+      "industry_capS": 5000,
+      "extractive_capS": 5000,
+      "social_capS": 5000,
+      "populationS": 5000
+    },
+    {
+      "region_id": "antofagasta",
+      "weight_ppm": 62500,
+      "admin_capS": 5000,
+      "industry_capS": 5000,
+      "extractive_capS": 5000,
+      "social_capS": 5000,
+      "populationS": 5000
+    },
+    {
+      "region_id": "atacama",
+      "weight_ppm": 62500,
+      "admin_capS": 5000,
+      "industry_capS": 5000,
+      "extractive_capS": 5000,
+      "social_capS": 5000,
+      "populationS": 5000
+    },
+    {
+      "region_id": "coquimbo",
+      "weight_ppm": 62500,
+      "admin_capS": 5000,
+      "industry_capS": 5000,
+      "extractive_capS": 5000,
+      "social_capS": 5000,
+      "populationS": 5000
+    },
+    {
+      "region_id": "valparaiso",
+      "weight_ppm": 62500,
+      "admin_capS": 5000,
+      "industry_capS": 5000,
+      "extractive_capS": 5000,
+      "social_capS": 5000,
+      "populationS": 5000
+    },
+    {
+      "region_id": "metropolitana",
+      "weight_ppm": 62500,
+      "admin_capS": 5000,
+      "industry_capS": 5000,
+      "extractive_capS": 5000,
+      "social_capS": 5000,
+      "populationS": 5000
+    },
+    {
+      "region_id": "ohiggins",
+      "weight_ppm": 62500,
+      "admin_capS": 5000,
+      "industry_capS": 5000,
+      "extractive_capS": 5000,
+      "social_capS": 5000,
+      "populationS": 5000
+    },
+    {
+      "region_id": "maule",
+      "weight_ppm": 62500,
+      "admin_capS": 5000,
+      "industry_capS": 5000,
+      "extractive_capS": 5000,
+      "social_capS": 5000,
+      "populationS": 5000
+    },
+    {
+      "region_id": "nuble",
+      "weight_ppm": 62500,
+      "admin_capS": 5000,
+      "industry_capS": 5000,
+      "extractive_capS": 5000,
+      "social_capS": 5000,
+      "populationS": 5000
+    },
+    {
+      "region_id": "biobio",
+      "weight_ppm": 62500,
+      "admin_capS": 5000,
+      "industry_capS": 5000,
+      "extractive_capS": 5000,
+      "social_capS": 5000,
+      "populationS": 5000
+    },
+    {
+      "region_id": "araucania",
+      "weight_ppm": 62500,
+      "admin_capS": 5000,
+      "industry_capS": 5000,
+      "extractive_capS": 5000,
+      "social_capS": 5000,
+      "populationS": 5000
+    },
+    {
+      "region_id": "los_rios",
+      "weight_ppm": 62500,
+      "admin_capS": 5000,
+      "industry_capS": 5000,
+      "extractive_capS": 5000,
+      "social_capS": 5000,
+      "populationS": 5000
+    },
+    {
+      "region_id": "los_lagos",
+      "weight_ppm": 62500,
+      "admin_capS": 5000,
+      "industry_capS": 5000,
+      "extractive_capS": 5000,
+      "social_capS": 5000,
+      "populationS": 5000
+    },
+    {
+      "region_id": "aysen",
+      "weight_ppm": 62500,
+      "admin_capS": 5000,
+      "industry_capS": 5000,
+      "extractive_capS": 5000,
+      "social_capS": 5000,
+      "populationS": 5000
+    },
+    {
+      "region_id": "magallanes",
+      "weight_ppm": 62500,
+      "admin_capS": 5000,
+      "industry_capS": 5000,
+      "extractive_capS": 5000,
+      "social_capS": 5000,
+      "populationS": 5000
+    }
+  ],
+  "constants": {
+    "drift": {
+      "alpha_ppm": 109101,
+      "cap_per_weekS": 200,
+      "target_baseS": 5000,
+      "denominator": 1000000
+    },
+    "pull": {
+      "alpha_ppm": 206299,
+      "cap_per_weekS": 400,
+      "denominator": 1000000
+    },
+    "latency_ticks": 1
+  },
+  "cause_contract": {
+    "cause_key_grammar": {
+      "cause_category": "SYSTEM",
+      "parent": null,
+      "canonical_key_separator": ":",
+      "canonical_key_separator_count": 1,
+      "identifier_separator": ".",
+      "identifier_policy": "PRINTABLE_ASCII_NO_WHITESPACE_COLON_PIPE",
+      "drift": {
+        "id_prefix": "REG_DRIFT",
+        "canonical_key_pattern": "SYSTEM:REG_DRIFT.regions.{region_id}.{metric}",
+        "target_pattern": "regions.{region_id}.{metric}",
+        "target_visibility": "public_visible_target",
+        "public_ledger": true,
+        "tick_causal_buffer": true,
+        "potential_cause_count": 64,
+        "cause_order": "canonical_region_order_then_drift_metric_order",
+        "zero_realized_delta_policy": "omit_contribution"
+      }
+    },
+    "hidden_pull_provenance": {
+      "pull_provenance": {
+        "id_prefix": "REG_TO_INT",
+        "canonical_key_pattern": "SYSTEM:REG_TO_INT.{internal_target}",
+        "identity_count": 5,
+        "provenance_scope": "ephemeral_execution_plan_only",
+        "target_visibility": "hidden_internal",
+        "public_ledger": false,
+        "tick_causal_buffer": false,
+        "serialized": false,
+        "stored_in_game_state": false,
+        "turn_report": false,
+        "top_n_slot": false,
+        "lifetime": "current_phase_10_plan_only",
+        "public_attribution": "next_tick_SYSTEM_AGG",
+        "double_counting": "forbidden",
+        "identities": [
+          {
+            "binding_id": "support_to_coalition_strength",
+            "canonical_key": "SYSTEM:REG_TO_INT.internals.leg.coalition_strength",
+            "internal_target": "internals.leg.coalition_strength"
+          },
+          {
+            "binding_id": "organization_to_field_ops",
+            "canonical_key": "SYSTEM:REG_TO_INT.internals.party.field_ops",
+            "internal_target": "internals.party.field_ops"
+          },
+          {
+            "binding_id": "tension_to_protest_activity",
+            "canonical_key": "SYSTEM:REG_TO_INT.internals.tension.protest_activity",
+            "internal_target": "internals.tension.protest_activity"
+          },
+          {
+            "binding_id": "rival_presence_to_opposition_obstruction",
+            "canonical_key": "SYSTEM:REG_TO_INT.internals.leg.opposition_obstruction",
+            "internal_target": "internals.leg.opposition_obstruction"
+          },
+          {
+            "binding_id": "tension_to_movement_salience",
+            "canonical_key": "SYSTEM:REG_TO_INT.internals.agenda.movement_salience",
+            "internal_target": "internals.agenda.movement_salience"
+          }
+        ]
+      },
+      "public_aggregation_attribution": [
+        {
+          "internal_target": "internals.leg.coalition_strength",
+          "visible_metric": "metrics.legislative_capacity",
+          "canonical_key": "SYSTEM:AGG.metrics.legislative_capacity.internals.leg.coalition_strength"
+        },
+        {
+          "internal_target": "internals.party.field_ops",
+          "visible_metric": "metrics.party_organization",
+          "canonical_key": "SYSTEM:AGG.metrics.party_organization.internals.party.field_ops"
+        },
+        {
+          "internal_target": "internals.tension.protest_activity",
+          "visible_metric": "metrics.social_tension",
+          "canonical_key": "SYSTEM:AGG.metrics.social_tension.internals.tension.protest_activity"
+        },
+        {
+          "internal_target": "internals.leg.opposition_obstruction",
+          "visible_metric": "metrics.legislative_capacity",
+          "canonical_key": "SYSTEM:AGG.metrics.legislative_capacity.internals.leg.opposition_obstruction"
+        },
+        {
+          "internal_target": "internals.agenda.movement_salience",
+          "visible_metric": "metrics.public_agenda",
+          "canonical_key": "SYSTEM:AGG.metrics.public_agenda.internals.agenda.movement_salience"
+        }
+      ]
+    }
+  },
+  "vector_registry": {
+    "rounding": [
+      "R-01",
+      "R-02"
+    ],
+    "drift": [
+      "D-00",
+      "D-01",
+      "D-02",
+      "D-03",
+      "D-04",
+      "D-05",
+      "D-06",
+      "D-07",
+      "D-08",
+      "D-08-WRONG",
+      "D-09",
+      "D-10"
+    ],
+    "pull": [
+      "P-00",
+      "P-01",
+      "P-02",
+      "P-03",
+      "P-04",
+      "P-05"
+    ],
+    "latency": [
+      "L-01-T",
+      "L-01-T1-R",
+      "L-01-T1-A",
+      "L-01-CAUSE"
+    ],
+    "ordering": [
+      "O-01",
+      "O-02",
+      "O-03",
+      "O-04",
+      "O-05"
+    ],
+    "fixture_owner": "PR_15_1_J",
+    "oracle_owner": "PR_15_1_K"
+  },
+  "vectors": {
+    "rounding": [
+      {
+        "id": "R-01",
+        "numerator": 500000,
+        "denominator": 1000000,
+        "expected_result": 1
+      },
+      {
+        "id": "R-02",
+        "numerator": -500000,
+        "denominator": 1000000,
+        "expected_result": -1
+      }
+    ],
+    "drift": [
+      {
+        "id": "D-00",
+        "valid": true,
+        "description": "neutral all 64 outputs",
+        "outputs": [
+          {
+            "region_id": "arica_parinacota",
+            "metric": "support",
+            "target_path": "regions.arica_parinacota.support",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.arica_parinacota.support",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "arica_parinacota",
+            "metric": "tension",
+            "target_path": "regions.arica_parinacota.tension",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.arica_parinacota.tension",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "arica_parinacota",
+            "metric": "organization",
+            "target_path": "regions.arica_parinacota.organization",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.arica_parinacota.organization",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "arica_parinacota",
+            "metric": "rival_presence",
+            "target_path": "regions.arica_parinacota.rival_presence",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.arica_parinacota.rival_presence",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "tarapaca",
+            "metric": "support",
+            "target_path": "regions.tarapaca.support",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.tarapaca.support",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "tarapaca",
+            "metric": "tension",
+            "target_path": "regions.tarapaca.tension",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.tarapaca.tension",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "tarapaca",
+            "metric": "organization",
+            "target_path": "regions.tarapaca.organization",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.tarapaca.organization",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "tarapaca",
+            "metric": "rival_presence",
+            "target_path": "regions.tarapaca.rival_presence",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.tarapaca.rival_presence",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "antofagasta",
+            "metric": "support",
+            "target_path": "regions.antofagasta.support",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.antofagasta.support",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "antofagasta",
+            "metric": "tension",
+            "target_path": "regions.antofagasta.tension",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.antofagasta.tension",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "antofagasta",
+            "metric": "organization",
+            "target_path": "regions.antofagasta.organization",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.antofagasta.organization",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "antofagasta",
+            "metric": "rival_presence",
+            "target_path": "regions.antofagasta.rival_presence",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.antofagasta.rival_presence",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "atacama",
+            "metric": "support",
+            "target_path": "regions.atacama.support",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.atacama.support",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "atacama",
+            "metric": "tension",
+            "target_path": "regions.atacama.tension",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.atacama.tension",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "atacama",
+            "metric": "organization",
+            "target_path": "regions.atacama.organization",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.atacama.organization",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "atacama",
+            "metric": "rival_presence",
+            "target_path": "regions.atacama.rival_presence",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.atacama.rival_presence",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "coquimbo",
+            "metric": "support",
+            "target_path": "regions.coquimbo.support",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.coquimbo.support",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "coquimbo",
+            "metric": "tension",
+            "target_path": "regions.coquimbo.tension",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.coquimbo.tension",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "coquimbo",
+            "metric": "organization",
+            "target_path": "regions.coquimbo.organization",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.coquimbo.organization",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "coquimbo",
+            "metric": "rival_presence",
+            "target_path": "regions.coquimbo.rival_presence",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.coquimbo.rival_presence",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "valparaiso",
+            "metric": "support",
+            "target_path": "regions.valparaiso.support",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.valparaiso.support",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "valparaiso",
+            "metric": "tension",
+            "target_path": "regions.valparaiso.tension",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.valparaiso.tension",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "valparaiso",
+            "metric": "organization",
+            "target_path": "regions.valparaiso.organization",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.valparaiso.organization",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "valparaiso",
+            "metric": "rival_presence",
+            "target_path": "regions.valparaiso.rival_presence",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.valparaiso.rival_presence",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "metropolitana",
+            "metric": "support",
+            "target_path": "regions.metropolitana.support",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.metropolitana.support",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "metropolitana",
+            "metric": "tension",
+            "target_path": "regions.metropolitana.tension",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.metropolitana.tension",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "metropolitana",
+            "metric": "organization",
+            "target_path": "regions.metropolitana.organization",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.metropolitana.organization",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "metropolitana",
+            "metric": "rival_presence",
+            "target_path": "regions.metropolitana.rival_presence",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.metropolitana.rival_presence",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "ohiggins",
+            "metric": "support",
+            "target_path": "regions.ohiggins.support",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.ohiggins.support",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "ohiggins",
+            "metric": "tension",
+            "target_path": "regions.ohiggins.tension",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.ohiggins.tension",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "ohiggins",
+            "metric": "organization",
+            "target_path": "regions.ohiggins.organization",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.ohiggins.organization",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "ohiggins",
+            "metric": "rival_presence",
+            "target_path": "regions.ohiggins.rival_presence",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.ohiggins.rival_presence",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "maule",
+            "metric": "support",
+            "target_path": "regions.maule.support",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.maule.support",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "maule",
+            "metric": "tension",
+            "target_path": "regions.maule.tension",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.maule.tension",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "maule",
+            "metric": "organization",
+            "target_path": "regions.maule.organization",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.maule.organization",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "maule",
+            "metric": "rival_presence",
+            "target_path": "regions.maule.rival_presence",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.maule.rival_presence",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "nuble",
+            "metric": "support",
+            "target_path": "regions.nuble.support",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.nuble.support",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "nuble",
+            "metric": "tension",
+            "target_path": "regions.nuble.tension",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.nuble.tension",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "nuble",
+            "metric": "organization",
+            "target_path": "regions.nuble.organization",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.nuble.organization",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "nuble",
+            "metric": "rival_presence",
+            "target_path": "regions.nuble.rival_presence",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.nuble.rival_presence",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "biobio",
+            "metric": "support",
+            "target_path": "regions.biobio.support",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.biobio.support",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "biobio",
+            "metric": "tension",
+            "target_path": "regions.biobio.tension",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.biobio.tension",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "biobio",
+            "metric": "organization",
+            "target_path": "regions.biobio.organization",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.biobio.organization",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "biobio",
+            "metric": "rival_presence",
+            "target_path": "regions.biobio.rival_presence",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.biobio.rival_presence",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "araucania",
+            "metric": "support",
+            "target_path": "regions.araucania.support",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.araucania.support",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "araucania",
+            "metric": "tension",
+            "target_path": "regions.araucania.tension",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.araucania.tension",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "araucania",
+            "metric": "organization",
+            "target_path": "regions.araucania.organization",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.araucania.organization",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "araucania",
+            "metric": "rival_presence",
+            "target_path": "regions.araucania.rival_presence",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.araucania.rival_presence",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "los_rios",
+            "metric": "support",
+            "target_path": "regions.los_rios.support",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.los_rios.support",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "los_rios",
+            "metric": "tension",
+            "target_path": "regions.los_rios.tension",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.los_rios.tension",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "los_rios",
+            "metric": "organization",
+            "target_path": "regions.los_rios.organization",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.los_rios.organization",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "los_rios",
+            "metric": "rival_presence",
+            "target_path": "regions.los_rios.rival_presence",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.los_rios.rival_presence",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "los_lagos",
+            "metric": "support",
+            "target_path": "regions.los_lagos.support",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.los_lagos.support",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "los_lagos",
+            "metric": "tension",
+            "target_path": "regions.los_lagos.tension",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.los_lagos.tension",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "los_lagos",
+            "metric": "organization",
+            "target_path": "regions.los_lagos.organization",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.los_lagos.organization",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "los_lagos",
+            "metric": "rival_presence",
+            "target_path": "regions.los_lagos.rival_presence",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.los_lagos.rival_presence",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "aysen",
+            "metric": "support",
+            "target_path": "regions.aysen.support",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.aysen.support",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "aysen",
+            "metric": "tension",
+            "target_path": "regions.aysen.tension",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.aysen.tension",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "aysen",
+            "metric": "organization",
+            "target_path": "regions.aysen.organization",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.aysen.organization",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "aysen",
+            "metric": "rival_presence",
+            "target_path": "regions.aysen.rival_presence",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.aysen.rival_presence",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "magallanes",
+            "metric": "support",
+            "target_path": "regions.magallanes.support",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.magallanes.support",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "magallanes",
+            "metric": "tension",
+            "target_path": "regions.magallanes.tension",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.magallanes.tension",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "magallanes",
+            "metric": "organization",
+            "target_path": "regions.magallanes.organization",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.magallanes.organization",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          },
+          {
+            "region_id": "magallanes",
+            "metric": "rival_presence",
+            "target_path": "regions.magallanes.rival_presence",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.magallanes.rival_presence",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 0,
+              "offsetS": 0,
+              "target_unclampedS": 5000,
+              "targetS": 5000,
+              "distanceS": 0,
+              "elastic_numerator": 0,
+              "elastic_deltaS": 0,
+              "capped_deltaS": 0,
+              "pre_finalS": 5000,
+              "finalS": 5000,
+              "realized_deltaS": 0,
+              "expected_contributions": []
+            }
+          }
+        ]
+      },
+      {
+        "id": "D-01",
+        "valid": true,
+        "description": "support positive delta",
+        "outputs": [
+          {
+            "region_id": "arica_parinacota",
+            "metric": "support",
+            "target_path": "regions.arica_parinacota.support",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.arica_parinacota.support",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 6000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 600000000,
+              "offsetS": 600,
+              "target_unclampedS": 5600,
+              "targetS": 5600,
+              "distanceS": 600,
+              "elastic_numerator": 65460600,
+              "elastic_deltaS": 65,
+              "capped_deltaS": 65,
+              "pre_finalS": 5065,
+              "finalS": 5065,
+              "realized_deltaS": 65,
+              "expected_contributions": [
+                {
+                  "target": "regions.arica_parinacota.support",
+                  "cause_key": "SYSTEM:REG_DRIFT.regions.arica_parinacota.support",
+                  "deltaS": 65
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "id": "D-02",
+        "valid": true,
+        "description": "support negative delta",
+        "outputs": [
+          {
+            "region_id": "arica_parinacota",
+            "metric": "support",
+            "target_path": "regions.arica_parinacota.support",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.arica_parinacota.support",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 4000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": -600000000,
+              "offsetS": -600,
+              "target_unclampedS": 4400,
+              "targetS": 4400,
+              "distanceS": -600,
+              "elastic_numerator": -65460600,
+              "elastic_deltaS": -65,
+              "capped_deltaS": -65,
+              "pre_finalS": 4935,
+              "finalS": 4935,
+              "realized_deltaS": -65,
+              "expected_contributions": [
+                {
+                  "target": "regions.arica_parinacota.support",
+                  "cause_key": "SYSTEM:REG_DRIFT.regions.arica_parinacota.support",
+                  "deltaS": -65
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "id": "D-03",
+        "valid": true,
+        "description": "tension positive delta",
+        "outputs": [
+          {
+            "region_id": "arica_parinacota",
+            "metric": "tension",
+            "target_path": "regions.arica_parinacota.tension",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.arica_parinacota.tension",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 4000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 500000000,
+              "offsetS": 500,
+              "target_unclampedS": 5500,
+              "targetS": 5500,
+              "distanceS": 500,
+              "elastic_numerator": 54550500,
+              "elastic_deltaS": 55,
+              "capped_deltaS": 55,
+              "pre_finalS": 5055,
+              "finalS": 5055,
+              "realized_deltaS": 55,
+              "expected_contributions": [
+                {
+                  "target": "regions.arica_parinacota.tension",
+                  "cause_key": "SYSTEM:REG_DRIFT.regions.arica_parinacota.tension",
+                  "deltaS": 55
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "id": "D-04",
+        "valid": true,
+        "description": "tension negative delta",
+        "outputs": [
+          {
+            "region_id": "arica_parinacota",
+            "metric": "tension",
+            "target_path": "regions.arica_parinacota.tension",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.arica_parinacota.tension",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 6000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": -500000000,
+              "offsetS": -500,
+              "target_unclampedS": 4500,
+              "targetS": 4500,
+              "distanceS": -500,
+              "elastic_numerator": -54550500,
+              "elastic_deltaS": -55,
+              "capped_deltaS": -55,
+              "pre_finalS": 4945,
+              "finalS": 4945,
+              "realized_deltaS": -55,
+              "expected_contributions": [
+                {
+                  "target": "regions.arica_parinacota.tension",
+                  "cause_key": "SYSTEM:REG_DRIFT.regions.arica_parinacota.tension",
+                  "deltaS": -55
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "id": "D-05",
+        "valid": true,
+        "description": "organization positive delta",
+        "outputs": [
+          {
+            "region_id": "arica_parinacota",
+            "metric": "organization",
+            "target_path": "regions.arica_parinacota.organization",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.arica_parinacota.organization",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 6000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 800000000,
+              "offsetS": 800,
+              "target_unclampedS": 5800,
+              "targetS": 5800,
+              "distanceS": 800,
+              "elastic_numerator": 87280800,
+              "elastic_deltaS": 87,
+              "capped_deltaS": 87,
+              "pre_finalS": 5087,
+              "finalS": 5087,
+              "realized_deltaS": 87,
+              "expected_contributions": [
+                {
+                  "target": "regions.arica_parinacota.organization",
+                  "cause_key": "SYSTEM:REG_DRIFT.regions.arica_parinacota.organization",
+                  "deltaS": 87
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "id": "D-06",
+        "valid": true,
+        "description": "organization negative delta",
+        "outputs": [
+          {
+            "region_id": "arica_parinacota",
+            "metric": "organization",
+            "target_path": "regions.arica_parinacota.organization",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.arica_parinacota.organization",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 4000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": -800000000,
+              "offsetS": -800,
+              "target_unclampedS": 4200,
+              "targetS": 4200,
+              "distanceS": -800,
+              "elastic_numerator": -87280800,
+              "elastic_deltaS": -87,
+              "capped_deltaS": -87,
+              "pre_finalS": 4913,
+              "finalS": 4913,
+              "realized_deltaS": -87,
+              "expected_contributions": [
+                {
+                  "target": "regions.arica_parinacota.organization",
+                  "cause_key": "SYSTEM:REG_DRIFT.regions.arica_parinacota.organization",
+                  "deltaS": -87
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "id": "D-07",
+        "valid": true,
+        "description": "rival presence positive delta using pre-drift support",
+        "outputs": [
+          {
+            "region_id": "arica_parinacota",
+            "metric": "rival_presence",
+            "target_path": "regions.arica_parinacota.rival_presence",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.arica_parinacota.rival_presence",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 5000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 4000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 700000000,
+              "offsetS": 700,
+              "target_unclampedS": 5700,
+              "targetS": 5700,
+              "distanceS": 700,
+              "elastic_numerator": 76370700,
+              "elastic_deltaS": 76,
+              "capped_deltaS": 76,
+              "pre_finalS": 5076,
+              "finalS": 5076,
+              "realized_deltaS": 76,
+              "expected_contributions": [
+                {
+                  "target": "regions.arica_parinacota.rival_presence",
+                  "cause_key": "SYSTEM:REG_DRIFT.regions.arica_parinacota.rival_presence",
+                  "deltaS": 76
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "id": "D-08",
+        "valid": true,
+        "description": "support and rival presence using pre-drift support snapshot",
+        "outputs": [
+          {
+            "region_id": "arica_parinacota",
+            "metric": "support",
+            "target_path": "regions.arica_parinacota.support",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.arica_parinacota.support",
+            "input": {
+              "currentS": 4000,
+              "metrics": {
+                "legitimacyS": 6000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 6000,
+                "social_tensionS": 4750,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 4000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 1000000000,
+              "offsetS": 1000,
+              "target_unclampedS": 6000,
+              "targetS": 6000,
+              "distanceS": 2000,
+              "elastic_numerator": 218202000,
+              "elastic_deltaS": 218,
+              "capped_deltaS": 200,
+              "pre_finalS": 4200,
+              "finalS": 4200,
+              "realized_deltaS": 200,
+              "expected_contributions": [
+                {
+                  "target": "regions.arica_parinacota.support",
+                  "cause_key": "SYSTEM:REG_DRIFT.regions.arica_parinacota.support",
+                  "deltaS": 200
+                }
+              ]
+            }
+          },
+          {
+            "region_id": "arica_parinacota",
+            "metric": "rival_presence",
+            "target_path": "regions.arica_parinacota.rival_presence",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.arica_parinacota.rival_presence",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 6000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 6000,
+                "social_tensionS": 4750,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 4000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 700000000,
+              "offsetS": 700,
+              "target_unclampedS": 5700,
+              "targetS": 5700,
+              "distanceS": 700,
+              "elastic_numerator": 76370700,
+              "elastic_deltaS": 76,
+              "capped_deltaS": 76,
+              "pre_finalS": 5076,
+              "finalS": 5076,
+              "realized_deltaS": 76,
+              "expected_contributions": [
+                {
+                  "target": "regions.arica_parinacota.rival_presence",
+                  "cause_key": "SYSTEM:REG_DRIFT.regions.arica_parinacota.rival_presence",
+                  "deltaS": 76
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "id": "D-08-WRONG",
+        "valid": false,
+        "description": "uses post-drift support for rival presence (incorrect)",
+        "rejection_reason": "uses_post_drift_support_for_rival_presence",
+        "counterexample": {
+          "numerator": 560000000,
+          "offsetS": 560,
+          "target_unclampedS": 5560,
+          "targetS": 5560,
+          "currentS": 5000,
+          "distanceS": 560,
+          "elastic_numerator": 61096560,
+          "elastic_deltaS": 61,
+          "capped_deltaS": 61,
+          "pre_finalS": 5061,
+          "finalS": 5061,
+          "realized_deltaS": 61
+        },
+        "must_differ_from": {
+          "vector_id": "D-08",
+          "field": "rival_presence.finalS",
+          "valid_value": 5076,
+          "counterexample_value": 5061
+        }
+      },
+      {
+        "id": "D-09",
+        "valid": true,
+        "description": "cap positive delta",
+        "outputs": [
+          {
+            "region_id": "arica_parinacota",
+            "metric": "support",
+            "target_path": "regions.arica_parinacota.support",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.arica_parinacota.support",
+            "input": {
+              "currentS": 0,
+              "metrics": {
+                "legitimacyS": 10000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 10000,
+                "social_tensionS": 0,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 6500000000,
+              "offsetS": 6500,
+              "target_unclampedS": 11500,
+              "targetS": 10000,
+              "distanceS": 10000,
+              "elastic_numerator": 1091010000,
+              "elastic_deltaS": 1091,
+              "capped_deltaS": 200,
+              "pre_finalS": 200,
+              "finalS": 200,
+              "realized_deltaS": 200,
+              "expected_contributions": [
+                {
+                  "target": "regions.arica_parinacota.support",
+                  "cause_key": "SYSTEM:REG_DRIFT.regions.arica_parinacota.support",
+                  "deltaS": 200
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "id": "D-10",
+        "valid": true,
+        "description": "cap negative delta",
+        "outputs": [
+          {
+            "region_id": "arica_parinacota",
+            "metric": "support",
+            "target_path": "regions.arica_parinacota.support",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.arica_parinacota.support",
+            "input": {
+              "currentS": 10000,
+              "metrics": {
+                "legitimacyS": 0,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 0,
+                "social_tensionS": 10000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": -6500000000,
+              "offsetS": -6500,
+              "target_unclampedS": -1500,
+              "targetS": 0,
+              "distanceS": -10000,
+              "elastic_numerator": -1091010000,
+              "elastic_deltaS": -1091,
+              "capped_deltaS": -200,
+              "pre_finalS": 9800,
+              "finalS": 9800,
+              "realized_deltaS": -200,
+              "expected_contributions": [
+                {
+                  "target": "regions.arica_parinacota.support",
+                  "cause_key": "SYSTEM:REG_DRIFT.regions.arica_parinacota.support",
+                  "deltaS": -200
+                }
+              ]
+            }
+          }
+        ]
+      }
+    ],
+    "pull": [
+      {
+        "id": "P-00",
+        "binding_id": "support_to_coalition_strength",
+        "regional_source": "support",
+        "destination": "internals.leg.coalition_strength",
+        "provenance_key": "SYSTEM:REG_TO_INT.internals.leg.coalition_strength",
+        "ordered_region_values": [
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000
+        ],
+        "ordered_weights": [
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500
+        ],
+        "input_currentS": 5000,
+        "expected": {
+          "weighted_numerator": 5000000000,
+          "weighted_averageS": 5000,
+          "targetS": 5000,
+          "distanceS": 0,
+          "elastic_numerator": 0,
+          "elastic_deltaS": 0,
+          "capped_deltaS": 0,
+          "pre_finalS": 5000,
+          "finalS": 5000,
+          "realized_deltaS": 0,
+          "public_contributions": []
+        }
+      },
+      {
+        "id": "P-01",
+        "binding_id": "support_to_coalition_strength",
+        "regional_source": "support",
+        "destination": "internals.leg.coalition_strength",
+        "provenance_key": "SYSTEM:REG_TO_INT.internals.leg.coalition_strength",
+        "ordered_region_values": [
+          6000,
+          6000,
+          6000,
+          6000,
+          6000,
+          6000,
+          6000,
+          6000,
+          6000,
+          6000,
+          6000,
+          6000,
+          6000,
+          6000,
+          6000,
+          6000
+        ],
+        "ordered_weights": [
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500
+        ],
+        "input_currentS": 5000,
+        "expected": {
+          "weighted_numerator": 6000000000,
+          "weighted_averageS": 6000,
+          "targetS": 6000,
+          "distanceS": 1000,
+          "elastic_numerator": 206299000,
+          "elastic_deltaS": 206,
+          "capped_deltaS": 206,
+          "pre_finalS": 5206,
+          "finalS": 5206,
+          "realized_deltaS": 206,
+          "public_contributions": []
+        }
+      },
+      {
+        "id": "P-02",
+        "binding_id": "support_to_coalition_strength",
+        "regional_source": "support",
+        "destination": "internals.leg.coalition_strength",
+        "provenance_key": "SYSTEM:REG_TO_INT.internals.leg.coalition_strength",
+        "ordered_region_values": [
+          4000,
+          4000,
+          4000,
+          4000,
+          4000,
+          4000,
+          4000,
+          4000,
+          4000,
+          4000,
+          4000,
+          4000,
+          4000,
+          4000,
+          4000,
+          4000
+        ],
+        "ordered_weights": [
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500
+        ],
+        "input_currentS": 5000,
+        "expected": {
+          "weighted_numerator": 4000000000,
+          "weighted_averageS": 4000,
+          "targetS": 4000,
+          "distanceS": -1000,
+          "elastic_numerator": -206299000,
+          "elastic_deltaS": -206,
+          "capped_deltaS": -206,
+          "pre_finalS": 4794,
+          "finalS": 4794,
+          "realized_deltaS": -206,
+          "public_contributions": []
+        }
+      },
+      {
+        "id": "P-03",
+        "binding_id": "support_to_coalition_strength",
+        "regional_source": "support",
+        "destination": "internals.leg.coalition_strength",
+        "provenance_key": "SYSTEM:REG_TO_INT.internals.leg.coalition_strength",
+        "ordered_region_values": [
+          10000,
+          10000,
+          10000,
+          10000,
+          10000,
+          10000,
+          10000,
+          10000,
+          10000,
+          10000,
+          10000,
+          10000,
+          10000,
+          10000,
+          10000,
+          10000
+        ],
+        "ordered_weights": [
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500
+        ],
+        "input_currentS": 0,
+        "expected": {
+          "weighted_numerator": 10000000000,
+          "weighted_averageS": 10000,
+          "targetS": 10000,
+          "distanceS": 10000,
+          "elastic_numerator": 2062990000,
+          "elastic_deltaS": 2063,
+          "capped_deltaS": 400,
+          "pre_finalS": 400,
+          "finalS": 400,
+          "realized_deltaS": 400,
+          "public_contributions": []
+        }
+      },
+      {
+        "id": "P-04",
+        "binding_id": "support_to_coalition_strength",
+        "regional_source": "support",
+        "destination": "internals.leg.coalition_strength",
+        "provenance_key": "SYSTEM:REG_TO_INT.internals.leg.coalition_strength",
+        "ordered_region_values": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "ordered_weights": [
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500
+        ],
+        "input_currentS": 10000,
+        "expected": {
+          "weighted_numerator": 0,
+          "weighted_averageS": 0,
+          "targetS": 0,
+          "distanceS": -10000,
+          "elastic_numerator": -2062990000,
+          "elastic_deltaS": -2063,
+          "capped_deltaS": -400,
+          "pre_finalS": 9600,
+          "finalS": 9600,
+          "realized_deltaS": -400,
+          "public_contributions": []
+        }
+      },
+      {
+        "id": "P-05",
+        "binding_id": "support_to_coalition_strength",
+        "regional_source": "support",
+        "destination": "internals.leg.coalition_strength",
+        "provenance_key": "SYSTEM:REG_TO_INT.internals.leg.coalition_strength",
+        "ordered_region_values": [
+          5008,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000,
+          5000
+        ],
+        "ordered_weights": [
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500,
+          62500
+        ],
+        "input_currentS": 5000,
+        "expected": {
+          "weighted_numerator": 5000500000,
+          "weighted_averageS": 5001,
+          "targetS": 5001,
+          "distanceS": 1,
+          "elastic_numerator": 206299,
+          "elastic_deltaS": 0,
+          "capped_deltaS": 0,
+          "pre_finalS": 5000,
+          "finalS": 5000,
+          "realized_deltaS": 0,
+          "public_contributions": []
+        }
+      }
+    ],
+    "latency": [
+      {
+        "id": "L-01-T",
+        "description": "tick T: drift raises support to 5065 for all 16 regions, pull raises coalition_strength to 5013",
+        "drift_inputs": {
+          "legitimacyS": 6000,
+          "economyS": 5000,
+          "securityS": 5000,
+          "party_organizationS": 5000,
+          "social_tensionS": 5000,
+          "public_agendaS": 5000,
+          "internal_cohesionS": 5000
+        },
+        "current_supportS": 5000,
+        "drift_outputs": [
+          {
+            "region_id": "arica_parinacota",
+            "metric": "support",
+            "target_path": "regions.arica_parinacota.support",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.arica_parinacota.support",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 6000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 600000000,
+              "offsetS": 600,
+              "target_unclampedS": 5600,
+              "targetS": 5600,
+              "distanceS": 600,
+              "elastic_numerator": 65460600,
+              "elastic_deltaS": 65,
+              "capped_deltaS": 65,
+              "pre_finalS": 5065,
+              "finalS": 5065,
+              "realized_deltaS": 65,
+              "expected_contributions": [
+                {
+                  "target": "regions.arica_parinacota.support",
+                  "cause_key": "SYSTEM:REG_DRIFT.regions.arica_parinacota.support",
+                  "deltaS": 65
+                }
+              ]
+            }
+          },
+          {
+            "region_id": "tarapaca",
+            "metric": "support",
+            "target_path": "regions.tarapaca.support",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.tarapaca.support",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 6000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 600000000,
+              "offsetS": 600,
+              "target_unclampedS": 5600,
+              "targetS": 5600,
+              "distanceS": 600,
+              "elastic_numerator": 65460600,
+              "elastic_deltaS": 65,
+              "capped_deltaS": 65,
+              "pre_finalS": 5065,
+              "finalS": 5065,
+              "realized_deltaS": 65,
+              "expected_contributions": [
+                {
+                  "target": "regions.tarapaca.support",
+                  "cause_key": "SYSTEM:REG_DRIFT.regions.tarapaca.support",
+                  "deltaS": 65
+                }
+              ]
+            }
+          },
+          {
+            "region_id": "antofagasta",
+            "metric": "support",
+            "target_path": "regions.antofagasta.support",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.antofagasta.support",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 6000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 600000000,
+              "offsetS": 600,
+              "target_unclampedS": 5600,
+              "targetS": 5600,
+              "distanceS": 600,
+              "elastic_numerator": 65460600,
+              "elastic_deltaS": 65,
+              "capped_deltaS": 65,
+              "pre_finalS": 5065,
+              "finalS": 5065,
+              "realized_deltaS": 65,
+              "expected_contributions": [
+                {
+                  "target": "regions.antofagasta.support",
+                  "cause_key": "SYSTEM:REG_DRIFT.regions.antofagasta.support",
+                  "deltaS": 65
+                }
+              ]
+            }
+          },
+          {
+            "region_id": "atacama",
+            "metric": "support",
+            "target_path": "regions.atacama.support",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.atacama.support",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 6000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 600000000,
+              "offsetS": 600,
+              "target_unclampedS": 5600,
+              "targetS": 5600,
+              "distanceS": 600,
+              "elastic_numerator": 65460600,
+              "elastic_deltaS": 65,
+              "capped_deltaS": 65,
+              "pre_finalS": 5065,
+              "finalS": 5065,
+              "realized_deltaS": 65,
+              "expected_contributions": [
+                {
+                  "target": "regions.atacama.support",
+                  "cause_key": "SYSTEM:REG_DRIFT.regions.atacama.support",
+                  "deltaS": 65
+                }
+              ]
+            }
+          },
+          {
+            "region_id": "coquimbo",
+            "metric": "support",
+            "target_path": "regions.coquimbo.support",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.coquimbo.support",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 6000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 600000000,
+              "offsetS": 600,
+              "target_unclampedS": 5600,
+              "targetS": 5600,
+              "distanceS": 600,
+              "elastic_numerator": 65460600,
+              "elastic_deltaS": 65,
+              "capped_deltaS": 65,
+              "pre_finalS": 5065,
+              "finalS": 5065,
+              "realized_deltaS": 65,
+              "expected_contributions": [
+                {
+                  "target": "regions.coquimbo.support",
+                  "cause_key": "SYSTEM:REG_DRIFT.regions.coquimbo.support",
+                  "deltaS": 65
+                }
+              ]
+            }
+          },
+          {
+            "region_id": "valparaiso",
+            "metric": "support",
+            "target_path": "regions.valparaiso.support",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.valparaiso.support",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 6000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 600000000,
+              "offsetS": 600,
+              "target_unclampedS": 5600,
+              "targetS": 5600,
+              "distanceS": 600,
+              "elastic_numerator": 65460600,
+              "elastic_deltaS": 65,
+              "capped_deltaS": 65,
+              "pre_finalS": 5065,
+              "finalS": 5065,
+              "realized_deltaS": 65,
+              "expected_contributions": [
+                {
+                  "target": "regions.valparaiso.support",
+                  "cause_key": "SYSTEM:REG_DRIFT.regions.valparaiso.support",
+                  "deltaS": 65
+                }
+              ]
+            }
+          },
+          {
+            "region_id": "metropolitana",
+            "metric": "support",
+            "target_path": "regions.metropolitana.support",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.metropolitana.support",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 6000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 600000000,
+              "offsetS": 600,
+              "target_unclampedS": 5600,
+              "targetS": 5600,
+              "distanceS": 600,
+              "elastic_numerator": 65460600,
+              "elastic_deltaS": 65,
+              "capped_deltaS": 65,
+              "pre_finalS": 5065,
+              "finalS": 5065,
+              "realized_deltaS": 65,
+              "expected_contributions": [
+                {
+                  "target": "regions.metropolitana.support",
+                  "cause_key": "SYSTEM:REG_DRIFT.regions.metropolitana.support",
+                  "deltaS": 65
+                }
+              ]
+            }
+          },
+          {
+            "region_id": "ohiggins",
+            "metric": "support",
+            "target_path": "regions.ohiggins.support",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.ohiggins.support",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 6000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 600000000,
+              "offsetS": 600,
+              "target_unclampedS": 5600,
+              "targetS": 5600,
+              "distanceS": 600,
+              "elastic_numerator": 65460600,
+              "elastic_deltaS": 65,
+              "capped_deltaS": 65,
+              "pre_finalS": 5065,
+              "finalS": 5065,
+              "realized_deltaS": 65,
+              "expected_contributions": [
+                {
+                  "target": "regions.ohiggins.support",
+                  "cause_key": "SYSTEM:REG_DRIFT.regions.ohiggins.support",
+                  "deltaS": 65
+                }
+              ]
+            }
+          },
+          {
+            "region_id": "maule",
+            "metric": "support",
+            "target_path": "regions.maule.support",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.maule.support",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 6000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 600000000,
+              "offsetS": 600,
+              "target_unclampedS": 5600,
+              "targetS": 5600,
+              "distanceS": 600,
+              "elastic_numerator": 65460600,
+              "elastic_deltaS": 65,
+              "capped_deltaS": 65,
+              "pre_finalS": 5065,
+              "finalS": 5065,
+              "realized_deltaS": 65,
+              "expected_contributions": [
+                {
+                  "target": "regions.maule.support",
+                  "cause_key": "SYSTEM:REG_DRIFT.regions.maule.support",
+                  "deltaS": 65
+                }
+              ]
+            }
+          },
+          {
+            "region_id": "nuble",
+            "metric": "support",
+            "target_path": "regions.nuble.support",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.nuble.support",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 6000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 600000000,
+              "offsetS": 600,
+              "target_unclampedS": 5600,
+              "targetS": 5600,
+              "distanceS": 600,
+              "elastic_numerator": 65460600,
+              "elastic_deltaS": 65,
+              "capped_deltaS": 65,
+              "pre_finalS": 5065,
+              "finalS": 5065,
+              "realized_deltaS": 65,
+              "expected_contributions": [
+                {
+                  "target": "regions.nuble.support",
+                  "cause_key": "SYSTEM:REG_DRIFT.regions.nuble.support",
+                  "deltaS": 65
+                }
+              ]
+            }
+          },
+          {
+            "region_id": "biobio",
+            "metric": "support",
+            "target_path": "regions.biobio.support",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.biobio.support",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 6000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 600000000,
+              "offsetS": 600,
+              "target_unclampedS": 5600,
+              "targetS": 5600,
+              "distanceS": 600,
+              "elastic_numerator": 65460600,
+              "elastic_deltaS": 65,
+              "capped_deltaS": 65,
+              "pre_finalS": 5065,
+              "finalS": 5065,
+              "realized_deltaS": 65,
+              "expected_contributions": [
+                {
+                  "target": "regions.biobio.support",
+                  "cause_key": "SYSTEM:REG_DRIFT.regions.biobio.support",
+                  "deltaS": 65
+                }
+              ]
+            }
+          },
+          {
+            "region_id": "araucania",
+            "metric": "support",
+            "target_path": "regions.araucania.support",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.araucania.support",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 6000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 600000000,
+              "offsetS": 600,
+              "target_unclampedS": 5600,
+              "targetS": 5600,
+              "distanceS": 600,
+              "elastic_numerator": 65460600,
+              "elastic_deltaS": 65,
+              "capped_deltaS": 65,
+              "pre_finalS": 5065,
+              "finalS": 5065,
+              "realized_deltaS": 65,
+              "expected_contributions": [
+                {
+                  "target": "regions.araucania.support",
+                  "cause_key": "SYSTEM:REG_DRIFT.regions.araucania.support",
+                  "deltaS": 65
+                }
+              ]
+            }
+          },
+          {
+            "region_id": "los_rios",
+            "metric": "support",
+            "target_path": "regions.los_rios.support",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.los_rios.support",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 6000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 600000000,
+              "offsetS": 600,
+              "target_unclampedS": 5600,
+              "targetS": 5600,
+              "distanceS": 600,
+              "elastic_numerator": 65460600,
+              "elastic_deltaS": 65,
+              "capped_deltaS": 65,
+              "pre_finalS": 5065,
+              "finalS": 5065,
+              "realized_deltaS": 65,
+              "expected_contributions": [
+                {
+                  "target": "regions.los_rios.support",
+                  "cause_key": "SYSTEM:REG_DRIFT.regions.los_rios.support",
+                  "deltaS": 65
+                }
+              ]
+            }
+          },
+          {
+            "region_id": "los_lagos",
+            "metric": "support",
+            "target_path": "regions.los_lagos.support",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.los_lagos.support",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 6000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 600000000,
+              "offsetS": 600,
+              "target_unclampedS": 5600,
+              "targetS": 5600,
+              "distanceS": 600,
+              "elastic_numerator": 65460600,
+              "elastic_deltaS": 65,
+              "capped_deltaS": 65,
+              "pre_finalS": 5065,
+              "finalS": 5065,
+              "realized_deltaS": 65,
+              "expected_contributions": [
+                {
+                  "target": "regions.los_lagos.support",
+                  "cause_key": "SYSTEM:REG_DRIFT.regions.los_lagos.support",
+                  "deltaS": 65
+                }
+              ]
+            }
+          },
+          {
+            "region_id": "aysen",
+            "metric": "support",
+            "target_path": "regions.aysen.support",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.aysen.support",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 6000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 600000000,
+              "offsetS": 600,
+              "target_unclampedS": 5600,
+              "targetS": 5600,
+              "distanceS": 600,
+              "elastic_numerator": 65460600,
+              "elastic_deltaS": 65,
+              "capped_deltaS": 65,
+              "pre_finalS": 5065,
+              "finalS": 5065,
+              "realized_deltaS": 65,
+              "expected_contributions": [
+                {
+                  "target": "regions.aysen.support",
+                  "cause_key": "SYSTEM:REG_DRIFT.regions.aysen.support",
+                  "deltaS": 65
+                }
+              ]
+            }
+          },
+          {
+            "region_id": "magallanes",
+            "metric": "support",
+            "target_path": "regions.magallanes.support",
+            "cause_key": "SYSTEM:REG_DRIFT.regions.magallanes.support",
+            "input": {
+              "currentS": 5000,
+              "metrics": {
+                "legitimacyS": 6000,
+                "economyS": 5000,
+                "securityS": 5000,
+                "party_organizationS": 5000,
+                "social_tensionS": 5000,
+                "public_agendaS": 5000,
+                "internal_cohesionS": 5000
+              },
+              "region_snapshot": {
+                "supportS": 5000,
+                "tensionS": 5000,
+                "organizationS": 5000,
+                "rival_presenceS": 5000
+              }
+            },
+            "expected": {
+              "numerator": 600000000,
+              "offsetS": 600,
+              "target_unclampedS": 5600,
+              "targetS": 5600,
+              "distanceS": 600,
+              "elastic_numerator": 65460600,
+              "elastic_deltaS": 65,
+              "capped_deltaS": 65,
+              "pre_finalS": 5065,
+              "finalS": 5065,
+              "realized_deltaS": 65,
+              "expected_contributions": [
+                {
+                  "target": "regions.magallanes.support",
+                  "cause_key": "SYSTEM:REG_DRIFT.regions.magallanes.support",
+                  "deltaS": 65
+                }
+              ]
+            }
+          }
+        ],
+        "pull_input_currentS": 5000,
+        "pull_expected": {
+          "weighted_numerator": 5065000000,
+          "weighted_averageS": 5065,
+          "targetS": 5065,
+          "distanceS": 65,
+          "elastic_numerator": 13409435,
+          "elastic_deltaS": 13,
+          "capped_deltaS": 13,
+          "pre_finalS": 5013,
+          "finalS": 5013,
+          "realized_deltaS": 13,
+          "public_contributions": []
+        },
+        "pull_legislative_capacity_during_tick_T": 5000,
+        "same_tick_phase_8_reexecution": false
+      },
+      {
+        "id": "L-01-T1-R",
+        "description": "tick T+1 revert internals: coalition_strength 5013 reverts toward mid",
+        "pass": "RevertInternals",
+        "target": "internals.leg.coalition_strength",
+        "currentS": 5013,
+        "midS": 5000,
+        "alpha_ppm": 34064,
+        "distanceS": -13,
+        "elastic_numerator": -442832,
+        "rounded_deltaS": 0,
+        "finalS": 5013
+      },
+      {
+        "id": "L-01-T1-A",
+        "description": "tick T+1 aggregate national: legislative_capacity includes updated coalition_strength",
+        "pass": "AggregateNationalMetrics",
+        "target": "metrics.legislative_capacity",
+        "coalition_strengthS": 5013,
+        "party_disciplineS": 5000,
+        "opposition_obstructionS": 5000,
+        "senate_inertiaS": 5000,
+        "coalition_weight_ppm": 350000,
+        "weighted_offset_numerator": 4550000,
+        "weighted_offsetS": 5,
+        "targetS": 5005,
+        "current_metricS": 5000,
+        "alpha_ppm": 206299,
+        "distanceS": 5,
+        "elastic_numerator": 1031495,
+        "elastic_deltaS": 1,
+        "capped_deltaS": 1,
+        "finalS": 5001,
+        "delta_totalS": 1
+      },
+      {
+        "id": "L-01-CAUSE",
+        "description": "causal attribution for legislative_capacity increase from coalition_strength",
+        "target": "metrics.legislative_capacity",
+        "internal_target": "internals.leg.coalition_strength",
+        "cause_key": "SYSTEM:AGG.metrics.legislative_capacity.internals.leg.coalition_strength",
+        "deltaS": 1,
+        "public": true
+      }
+    ],
+    "ordering": [
+      {
+        "id": "O-01",
+        "description": "canonical order defeats alphabetical order",
+        "canonical_region_order": [
+          "arica_parinacota",
+          "tarapaca",
+          "antofagasta",
+          "atacama",
+          "coquimbo",
+          "valparaiso",
+          "metropolitana",
+          "ohiggins",
+          "maule",
+          "nuble",
+          "biobio",
+          "araucania",
+          "los_rios",
+          "los_lagos",
+          "aysen",
+          "magallanes"
+        ],
+        "stored_alphabetical_order": [
+          "antofagasta",
+          "araucania",
+          "arica_parinacota",
+          "atacama",
+          "aysen",
+          "biobio",
+          "coquimbo",
+          "los_lagos",
+          "los_rios",
+          "magallanes",
+          "maule",
+          "metropolitana",
+          "nuble",
+          "ohiggins",
+          "tarapaca",
+          "valparaiso"
+        ],
+        "values_by_region": [
+          [
+            "arica_parinacota",
+            1001
+          ],
+          [
+            "tarapaca",
+            1002
+          ],
+          [
+            "antofagasta",
+            1003
+          ],
+          [
+            "atacama",
+            1004
+          ],
+          [
+            "coquimbo",
+            1005
+          ],
+          [
+            "valparaiso",
+            1006
+          ],
+          [
+            "metropolitana",
+            1007
+          ],
+          [
+            "ohiggins",
+            1008
+          ],
+          [
+            "maule",
+            1009
+          ],
+          [
+            "nuble",
+            1010
+          ],
+          [
+            "biobio",
+            1011
+          ],
+          [
+            "araucania",
+            1012
+          ],
+          [
+            "los_rios",
+            1013
+          ],
+          [
+            "los_lagos",
+            1014
+          ],
+          [
+            "aysen",
+            1015
+          ],
+          [
+            "magallanes",
+            1016
+          ]
+        ],
+        "stored_alphabetical_pairs": [
+          [
+            "antofagasta",
+            1003
+          ],
+          [
+            "araucania",
+            1012
+          ],
+          [
+            "arica_parinacota",
+            1001
+          ],
+          [
+            "atacama",
+            1004
+          ],
+          [
+            "aysen",
+            1015
+          ],
+          [
+            "biobio",
+            1011
+          ],
+          [
+            "coquimbo",
+            1005
+          ],
+          [
+            "los_lagos",
+            1014
+          ],
+          [
+            "los_rios",
+            1013
+          ],
+          [
+            "magallanes",
+            1016
+          ],
+          [
+            "maule",
+            1009
+          ],
+          [
+            "metropolitana",
+            1007
+          ],
+          [
+            "nuble",
+            1010
+          ],
+          [
+            "ohiggins",
+            1008
+          ],
+          [
+            "tarapaca",
+            1002
+          ],
+          [
+            "valparaiso",
+            1006
+          ]
+        ],
+        "expected_order": [
+          "arica_parinacota",
+          "tarapaca",
+          "antofagasta",
+          "atacama",
+          "coquimbo",
+          "valparaiso",
+          "metropolitana",
+          "ohiggins",
+          "maule",
+          "nuble",
+          "biobio",
+          "araucania",
+          "los_rios",
+          "los_lagos",
+          "aysen",
+          "magallanes"
+        ],
+        "expected_ordered_pairs": [
+          [
+            "arica_parinacota",
+            1001
+          ],
+          [
+            "tarapaca",
+            1002
+          ],
+          [
+            "antofagasta",
+            1003
+          ],
+          [
+            "atacama",
+            1004
+          ],
+          [
+            "coquimbo",
+            1005
+          ],
+          [
+            "valparaiso",
+            1006
+          ],
+          [
+            "metropolitana",
+            1007
+          ],
+          [
+            "ohiggins",
+            1008
+          ],
+          [
+            "maule",
+            1009
+          ],
+          [
+            "nuble",
+            1010
+          ],
+          [
+            "biobio",
+            1011
+          ],
+          [
+            "araucania",
+            1012
+          ],
+          [
+            "los_rios",
+            1013
+          ],
+          [
+            "los_lagos",
+            1014
+          ],
+          [
+            "aysen",
+            1015
+          ],
+          [
+            "magallanes",
+            1016
+          ]
+        ],
+        "expected_result_independent_of_stored_order": true
+      },
+      {
+        "id": "O-02",
+        "description": "equivalent maps with different insertion order produce same canonical bytes",
+        "insertion_order_a": [
+          [
+            "arica_parinacota",
+            1001
+          ],
+          [
+            "tarapaca",
+            1002
+          ],
+          [
+            "antofagasta",
+            1003
+          ],
+          [
+            "atacama",
+            1004
+          ],
+          [
+            "coquimbo",
+            1005
+          ],
+          [
+            "valparaiso",
+            1006
+          ],
+          [
+            "metropolitana",
+            1007
+          ],
+          [
+            "ohiggins",
+            1008
+          ],
+          [
+            "maule",
+            1009
+          ],
+          [
+            "nuble",
+            1010
+          ],
+          [
+            "biobio",
+            1011
+          ],
+          [
+            "araucania",
+            1012
+          ],
+          [
+            "los_rios",
+            1013
+          ],
+          [
+            "los_lagos",
+            1014
+          ],
+          [
+            "aysen",
+            1015
+          ],
+          [
+            "magallanes",
+            1016
+          ]
+        ],
+        "insertion_order_b": [
+          [
+            "magallanes",
+            1016
+          ],
+          [
+            "aysen",
+            1015
+          ],
+          [
+            "los_lagos",
+            1014
+          ],
+          [
+            "los_rios",
+            1013
+          ],
+          [
+            "araucania",
+            1012
+          ],
+          [
+            "biobio",
+            1011
+          ],
+          [
+            "nuble",
+            1010
+          ],
+          [
+            "maule",
+            1009
+          ],
+          [
+            "ohiggins",
+            1008
+          ],
+          [
+            "metropolitana",
+            1007
+          ],
+          [
+            "valparaiso",
+            1006
+          ],
+          [
+            "coquimbo",
+            1005
+          ],
+          [
+            "atacama",
+            1004
+          ],
+          [
+            "antofagasta",
+            1003
+          ],
+          [
+            "tarapaca",
+            1002
+          ],
+          [
+            "arica_parinacota",
+            1001
+          ]
+        ],
+        "canonical_region_order": [
+          "arica_parinacota",
+          "tarapaca",
+          "antofagasta",
+          "atacama",
+          "coquimbo",
+          "valparaiso",
+          "metropolitana",
+          "ohiggins",
+          "maule",
+          "nuble",
+          "biobio",
+          "araucania",
+          "los_rios",
+          "los_lagos",
+          "aysen",
+          "magallanes"
+        ],
+        "expected_ordered_pairs": [
+          [
+            "arica_parinacota",
+            1001
+          ],
+          [
+            "tarapaca",
+            1002
+          ],
+          [
+            "antofagasta",
+            1003
+          ],
+          [
+            "atacama",
+            1004
+          ],
+          [
+            "coquimbo",
+            1005
+          ],
+          [
+            "valparaiso",
+            1006
+          ],
+          [
+            "metropolitana",
+            1007
+          ],
+          [
+            "ohiggins",
+            1008
+          ],
+          [
+            "maule",
+            1009
+          ],
+          [
+            "nuble",
+            1010
+          ],
+          [
+            "biobio",
+            1011
+          ],
+          [
+            "araucania",
+            1012
+          ],
+          [
+            "los_rios",
+            1013
+          ],
+          [
+            "los_lagos",
+            1014
+          ],
+          [
+            "aysen",
+            1015
+          ],
+          [
+            "magallanes",
+            1016
+          ]
+        ],
+        "expected_canonical_bytes_equal": true
+      },
+      {
+        "id": "O-03",
+        "description": "binding order is fixed and declared",
+        "binding_order": [
+          "support_to_coalition_strength",
+          "organization_to_field_ops",
+          "tension_to_protest_activity",
+          "rival_presence_to_opposition_obstruction",
+          "tension_to_movement_salience"
+        ]
+      },
+      {
+        "id": "O-04",
+        "description": "tension maps to two separate outputs",
+        "source": "tension",
+        "outputs": [
+          {
+            "binding": "tension_to_protest_activity",
+            "destination": "internals.tension.protest_activity"
+          },
+          {
+            "binding": "tension_to_movement_salience",
+            "destination": "internals.agenda.movement_salience"
+          }
+        ],
+        "expected_output_count": 2,
+        "collapsed": false
+      },
+      {
+        "id": "O-05",
+        "description": "canonical JSON serialization equality",
+        "input_a": {
+          "a": 1,
+          "b": 2
+        },
+        "input_b": {
+          "b": 2,
+          "a": 1
+        },
+        "canonical_serialization": {
+          "ensure_ascii": false,
+          "sort_keys": true,
+          "separators": [
+            ",",
+            ":"
+          ],
+          "allow_nan": false,
+          "newline_terminated": true
+        },
+        "expected_bytes_equal": true
+      }
+    ]
+  }
+}
