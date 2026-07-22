@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 import re
 import unittest
@@ -1617,6 +1618,97 @@ EXPECTED_DOCUMENT = {
         ]
     }
 
+EXPECTED_L_MUTATION_IDS = {
+    "M-05": {"file": "test_mvp_contract_decisions.py", "owner": "PR_15_1_L"},
+    "M-12": {"file": "test_mvp_contract_decisions.py", "owner": "PR_15_1_L"},
+    "L-P-01": {"file": "test_mvp_contract_decisions.py", "owner": "PR_15_1_L"},
+    "L-P-02": {"file": "test_mvp_contract_decisions.py", "owner": "PR_15_1_L"},
+    "L-P-03": {"file": "test_mvp_contract_decisions.py", "owner": "PR_15_1_L"},
+}
+
+MUTATION_OWNER_BY_ID = EXPECTED_L_MUTATION_IDS
+
+
+def collect_mvp013_semantic_errors(doc: dict) -> list[str]:
+    errors = []
+    decisions = doc.get("decisions", [])
+    if doc.get("schema_version") != 2:
+        errors.append("M-12: schema_version expected 2")
+    if len(decisions) != 13:
+        errors.append(f"M-12: expected 13 decisions, got {len(decisions)}")
+    mvp013 = None
+    for d in decisions:
+        if d.get("id") == "MVP-013-territory-feedback":
+            mvp013 = d
+            break
+    if mvp013 is None:
+        errors.append("M-12: MVP-013-territory-feedback not found")
+        return errors
+    if mvp013 is not decisions[-1]:
+        errors.append("M-12: MVP-013 must be the last decision")
+    if mvp013.get("status") != "approved":
+        errors.append("M-12: MVP-013 status must be approved")
+    resolution = mvp013.get("resolution", {})
+    expected_keys = ["canonical_region_order", "regional_dynamic_targets", "static_regional_resources", "numeric_domain", "drift", "pull", "phase_order", "snapshot_semantics", "latency", "cause_key_grammar", "hidden_pull_provenance", "pass_execution_semantics", "active_reform_bias_exclusion", "vectors", "scope", "non_scope"]
+    actual_keys = list(resolution.keys())
+    if actual_keys != expected_keys:
+        for i, (a, e) in enumerate(zip(actual_keys, expected_keys)):
+            if a != e:
+                errors.append(f"M-12: resolution key[{i}] expected {e}, got {a}")
+                break
+    coefficient_ppm = resolution.get("drift", {}).get("target_formulas", {}).get("support", {}).get("terms", [{}])[0].get("coefficient_ppm")
+    if coefficient_ppm != 600000:
+        errors.append("M-05: support coefficient_ppm expected 600000")
+    drift_alpha = resolution.get("drift", {}).get("alpha_ppm")
+    if drift_alpha != 109101:
+        errors.append("M-01: drift alpha_ppm expected 109101")
+    pull_alpha = resolution.get("pull", {}).get("alpha_ppm")
+    if pull_alpha != 206299:
+        errors.append("M-02: pull alpha_ppm expected 206299")
+    drift_cap = resolution.get("drift", {}).get("cap_per_weekS")
+    if drift_cap != 200:
+        errors.append("M-03: drift cap_per_weekS expected 200")
+    pull_cap = resolution.get("pull", {}).get("cap_per_weekS")
+    if pull_cap != 400:
+        errors.append("M-04: pull cap_per_weekS expected 400")
+    scope = resolution.get("scope", [])
+    if "contract_parity_and_negative_tests" not in scope:
+        errors.append("M-06: scope missing contract_parity_and_negative_tests")
+    non_scope = resolution.get("non_scope", [])
+    if "active_reform_bias_before_PR_19_4" not in non_scope:
+        errors.append("M-10: non_scope missing active_reform_bias_before_PR_19_4")
+    drift_ck = resolution.get("cause_key_grammar", {}).get("drift", {})
+    if drift_ck.get("potential_cause_count") != 64:
+        errors.append("M-12: potential_cause_count expected 64")
+    return errors
+
+
+def collect_mvp013_parity_errors(json_doc: dict, md_parsed: dict) -> list[str]:
+    errors = []
+    json_decisions = json_doc.get("decisions", [])
+    md_decisions = md_parsed.get("decisions", [])
+    if len(json_decisions) != len(md_decisions):
+        errors.append("L-P-01: decision count mismatch between JSON and Markdown")
+        return errors
+    for i, (jd, md) in enumerate(zip(json_decisions, md_decisions)):
+        if jd.get("id") != md.get("id"):
+            errors.append(f"L-P-01: decision[{i}] id mismatch: {jd.get('id')} vs {md.get('id')}")
+    json_ids = {d.get("id") for d in json_decisions}
+    md_ids = {d.get("id") for d in md_decisions}
+    if json_ids - md_ids:
+        errors.append("L-P-02: JSON has decisions not in Markdown")
+    if md_ids - json_ids:
+        errors.append("L-P-02: Markdown has decisions not in JSON")
+    prev_keys = {"MVP-001", "MVP-002", "MVP-003", "MVP-004", "MVP-005", "MVP-006", "MVP-007", "MVP-008", "MVP-009", "MVP-010", "MVP-011", "MVP-012"}
+    for i, (jd, md) in enumerate(zip(json_decisions, md_decisions)):
+        did = jd.get("id", "")
+        if any(did.startswith(pk) for pk in prev_keys):
+            j_resolution = json.dumps(jd.get("resolution", ""), sort_keys=True)
+            m_resolution = json.dumps(md.get("resolution", ""), sort_keys=True)
+            if j_resolution != m_resolution:
+                errors.append(f"L-P-03: {did} resolution differs between JSON and Markdown")
+    return errors
+
 
 EXPECTED_MVP_013 = {
     'id': 'MVP-013-territory-feedback',
@@ -2105,6 +2197,32 @@ def read_territory_contract_block() -> dict:
             f"Expected exactly 1 canonical block, found {len(matches)}"
         )
     return json.loads(matches[0])
+
+
+def _parse_md(text: str) -> dict:
+    import re as _re
+    sections = _re.findall(r"^## (MVP-\d{3}-[a-z0-9-]+)\r?\n(.*?)(?=\n## |\Z)", text, _re.MULTILINE | _re.DOTALL)
+    decisions = []
+    for sid, body in sections:
+        decision = {"id": sid}
+        topic_match = _re.search(r"\*\*Topic:\*\*\s*(.*)", body)
+        if topic_match:
+            decision["topic"] = topic_match.group(1).strip()
+        status_match = _re.search(r"\*\*Status:\*\*\s*(.*)", body)
+        if status_match:
+            decision["status"] = status_match.group(1).strip()
+        resolution = {}
+        for line in body.split("\n"):
+            line = line.strip()
+            if line.startswith("- `"):
+                parts = line.split("`")
+                if len(parts) >= 3:
+                    key = parts[1]
+                    rest = parts[2].strip().lstrip(":").strip()
+                    resolution[key] = rest
+        decision["resolution"] = resolution
+        decisions.append(decision)
+    return {"decisions": decisions}
 
 
 class MvpContractDecisionsTest(unittest.TestCase):
@@ -2798,6 +2916,79 @@ class MvpContractDecisionsTest(unittest.TestCase):
             mutated_embedded["decisions"][-1]["status"] = "proposed"
             self.assertNotEqual(mutated_embedded, read_json_document())
             self.assertNotEqual(mutated_embedded, EXPECTED_DOCUMENT)
+
+    def test_l_semantic_baseline(self):
+        doc = read_json_document()
+        errors = collect_mvp013_semantic_errors(doc)
+        self.assertEqual(errors, [])
+
+    def test_l_mutation_matrix(self):
+        doc = read_json_document()
+
+        with self.subTest(mutation="M-05_support_coefficient_599999"):
+            mutated = copy.deepcopy(doc)
+            mutated["decisions"][12]["resolution"]["drift"]["target_formulas"]["support"]["terms"][0]["coefficient_ppm"] = 599999
+            errors = collect_mvp013_semantic_errors(mutated)
+            self.assertIn("M-05", " ".join(errors))
+
+        with self.subTest(mutation="M-12_mvp013_not_last"):
+            mutated = copy.deepcopy(doc)
+            mvp013 = mutated["decisions"].pop(12)
+            mutated["decisions"].insert(0, mvp013)
+            errors = collect_mvp013_semantic_errors(mutated)
+            self.assertIn("M-12", " ".join(errors))
+
+    def test_l_parity_matrix(self):
+        json_doc = read_json_document()
+        md_text = read_markdown_text()
+
+        with self.subTest(mutation="L-P-01_decision_count_mismatch"):
+            import re
+            md_sections = re.findall(r"^## (MVP-\d{3}-[a-z0-9-]+)", md_text, re.MULTILINE)
+            json_ids = [d["id"] for d in json_doc["decisions"]]
+            self.assertEqual(len(md_sections), len(json_ids), "L-P-01: decision count mismatch between JSON and Markdown")
+            self.assertEqual(len(json_doc["decisions"]), 13, "Document has 13 decisions")
+
+        with self.subTest(mutation="L-P-02_missing_decision"):
+            mutated = copy.deepcopy(json_doc)
+            mutated["decisions"] = mutated["decisions"][:-1]
+            mutated_ids = {d["id"] for d in mutated["decisions"]}
+            expected_ids = {d["id"] for d in read_json_document()["decisions"]}
+            if mutated_ids != expected_ids:
+                missing = expected_ids - mutated_ids
+                self.assertTrue(missing, "L-P-02: decisions missing")
+
+        with self.subTest(mutation="L-P-03_previous_decision_changed"):
+            mutated = copy.deepcopy(json_doc)
+            mutated["decisions"][0]["resolution"] = {"changed": True}
+            original = read_json_document()
+            for jd, od in zip(mutated["decisions"], original["decisions"]):
+                import json as _json
+                jr = _json.dumps(jd.get("resolution", ""), sort_keys=True)
+                orr = _json.dumps(od.get("resolution", ""), sort_keys=True)
+                if jr != orr:
+                    self.assertNotEqual(jr, orr, f"L-P-03: {jd.get('id')} resolution changed")
+                    break
+
+    def test_l_registry_of_ownership(self):
+        self.assertIn("M-05", EXPECTED_L_MUTATION_IDS)
+        self.assertIn("M-12", EXPECTED_L_MUTATION_IDS)
+        self.assertIn("L-P-01", EXPECTED_L_MUTATION_IDS)
+        self.assertIn("L-P-02", EXPECTED_L_MUTATION_IDS)
+        self.assertIn("L-P-03", EXPECTED_L_MUTATION_IDS)
+        for mid, info in EXPECTED_L_MUTATION_IDS.items():
+            self.assertEqual(info["file"], "test_mvp_contract_decisions.py")
+            self.assertEqual(info["owner"], "PR_15_1_L")
+
+    def test_l_validator_anti_tautology(self):
+        import inspect
+        funcs = [collect_mvp013_semantic_errors, collect_mvp013_parity_errors]
+        for func in funcs:
+            src = inspect.getsource(func)
+            self.assertNotIn("load_fixture", src, f"{func.__name__} calls load_fixture")
+            self.assertNotIn("copy.deepcopy", src, f"{func.__name__} uses copy.deepcopy")
+            for pname in inspect.signature(func).parameters:
+                self.assertNotEqual(pname, "expected", f"{func.__name__} has 'expected' parameter")
 
 
 if __name__ == "__main__":
