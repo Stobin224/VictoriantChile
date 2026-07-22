@@ -97,10 +97,24 @@ ORACLE_PULL_BINDINGS: list[dict[str, str]] = [
 ORACLE_CANONICAL_JSON_CONFIG: dict[str, object] = {
     "ensure_ascii": False,
     "sort_keys": True,
-    "separators": (",", ":"),
+    "separators": [",", ":"],
     "allow_nan": False,
     "newline_terminated": True,
 }
+
+
+def oracle_canonical_json(value: object) -> str:
+    config = ORACLE_CANONICAL_JSON_CONFIG
+    serialized = json.dumps(
+        value,
+        ensure_ascii=config["ensure_ascii"],
+        sort_keys=config["sort_keys"],
+        separators=tuple(config["separators"]),
+        allow_nan=config["allow_nan"],
+    )
+    if config["newline_terminated"]:
+        serialized += "\n"
+    return serialized
 
 
 def reject_duplicate_pairs(pairs):
@@ -205,22 +219,20 @@ def oracle_checked_mul_i64(left: int, right: int, context: str = "") -> int:
 
 
 def oracle_round_divide_half_away_from_zero(numerator: int, denominator: int) -> int:
-    oracle_checked_i64(numerator, "round_divide.numerator")
-    if denominator <= 0:
-        raise ValueError(f"round_divide denominator must be positive, got {denominator}")
-    oracle_checked_i64(denominator, "round_divide.denominator")
-    abs_num = -numerator if numerator < 0 else numerator
-    abs_q = abs_num // denominator
-    q = -abs_q if numerator < 0 else abs_q
-    remainder = numerator - q * denominator
+    quotient, remainder = oracle_truncating_divmod_positive_denominator(numerator, denominator)
     if remainder == 0:
-        return q
-    abs_rem = -remainder if remainder < 0 else remainder
+        return quotient
+    remainder_magnitude = (
+        remainder if remainder >= 0
+        else oracle_checked_sub_i64(0, remainder, "round_divide.remainder_magnitude")
+    )
     half = denominator // 2
-    round_away = abs_rem > half or (denominator % 2 == 0 and abs_rem == half)
-    if round_away:
-        return q + 1 if numerator >= 0 else q - 1
-    return q
+    round_away = remainder_magnitude > half or (denominator % 2 == 0 and remainder_magnitude == half)
+    if not round_away:
+        return quotient
+    if numerator > 0:
+        return oracle_checked_add_i64(quotient, 1, "round_divide.round_positive")
+    return oracle_checked_sub_i64(quotient, 1, "round_divide.round_negative")
 
 
 def oracle_clamp_int(value: int, minimum: int, maximum: int) -> int:
@@ -229,6 +241,34 @@ def oracle_clamp_int(value: int, minimum: int, maximum: int) -> int:
     if value > maximum:
         return maximum
     return value
+
+
+def oracle_truncating_divmod_positive_denominator(
+    numerator: int,
+    denominator: int,
+) -> tuple[int, int]:
+    oracle_checked_i64(numerator, "truncating_divmod.numerator")
+    oracle_checked_i64(denominator, "truncating_divmod.denominator")
+    if denominator <= 0:
+        raise ValueError(f"truncating_divmod: denominator must be positive, got {denominator}")
+    floor_quotient, nonnegative_remainder = divmod(numerator, denominator)
+    if numerator >= 0 or nonnegative_remainder == 0:
+        quotient = floor_quotient
+        remainder = nonnegative_remainder
+    else:
+        quotient = oracle_checked_add_i64(
+            floor_quotient,
+            1,
+            "truncating_divmod.quotient",
+        )
+        remainder = oracle_checked_sub_i64(
+            nonnegative_remainder,
+            denominator,
+            "truncating_divmod.remainder",
+        )
+    oracle_checked_i64(quotient, "truncating_divmod.quotient_out")
+    oracle_checked_i64(remainder, "truncating_divmod.remainder_out")
+    return (quotient, remainder)
 
 
 def oracle_drift_target_numerator(metric: str, metrics: dict[str, int], region_snapshot: dict[str, int]) -> int:
@@ -834,6 +874,30 @@ class TerritoryExecutionV1FixtureTest(unittest.TestCase):
         with self.subTest(edge="i64_min_neg_overflow"):
             with self.assertRaises(OverflowError):
                 oracle_checked_mul_i64(ORACLE_I64_MIN, -1, "test")
+        # long.MinValue division boundaries
+        with self.subTest(edge="i64_min_div_1"):
+            self.assertEqual(oracle_round_divide_half_away_from_zero(ORACLE_I64_MIN, 1), ORACLE_I64_MIN)
+        with self.subTest(edge="i64_max_div_1"):
+            self.assertEqual(oracle_round_divide_half_away_from_zero(ORACLE_I64_MAX, 1), ORACLE_I64_MAX)
+        with self.subTest(edge="i64_min_div_3_rounded"):
+            self.assertEqual(oracle_round_divide_half_away_from_zero(ORACLE_I64_MIN, 3), -3074457345618258603)
+        with self.subTest(edge="i64_max_div_3_rounded"):
+            self.assertEqual(oracle_round_divide_half_away_from_zero(ORACLE_I64_MAX, 3), 3074457345618258602)
+        with self.subTest(edge="i64_min_div_3_divmod"):
+            qt, rm = oracle_truncating_divmod_positive_denominator(ORACLE_I64_MIN, 3)
+            self.assertEqual(qt, -3074457345618258602)
+            self.assertEqual(rm, -2)
+            reconstructed = oracle_checked_add_i64(
+                oracle_checked_mul_i64(qt, 3, "i64_min_div3_recon_mul"),
+                rm,
+                "i64_min_div3_recon_add",
+            )
+            self.assertEqual(reconstructed, ORACLE_I64_MIN)
+        # Source-inspect rounding helper for forbidden patterns
+        rnd_src = inspect.getsource(oracle_round_divide_half_away_from_zero)
+        self.assertNotIn("abs(", rnd_src, "rounding uses abs(")
+        self.assertNotIn("abs_num", rnd_src, "rounding uses abs_num")
+        self.assertNotIn("-numerator", rnd_src, "rounding uses -numerator")
 
     def test_oracle_all_valid_drift_vectors_match_every_expected_field(self):
         data = load_fixture()
@@ -969,8 +1033,8 @@ class TerritoryExecutionV1FixtureTest(unittest.TestCase):
         mapping_b = dict(o02["insertion_order_b"])
         self.assertEqual(mapping_a, mapping_b)
         self.assertNotEqual(o02["insertion_order_a"], o02["insertion_order_b"])
-        serialized_a = json.dumps(mapping_a, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n"
-        serialized_b = json.dumps(mapping_b, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n"
+        serialized_a = oracle_canonical_json(mapping_a)
+        serialized_b = oracle_canonical_json(mapping_b)
         self.assertEqual(serialized_a, serialized_b)
         reconstructed_pairs_o2 = [[rid, mapping_a[rid]] for rid in CANONICAL_REGION_ORDER]
         self.assertEqual(reconstructed_pairs_o2, o02["expected_ordered_pairs"])
@@ -995,16 +1059,10 @@ class TerritoryExecutionV1FixtureTest(unittest.TestCase):
 
         # O-05: canonical JSON config
         o05 = ordv[4]
-        cfg = o05["canonical_serialization"]
-        self.assertEqual(cfg["ensure_ascii"], False)
-        self.assertEqual(cfg["sort_keys"], True)
-        self.assertEqual(list(cfg["separators"]), [",", ":"])
-        self.assertEqual(cfg["allow_nan"], False)
-        self.assertEqual(cfg["newline_terminated"], True)
-        ser_a = json.dumps(o05["input_a"], ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n"
-        ser_b = json.dumps(o05["input_b"], ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n"
-        is_eq = (ser_a == ser_b)
-        self.assertEqual(is_eq, o05["expected_bytes_equal"])
+        self.assertEqual(o05["canonical_serialization"], ORACLE_CANONICAL_JSON_CONFIG)
+        serialized_a = oracle_canonical_json(o05["input_a"])
+        serialized_b = oracle_canonical_json(o05["input_b"])
+        self.assertEqual(serialized_a == serialized_b, o05["expected_bytes_equal"])
 
     def test_oracle_is_deterministic(self):
         data = load_fixture()
@@ -1036,7 +1094,8 @@ class TerritoryExecutionV1FixtureTest(unittest.TestCase):
             oracle_legislative_capacity_t1, oracle_drift_target_numerator,
             oracle_round_divide_half_away_from_zero, oracle_clamp_int,
             oracle_checked_i64, oracle_checked_add_i64, oracle_checked_sub_i64,
-            oracle_checked_mul_i64,
+            oracle_checked_mul_i64, oracle_truncating_divmod_positive_denominator,
+            oracle_canonical_json,
         ]
         for func in oracle_funcs:
             for pname in inspect.signature(func).parameters:
@@ -1127,6 +1186,8 @@ class TerritoryExecutionV1FixtureTest(unittest.TestCase):
         with self.subTest(mutation="L-01-CAUSE_deltaS"):
             c = data["vectors"]["latency"][3]
             a = data["vectors"]["latency"][2]
+            CAUSE_KEYS = ["target", "internal_target", "cause_key", "deltaS", "public"]
+            fixture_cause_projection = {k: c[k] for k in CAUSE_KEYS}
             o_t1a = oracle_legislative_capacity_t1(a["coalition_strengthS"], a["party_disciplineS"], a["opposition_obstructionS"], a["senate_inertiaS"], a["current_metricS"])
             oracle_cause = {
                 "target": "metrics.legislative_capacity",
@@ -1135,9 +1196,10 @@ class TerritoryExecutionV1FixtureTest(unittest.TestCase):
                 "deltaS": o_t1a["delta_totalS"],
                 "public": True,
             }
-            mutated = copy.deepcopy(oracle_cause)
-            mutated["deltaS"] = 999
-            self.assertNotEqual(oracle_cause, mutated)
+            self.assertEqual(oracle_cause, fixture_cause_projection)
+            mutated_fixture_cause = copy.deepcopy(fixture_cause_projection)
+            mutated_fixture_cause["deltaS"] = 999
+            self.assertNotEqual(oracle_cause, mutated_fixture_cause)
         with self.subTest(mutation="O-01_expected_ordered_pairs"):
             o01 = data["vectors"]["ordering"][0]
             stored_pairs = o01["stored_alphabetical_pairs"]
@@ -1150,12 +1212,11 @@ class TerritoryExecutionV1FixtureTest(unittest.TestCase):
             o02 = data["vectors"]["ordering"][1]
             mapping_a = dict(o02["insertion_order_a"])
             mapping_b = dict(o02["insertion_order_b"])
-            ser_a = json.dumps(mapping_a, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n"
-            ser_b = json.dumps(mapping_b, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n"
-            is_eq = (ser_a == ser_b)
-            self.assertEqual(is_eq, o02["expected_canonical_bytes_equal"])
-            mutated_bool = not is_eq
-            self.assertNotEqual(is_eq, mutated_bool)
+            is_bytes_equal = oracle_canonical_json(mapping_a) == oracle_canonical_json(mapping_b)
+            self.assertEqual(is_bytes_equal, o02["expected_canonical_bytes_equal"])
+            mutated_o02 = copy.deepcopy(o02)
+            mutated_o02["expected_canonical_bytes_equal"] = not mutated_o02["expected_canonical_bytes_equal"]
+            self.assertNotEqual(is_bytes_equal, mutated_o02["expected_canonical_bytes_equal"])
 
 
 if __name__ == "__main__":
