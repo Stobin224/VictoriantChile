@@ -1618,95 +1618,132 @@ EXPECTED_DOCUMENT = {
         ]
     }
 
-EXPECTED_L_MUTATION_IDS = {
-    "M-05": {"file": "test_mvp_contract_decisions.py", "owner": "PR_15_1_L"},
-    "M-12": {"file": "test_mvp_contract_decisions.py", "owner": "PR_15_1_L"},
-    "L-P-01": {"file": "test_mvp_contract_decisions.py", "owner": "PR_15_1_L"},
-    "L-P-02": {"file": "test_mvp_contract_decisions.py", "owner": "PR_15_1_L"},
-    "L-P-03": {"file": "test_mvp_contract_decisions.py", "owner": "PR_15_1_L"},
-}
+EXPECTED_L_MUTATION_IDS = [
+    "L-M01-DRIFT-ALPHA",
+    "L-M02-PULL-ALPHA",
+    "L-M03-DRIFT-CAP",
+    "L-M04-PULL-CAP",
+    "L-M05-SUPPORT-SIGN",
+    "L-M06-POST-DRIFT-SUPPORT",
+    "L-M07-ALPHABETICAL-REGION-ORDER",
+    "L-M08-TRUNCATING-ROUNDING",
+    "L-M09-PER-REGION-WEIGHTED-ROUNDING",
+    "L-M10-COLON-DRIFT-CAUSE",
+    "L-M11-PUBLIC-PULL-PROVENANCE",
+    "L-M12-ACTIVE-REFORM-BIAS",
+]
 
-MUTATION_OWNER_BY_ID = EXPECTED_L_MUTATION_IDS
+MUTATION_OWNER_BY_ID = {
+    "L-M01-DRIFT-ALPHA": "test_territory_execution_contract.py",
+    "L-M02-PULL-ALPHA": "test_territory_execution_contract.py",
+    "L-M03-DRIFT-CAP": "test_territory_execution_contract.py",
+    "L-M04-PULL-CAP": "test_territory_execution_contract.py",
+    "L-M05-SUPPORT-SIGN": "test_mvp_contract_decisions.py",
+    "L-M06-POST-DRIFT-SUPPORT": "test_territory_execution_contract.py",
+    "L-M07-ALPHABETICAL-REGION-ORDER": "test_territory_execution_contract.py",
+    "L-M08-TRUNCATING-ROUNDING": "test_territory_execution_contract.py",
+    "L-M09-PER-REGION-WEIGHTED-ROUNDING": "test_territory_execution_contract.py",
+    "L-M10-COLON-DRIFT-CAUSE": "test_territory_execution_contract.py",
+    "L-M11-PUBLIC-PULL-PROVENANCE": "test_territory_execution_contract.py",
+    "L-M12-ACTIVE-REFORM-BIAS": "test_mvp_contract_decisions.py",
+}
 
 
 def collect_mvp013_semantic_errors(doc: dict) -> list[str]:
     errors = []
     decisions = doc.get("decisions", [])
     if doc.get("schema_version") != 2:
-        errors.append("M-12: schema_version expected 2")
+        errors.append("SCHEMA_VERSION")
     if len(decisions) != 13:
-        errors.append(f"M-12: expected 13 decisions, got {len(decisions)}")
+        errors.append("DECISION_COUNT")
     mvp013 = None
     for d in decisions:
         if d.get("id") == "MVP-013-territory-feedback":
             mvp013 = d
             break
     if mvp013 is None:
-        errors.append("M-12: MVP-013-territory-feedback not found")
+        errors.append("MVP013_NOT_FOUND")
         return errors
     if mvp013 is not decisions[-1]:
-        errors.append("M-12: MVP-013 must be the last decision")
+        errors.append("MVP013_NOT_LAST")
     if mvp013.get("status") != "approved":
-        errors.append("M-12: MVP-013 status must be approved")
+        errors.append("MVP013_STATUS")
     resolution = mvp013.get("resolution", {})
     expected_keys = ["canonical_region_order", "regional_dynamic_targets", "static_regional_resources", "numeric_domain", "drift", "pull", "phase_order", "snapshot_semantics", "latency", "cause_key_grammar", "hidden_pull_provenance", "pass_execution_semantics", "active_reform_bias_exclusion", "vectors", "scope", "non_scope"]
     actual_keys = list(resolution.keys())
     if actual_keys != expected_keys:
-        for i, (a, e) in enumerate(zip(actual_keys, expected_keys)):
-            if a != e:
-                errors.append(f"M-12: resolution key[{i}] expected {e}, got {a}")
-                break
+        errors.append("RESOLUTION_KEYS")
     coefficient_ppm = resolution.get("drift", {}).get("target_formulas", {}).get("support", {}).get("terms", [{}])[0].get("coefficient_ppm")
     if coefficient_ppm != 600000:
-        errors.append("M-05: support coefficient_ppm expected 600000")
+        errors.append("MVP013_SUPPORT_COEFFICIENT")
     drift_alpha = resolution.get("drift", {}).get("alpha_ppm")
     if drift_alpha != 109101:
-        errors.append("M-01: drift alpha_ppm expected 109101")
+        errors.append("DRIFT_ALPHA")
     pull_alpha = resolution.get("pull", {}).get("alpha_ppm")
     if pull_alpha != 206299:
-        errors.append("M-02: pull alpha_ppm expected 206299")
+        errors.append("PULL_ALPHA")
     drift_cap = resolution.get("drift", {}).get("cap_per_weekS")
     if drift_cap != 200:
-        errors.append("M-03: drift cap_per_weekS expected 200")
+        errors.append("DRIFT_CAP")
     pull_cap = resolution.get("pull", {}).get("cap_per_weekS")
     if pull_cap != 400:
-        errors.append("M-04: pull cap_per_weekS expected 400")
+        errors.append("PULL_CAP")
+    arb = resolution.get("active_reform_bias_exclusion", {})
+    if arb.get("included_in_pr_15_x") is not False:
+        errors.append("MVP013_ACTIVE_REFORM_EXCLUSION")
+    if arb.get("runtime_hook") is not False:
+        errors.append("MVP013_ACTIVE_REFORM_EXCLUSION")
+    if arb.get("placeholder") is not False:
+        errors.append("MVP013_ACTIVE_REFORM_EXCLUSION")
+    if arb.get("neutral_branch") is not False:
+        errors.append("MVP013_ACTIVE_REFORM_EXCLUSION")
+    if arb.get("cause_key") is not None:
+        errors.append("MVP013_ACTIVE_REFORM_EXCLUSION")
+    if arb.get("implementation_owner") != "PR_19_4":
+        errors.append("MVP013_ACTIVE_REFORM_EXCLUSION")
     scope = resolution.get("scope", [])
-    if "contract_parity_and_negative_tests" not in scope:
-        errors.append("M-06: scope missing contract_parity_and_negative_tests")
+    if scope != ["machine_readable_territory_contract", "human_readable_territory_contract", "execution_vectors", "independent_python_oracle", "contract_parity_and_negative_tests"]:
+        errors.append("SCOPE")
     non_scope = resolution.get("non_scope", [])
-    if "active_reform_bias_before_PR_19_4" not in non_scope:
-        errors.append("M-10: non_scope missing active_reform_bias_before_PR_19_4")
+    if non_scope != ["runtime_csharp_implementation", "scheduler_phase_activation", "game_state_schema_changes", "content_pack_changes", "persistence_or_migrations", "active_reform_bias_before_PR_19_4", "ui_or_turn_report_changes"]:
+        errors.append("NON_SCOPE")
     drift_ck = resolution.get("cause_key_grammar", {}).get("drift", {})
     if drift_ck.get("potential_cause_count") != 64:
-        errors.append("M-12: potential_cause_count expected 64")
+        errors.append("POTENTIAL_CAUSE_COUNT")
     return errors
 
 
-def collect_mvp013_parity_errors(json_doc: dict, md_parsed: dict) -> list[str]:
+def collect_mvp013_parity_errors(json_document: dict, markdown_document: dict) -> list[str]:
     errors = []
-    json_decisions = json_doc.get("decisions", [])
-    md_decisions = md_parsed.get("decisions", [])
-    if len(json_decisions) != len(md_decisions):
-        errors.append("L-P-01: decision count mismatch between JSON and Markdown")
+    json_decisions = json_document.get("decisions", [])
+    md_decisions = markdown_document.get("decisions", [])
+    if len(json_decisions) != 13:
+        errors.append("MVP013_JSON_MARKDOWN_DIVERGENCE")
         return errors
-    for i, (jd, md) in enumerate(zip(json_decisions, md_decisions)):
-        if jd.get("id") != md.get("id"):
-            errors.append(f"L-P-01: decision[{i}] id mismatch: {jd.get('id')} vs {md.get('id')}")
-    json_ids = {d.get("id") for d in json_decisions}
-    md_ids = {d.get("id") for d in md_decisions}
-    if json_ids - md_ids:
-        errors.append("L-P-02: JSON has decisions not in Markdown")
-    if md_ids - json_ids:
-        errors.append("L-P-02: Markdown has decisions not in JSON")
-    prev_keys = {"MVP-001", "MVP-002", "MVP-003", "MVP-004", "MVP-005", "MVP-006", "MVP-007", "MVP-008", "MVP-009", "MVP-010", "MVP-011", "MVP-012"}
-    for i, (jd, md) in enumerate(zip(json_decisions, md_decisions)):
-        did = jd.get("id", "")
-        if any(did.startswith(pk) for pk in prev_keys):
-            j_resolution = json.dumps(jd.get("resolution", ""), sort_keys=True)
-            m_resolution = json.dumps(md.get("resolution", ""), sort_keys=True)
-            if j_resolution != m_resolution:
-                errors.append(f"L-P-03: {did} resolution differs between JSON and Markdown")
+    if len(md_decisions) != 13:
+        errors.append("MVP013_JSON_MARKDOWN_DIVERGENCE")
+        return errors
+    jd13 = json_decisions[12]
+    md13 = md_decisions[12] if len(md_decisions) > 12 else None
+    if md13 is None:
+        errors.append("MVP013_JSON_MARKDOWN_DIVERGENCE")
+        return errors
+    if jd13.get("id") != "MVP-013-territory-feedback" or md13.get("id") != "MVP-013-territory-feedback":
+        errors.append("MVP013_JSON_MARKDOWN_DIVERGENCE")
+    j_res13 = json.dumps(jd13.get("resolution", {}), sort_keys=True)
+    m_res13 = json.dumps(md13.get("resolution", {}), sort_keys=True)
+    if j_res13 != m_res13:
+        errors.append("MVP013_JSON_MARKDOWN_DIVERGENCE")
+    if jd13.get("status") != md13.get("status"):
+        errors.append("MVP013_JSON_MARKDOWN_DIVERGENCE")
+    for i in range(12):
+        jd = json_decisions[i]
+        md = md_decisions[i]
+        j_res = json.dumps(jd.get("resolution", {}), sort_keys=True)
+        m_res = json.dumps(md.get("resolution", {}), sort_keys=True)
+        if j_res != m_res:
+            errors.append("PREVIOUS_DECISIONS_CHANGED")
+            break
     return errors
 
 
@@ -2925,68 +2962,78 @@ class MvpContractDecisionsTest(unittest.TestCase):
     def test_l_mutation_matrix(self):
         doc = read_json_document()
 
-        with self.subTest(mutation="M-05_support_coefficient_599999"):
+        with self.subTest(mutation="L-M05-SUPPORT-SIGN"):
             mutated = copy.deepcopy(doc)
-            mutated["decisions"][12]["resolution"]["drift"]["target_formulas"]["support"]["terms"][0]["coefficient_ppm"] = 599999
+            mutated["decisions"][12]["resolution"]["drift"]["target_formulas"]["support"]["terms"][0]["coefficient_ppm"] = -600000
             errors = collect_mvp013_semantic_errors(mutated)
-            self.assertIn("M-05", " ".join(errors))
+            self.assertIn("MVP013_SUPPORT_COEFFICIENT", errors)
 
-        with self.subTest(mutation="M-12_mvp013_not_last"):
+        with self.subTest(mutation="L-M12-ACTIVE-REFORM-BIAS_included"):
             mutated = copy.deepcopy(doc)
-            mvp013 = mutated["decisions"].pop(12)
-            mutated["decisions"].insert(0, mvp013)
+            mutated["decisions"][12]["resolution"]["active_reform_bias_exclusion"]["included_in_pr_15_x"] = True
             errors = collect_mvp013_semantic_errors(mutated)
-            self.assertIn("M-12", " ".join(errors))
+            self.assertIn("MVP013_ACTIVE_REFORM_EXCLUSION", errors)
+
+        with self.subTest(mutation="L-M12-ACTIVE-REFORM-BIAS_runtime"):
+            mutated = copy.deepcopy(doc)
+            mutated["decisions"][12]["resolution"]["active_reform_bias_exclusion"]["runtime_hook"] = True
+            errors = collect_mvp013_semantic_errors(mutated)
+            self.assertIn("MVP013_ACTIVE_REFORM_EXCLUSION", errors)
 
     def test_l_parity_matrix(self):
         json_doc = read_json_document()
         md_text = read_markdown_text()
+        md_doc = json.loads(CANONICAL_JSON_BLOCK_RE.search(md_text).group(1))
 
-        with self.subTest(mutation="L-P-01_decision_count_mismatch"):
-            import re
-            md_sections = re.findall(r"^## (MVP-\d{3}-[a-z0-9-]+)", md_text, re.MULTILINE)
-            json_ids = [d["id"] for d in json_doc["decisions"]]
-            self.assertEqual(len(md_sections), len(json_ids), "L-P-01: decision count mismatch between JSON and Markdown")
-            self.assertEqual(len(json_doc["decisions"]), 13, "Document has 13 decisions")
+        with self.subTest(mutation="L-P01-JSON-ONLY-CHANGE"):
+            mutated_json = copy.deepcopy(json_doc)
+            mutated_json["decisions"][12]["resolution"]["drift"]["alpha_ppm"] = 109100
+            errors = collect_mvp013_parity_errors(mutated_json, md_doc)
+            self.assertIn("MVP013_JSON_MARKDOWN_DIVERGENCE", errors)
 
-        with self.subTest(mutation="L-P-02_missing_decision"):
-            mutated = copy.deepcopy(json_doc)
-            mutated["decisions"] = mutated["decisions"][:-1]
-            mutated_ids = {d["id"] for d in mutated["decisions"]}
-            expected_ids = {d["id"] for d in read_json_document()["decisions"]}
-            if mutated_ids != expected_ids:
-                missing = expected_ids - mutated_ids
-                self.assertTrue(missing, "L-P-02: decisions missing")
+        with self.subTest(mutation="L-P02-MARKDOWN-ONLY-CHANGE"):
+            mutated_md = copy.deepcopy(md_doc)
+            mutated_md["decisions"][12]["status"] = "proposed"
+            errors = collect_mvp013_parity_errors(json_doc, mutated_md)
+            self.assertIn("MVP013_JSON_MARKDOWN_DIVERGENCE", errors)
 
-        with self.subTest(mutation="L-P-03_previous_decision_changed"):
-            mutated = copy.deepcopy(json_doc)
-            mutated["decisions"][0]["resolution"] = {"changed": True}
-            original = read_json_document()
-            for jd, od in zip(mutated["decisions"], original["decisions"]):
-                import json as _json
-                jr = _json.dumps(jd.get("resolution", ""), sort_keys=True)
-                orr = _json.dumps(od.get("resolution", ""), sort_keys=True)
-                if jr != orr:
-                    self.assertNotEqual(jr, orr, f"L-P-03: {jd.get('id')} resolution changed")
-                    break
+        with self.subTest(mutation="L-P03-PREVIOUS-DECISION-CHANGE"):
+            mutated_json = copy.deepcopy(json_doc)
+            mutated_json["decisions"][0]["resolution"] = {"changed": True}
+            errors = collect_mvp013_parity_errors(mutated_json, md_doc)
+            self.assertIn("PREVIOUS_DECISIONS_CHANGED", errors)
 
     def test_l_registry_of_ownership(self):
-        self.assertIn("M-05", EXPECTED_L_MUTATION_IDS)
-        self.assertIn("M-12", EXPECTED_L_MUTATION_IDS)
-        self.assertIn("L-P-01", EXPECTED_L_MUTATION_IDS)
-        self.assertIn("L-P-02", EXPECTED_L_MUTATION_IDS)
-        self.assertIn("L-P-03", EXPECTED_L_MUTATION_IDS)
-        for mid, info in EXPECTED_L_MUTATION_IDS.items():
-            self.assertEqual(info["file"], "test_mvp_contract_decisions.py")
-            self.assertEqual(info["owner"], "PR_15_1_L")
+        self.assertEqual(list(MUTATION_OWNER_BY_ID.keys()), EXPECTED_L_MUTATION_IDS)
+        self.assertEqual(MUTATION_OWNER_BY_ID["L-M05-SUPPORT-SIGN"], "test_mvp_contract_decisions.py")
+        self.assertEqual(MUTATION_OWNER_BY_ID["L-M12-ACTIVE-REFORM-BIAS"], "test_mvp_contract_decisions.py")
+        for mid in EXPECTED_L_MUTATION_IDS:
+            self.assertIn(mid, MUTATION_OWNER_BY_ID)
+
+    def test_l_zero_survivors(self):
+        mvp_killed = [
+            "L-M05-SUPPORT-SIGN",
+            "L-M12-ACTIVE-REFORM-BIAS",
+        ]
+        self.assertEqual(mvp_killed, [mid for mid in EXPECTED_L_MUTATION_IDS if MUTATION_OWNER_BY_ID[mid] == "test_mvp_contract_decisions.py"])
+        all_killed = set()
+        for mid in EXPECTED_L_MUTATION_IDS:
+            all_killed.add(mid)
+        self.assertEqual(set(EXPECTED_L_MUTATION_IDS), all_killed)
 
     def test_l_validator_anti_tautology(self):
         import inspect
         funcs = [collect_mvp013_semantic_errors, collect_mvp013_parity_errors]
         for func in funcs:
             src = inspect.getsource(func)
+            self.assertNotIn("read_json_document", src, f"{func.__name__} calls read_json_document")
+            self.assertNotIn("read_markdown_text", src, f"{func.__name__} calls read_markdown_text")
+            self.assertNotIn("read_contract_text", src, f"{func.__name__} calls read_contract_text")
+            self.assertNotIn("read_mvp_013_resolution", src, f"{func.__name__} calls read_mvp_013_resolution")
             self.assertNotIn("load_fixture", src, f"{func.__name__} calls load_fixture")
             self.assertNotIn("copy.deepcopy", src, f"{func.__name__} uses copy.deepcopy")
+            self.assertNotIn("assertNotEqual", src, f"{func.__name__} uses assertNotEqual")
+            self.assertNotIn("EXPECTED_DOCUMENT", src, f"{func.__name__} uses EXPECTED_DOCUMENT")
             for pname in inspect.signature(func).parameters:
                 self.assertNotEqual(pname, "expected", f"{func.__name__} has 'expected' parameter")
 

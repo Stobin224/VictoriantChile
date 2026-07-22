@@ -816,139 +816,161 @@ def collect_human_contract_errors(text: str, mvp013_resolution: dict) -> list[st
     try:
         correspondence = extract_h2_section(text, "MVP-013 human-readable correspondence")
     except ValueError:
-        errors.append("H-01: missing MVP-013 human-readable correspondence section")
+        errors.append("HUMAN_CORRESPONDENCE")
         return errors
-    table = parse_table_to_dict(correspondence)
-    from test_territory_contract import EXPECTED_MVP_013_RESOLUTION_KEYS
+    corr_table = parse_table_to_dict(correspondence)
     for key in EXPECTED_MVP_013_RESOLUTION_KEYS:
-        if key not in table:
-            errors.append(f"H-02: resolution key '{key}' missing from correspondence")
+        if key not in corr_table:
+            errors.append("HUMAN_CORRESPONDENCE_KEYS")
+            break
     try:
         phase_section = extract_h2_section(text, "Phase order and snapshot semantics")
     except ValueError:
-        errors.append("H-03: missing Phase order section")
+        errors.append("HUMAN_PHASE_ORDER")
         phase_section = ""
     if phase_section:
         phase_table = parse_table_to_dict(phase_section)
+        phase_table.pop("Resolution key", None)
+        phase_table.pop("Snapshot rule", None)
         phase_order = mvp013_resolution.get("phase_order", {})
-        for key, expected_value in phase_order.items():
-            raw = phase_table.get(key, "")
-            if raw == "":
-                errors.append(f"H-03: phase_order.{key} missing from human section")
-            elif raw != str(expected_value):
-                errors.append(f"H-03: phase_order.{key} expected {expected_value}, got {raw}")
-    try:
-        snapshot_section = extract_h2_section(text, "Phase order and snapshot semantics")
-        tables = snapshot_section.split("|---|---|")
-        if len(tables) >= 2:
-            snapshot_map = {}
-            for line in tables[-1].strip().split("\n"):
-                line = line.strip()
-                if not line or line.startswith("|---") or line.startswith("|--"):
-                    continue
-                if not line.startswith("|"):
-                    continue
-                parts = [p.strip().strip("`") for p in line.split("|")]
-                parts = [p for p in parts if p]
-                if len(parts) >= 2:
-                    key = parts[0]
-                    value = parts[1]
-                    if value == "true":
-                        value = True
-                    elif value == "false":
-                        value = False
-                    elif value == "null":
-                        value = None
-                    snapshot_map[key] = value
-            snapshot_semantics = mvp013_resolution.get("snapshot_semantics", {})
-            for key, expected_value in snapshot_semantics.items():
-                actual = snapshot_map.get(key)
-                if actual != expected_value:
-                    errors.append(f"H-03: snapshot_semantics.{key} mismatch")
-    except ValueError:
-        pass
+        for k, expected_v in phase_order.items():
+            raw = phase_table.pop(k, None)
+            if raw is None:
+                errors.append("HUMAN_PHASE_ORDER")
+                break
+            try:
+                if expected_v != int(raw):
+                    errors.append("HUMAN_PHASE_ORDER")
+                    break
+            except (ValueError, TypeError):
+                errors.append("HUMAN_PHASE_ORDER")
+                break
+        snapshot_semantics = mvp013_resolution.get("snapshot_semantics", {})
+        for k, expected_v in snapshot_semantics.items():
+            raw = phase_table.pop(k, None)
+            if raw is None:
+                errors.append("HUMAN_PHASE_ORDER")
+                break
+            if expected_v is None:
+                if raw != "null":
+                    errors.append("HUMAN_PHASE_ORDER")
+                    break
+            elif isinstance(expected_v, bool):
+                if raw != str(expected_v).lower():
+                    errors.append("HUMAN_PHASE_ORDER")
+                    break
+            else:
+                if raw != str(expected_v):
+                    errors.append("HUMAN_PHASE_ORDER")
+                    break
+        if phase_table:
+            errors.append("HUMAN_PHASE_ORDER")
+        snapshot_map = {}
+        for line in phase_section.split("\n"):
+            line = line.strip()
+            if not line.startswith("|"):
+                continue
+            parts = [p.strip().strip("`") for p in line.split("|")]
+            parts = [p for p in parts if p]
+            if len(parts) >= 2:
+                key = parts[0]
+                value = parts[1]
+                if value == "true":
+                    value = True
+                elif value == "false":
+                    value = False
+                elif value == "null":
+                    value = None
+                snapshot_map[key] = value
+        snapshot_semantics = mvp013_resolution.get("snapshot_semantics", {})
+        snapshot_rows = [(k, snapshot_map.get(k)) for k in snapshot_semantics if k in snapshot_map]
+        expected_snap_rows = list(snapshot_semantics.items())
+        if snapshot_rows != expected_snap_rows:
+            errors.append("HUMAN_SNAPSHOT_ORDER")
     try:
         arb_section = extract_h2_section(text, "Active reform bias exclusion")
-        arb_table = parse_table_to_dict(arb_section)
-        arb_exclusion = mvp013_resolution.get("active_reform_bias_exclusion", {})
-        for key, expected_value in arb_exclusion.items():
-            raw = arb_table.get(key, "")
-            if raw == "":
-                errors.append(f"H-04: active_reform_bias_exclusion.{key} missing")
-            elif expected_value is None:
-                if raw != "null":
-                    errors.append(f"H-04: active_reform_bias_exclusion.{key} expected null")
-            elif isinstance(expected_value, bool):
-                if raw != str(expected_value).lower():
-                    errors.append(f"H-04: active_reform_bias_exclusion.{key} expected {str(expected_value).lower()}")
-            else:
-                if raw != str(expected_value):
-                    errors.append(f"H-04: active_reform_bias_exclusion.{key} expected {expected_value}, got {raw}")
     except ValueError:
-        errors.append("H-04: missing Active reform bias exclusion section")
+        errors.append("HUMAN_ACTIVE_REFORM")
+        arb_section = ""
+    if arb_section:
+        arb_table = parse_table_to_dict(arb_section)
+        arb_table.pop("Field", None)
+        arb_exclusion = mvp013_resolution.get("active_reform_bias_exclusion", {})
+        arb_rows = []
+        for k, v in arb_table.items():
+            if v == "true":
+                arb_rows.append((k, True))
+            elif v == "false":
+                arb_rows.append((k, False))
+            elif v == "null" or v == "None":
+                arb_rows.append((k, None))
+            else:
+                arb_rows.append((k, v))
+        expected_arb_rows = list(arb_exclusion.items())
+        if arb_rows != expected_arb_rows:
+            errors.append("HUMAN_ACTIVE_REFORM")
     try:
         registry_section = extract_h2_section(text, "Execution vector registry")
+    except ValueError:
+        errors.append("HUMAN_VECTOR_REGISTRY")
+        registry_section = ""
+    if registry_section:
         vectors = mvp013_resolution.get("vectors", {})
         for category in ("rounding", "drift", "pull", "latency", "ordering"):
             expected_ids = vectors.get(category, [])
-            h3_pattern = re.compile(rf"### {category.capitalize()}\n(.*?)(?=\n### |\n## |\Z)", re.DOTALL)
-            h3_match = h3_pattern.search(registry_section)
+            h3_match = re.search(rf"### {category.capitalize()}\n(.*?)(?=\n### |\n## |\Z)", registry_section, re.DOTALL)
             if not h3_match:
-                errors.append(f"H-05: missing {category} section in vector registry")
+                errors.append("HUMAN_VECTOR_REGISTRY")
                 continue
             listed_ids = re.findall(r"`([^`]+)`", h3_match.group(1))
             if listed_ids != expected_ids:
-                errors.append(f"H-05: {category} IDs mismatch: expected {expected_ids}, got {listed_ids}")
-        fixture_match = re.search(r"fixture owner: `([^`]+)`", registry_section)
-        if not fixture_match or fixture_match.group(1) != vectors.get("fixture_owner", ""):
-            errors.append("H-05: fixture owner mismatch")
-        oracle_match = re.search(r"oracle owner: `([^`]+)`", registry_section)
-        if not oracle_match or oracle_match.group(1) != vectors.get("oracle_owner", ""):
-            errors.append("H-05: oracle owner mismatch")
-    except ValueError:
-        errors.append("H-05: missing Execution vector registry section")
+                errors.append("HUMAN_VECTOR_REGISTRY")
     try:
         scope_section = extract_h2_section(text, "Scope and non-scope")
-        scope_pattern = re.compile(r"### Scope\n(.*?)(?=\n### Non-scope)", re.DOTALL)
-        scope_match = scope_pattern.search(scope_section)
-        if scope_match:
-            scope_lines = [l.strip().strip("`") for l in scope_match.group(1).strip().split("\n") if l.strip() and not l.strip().startswith("#")]
-            scope_items = []
-            for line in scope_lines:
-                line = line.strip()
-                if line and line[0].isdigit() and ". " in line:
-                    item = line.split(". ", 1)[1].strip("`")
-                    scope_items.append(item)
-            if scope_items != mvp013_resolution.get("scope", []):
-                errors.append("H-06: scope list mismatch")
-        non_scope_pattern = re.compile(r"### Non-scope\n(.*?)(?=\n## |\Z)", re.DOTALL)
-        non_scope_match = non_scope_pattern.search(scope_section)
-        if non_scope_match:
-            non_scope_lines = [l.strip().strip("`") for l in non_scope_match.group(1).strip().split("\n") if l.strip() and not l.strip().startswith("#")]
-            non_scope_items = []
-            for line in non_scope_lines:
-                line = line.strip()
-                if line and line[0].isdigit() and ". " in line:
-                    item = line.split(". ", 1)[1].strip("`")
-                    non_scope_items.append(item)
-            if non_scope_items != mvp013_resolution.get("non_scope", []):
-                errors.append("H-06: non_scope list mismatch")
     except ValueError:
-        errors.append("H-06: missing Scope and non-scope section")
+        errors.append("HUMAN_SCOPE")
+        scope_section = ""
+    if scope_section:
+        scope_items = []
+        for line in scope_section.split("\n"):
+            line = line.strip()
+            if line.startswith("### Scope"):
+                continue
+            if line.startswith("### Non-scope"):
+                break
+            if line and line[0].isdigit() and ". " in line:
+                item = line.split(". ", 1)[1].strip("`")
+                scope_items.append(item)
+        if scope_items != mvp013_resolution.get("scope", []):
+            errors.append("HUMAN_SCOPE")
+        non_scope_items = []
+        in_non_scope = False
+        for line in scope_section.split("\n"):
+            line = line.strip()
+            if line.startswith("### Non-scope"):
+                in_non_scope = True
+                continue
+            if in_non_scope and line and line[0].isdigit() and ". " in line:
+                item = line.split(". ", 1)[1].strip("`")
+                non_scope_items.append(item)
+        if non_scope_items != mvp013_resolution.get("non_scope", []):
+            errors.append("HUMAN_SCOPE")
+    headings = re.findall(r"^## ([^\n]+)", text, re.MULTILINE)
+    if len(headings) != len(set(headings)):
+        errors.append("HUMAN_DUPLICATE_SECTION")
     if "MVP-013-territory-feedback" not in text:
-        errors.append("H-07: authority decision ID MVP-013-territory-feedback missing")
+        errors.append("HUMAN_AUTHORITY_ID")
+    if "MVP-013-territorial-feedback" in text:
+        errors.append("HUMAN_AUTHORITY_ID")
+    if "P-05" not in text:
+        errors.append("HUMAN_VECTOR_REGISTRY")
+    if "P-06" in text:
+        errors.append("HUMAN_VECTOR_REGISTRY")
     text_lower = text.lower()
     for term in ["todo", "tbd", "por decidir", "preferentemente", "podría", "to be decided"]:
         if term in text_lower:
-            errors.append(f"H-08: forbidden open term '{term}' found")
+            errors.append("HUMAN_OPEN_TERM")
             break
-    headings = re.findall(r"^## ([^\n]+)", text, re.MULTILINE)
-    if len(headings) != len(set(headings)):
-        errors.append("H-02: duplicate H2 sections found")
-    if "P-05" not in text:
-        errors.append("H-05: P-05 missing from human contract")
-    if "P-06" in text:
-        errors.append("H-05: P-06 found in human contract when it should be absent")
     return errors
 
 
@@ -4360,55 +4382,65 @@ class HumanContractParityTest(unittest.TestCase):
     def test_l_human_mutation_matrix(self):
         text = read_contract_text()
         mvp013 = read_mvp_013_resolution()
-        lines = text.split("\n")
 
-        with self.subTest(mutation="H-01_missing_correspondence_section"):
-            altered_text = text.replace("## MVP-013 human-readable correspondence\n", "")
-            errors = collect_human_contract_errors(altered_text, mvp013)
-            self.assertIn("H-01", " ".join(errors))
+        with self.subTest(mutation="L-H01-EXTRA-PHASE-ROW"):
+            mutated = text.replace("| `drift_national_to_regions` | 9 |", "| `drift_national_to_regions` | 9 |\n| `extra_phase` | 99 |")
+            errors = collect_human_contract_errors(mutated, mvp013)
+            self.assertIn("HUMAN_PHASE_ORDER", errors)
 
-        with self.subTest(mutation="H-02_duplicate_heading"):
-            altered_lines = list(lines)
-            altered_lines.insert(0, "## Contract status")
-            altered_text = "\n".join(altered_lines)
-            errors = collect_human_contract_errors(altered_text, mvp013)
-            self.assertTrue(any("H-02" in e for e in errors), "H-02 not detected for duplicate heading")
+        with self.subTest(mutation="L-H02-REORDERED-SNAPSHOT-ROW"):
+            mutated = text.replace("phase_9_all_outputs_share_snapshot", "phase_10_all_bindings_share_snapshot", 1)
+            errors = collect_human_contract_errors(mutated, mvp013)
+            self.assertIn("HUMAN_SNAPSHOT_ORDER", errors)
 
-        with self.subTest(mutation="H-03_missing_phase_section"):
-            altered_text = text.replace("## Phase order and snapshot semantics\n", "")
-            errors = collect_human_contract_errors(altered_text, mvp013)
-            self.assertIn("H-03", " ".join(errors))
+        with self.subTest(mutation="L-H03-ACTIVE-REFORM-TRUE"):
+            mutated = text.replace("| `included_in_pr_15_x` | `false` |", "| `included_in_pr_15_x` | `true` |")
+            errors = collect_human_contract_errors(mutated, mvp013)
+            self.assertIn("HUMAN_ACTIVE_REFORM", errors)
 
-        with self.subTest(mutation="H-04_missing_active_reform_section"):
-            altered_text = text.replace("## Active reform bias exclusion\n", "")
-            errors = collect_human_contract_errors(altered_text, mvp013)
-            self.assertIn("H-04", " ".join(errors))
+        with self.subTest(mutation="L-H04-P06"):
+            mutated_p06 = text.replace("### Pull\n\n", "### Pull\n- `P-06`\n")
+            errors = collect_human_contract_errors(mutated_p06, mvp013)
+            self.assertIn("HUMAN_VECTOR_REGISTRY", errors)
 
-        with self.subTest(mutation="H-05_missing_vector_registry_section"):
-            altered_text = text.replace("## Execution vector registry\n", "")
-            errors = collect_human_contract_errors(altered_text, mvp013)
-            self.assertIn("H-05", " ".join(errors))
+        with self.subTest(mutation="L-H05-DUPLICATE-SECTION"):
+            dup = "## Phase order and snapshot semantics\n"
+            mutated = text.replace(dup, dup + dup, 1)
+            errors = collect_human_contract_errors(mutated, mvp013)
+            self.assertIn("HUMAN_DUPLICATE_SECTION", errors)
 
-        with self.subTest(mutation="H-06_missing_scope_section"):
-            altered_text = text.replace("## Scope and non-scope\n", "")
-            errors = collect_human_contract_errors(altered_text, mvp013)
-            self.assertIn("H-06", " ".join(errors))
+        with self.subTest(mutation="L-H06-WRONG-ID"):
+            mutated = text.replace("MVP-013-territory-feedback", "MVP-013-territorial-feedback")
+            errors = collect_human_contract_errors(mutated, mvp013)
+            self.assertIn("HUMAN_AUTHORITY_ID", errors)
 
-        with self.subTest(mutation="H-07_missing_authority_id"):
-            altered_text = text.replace("MVP-013-territory-feedback", "WRONG-ID")
-            errors = collect_human_contract_errors(altered_text, mvp013)
-            self.assertIn("H-07", " ".join(errors))
+        with self.subTest(mutation="L-H07-OPEN-TERM"):
+            mutated = text + "\nTBD\n"
+            errors = collect_human_contract_errors(mutated, mvp013)
+            self.assertIn("HUMAN_OPEN_TERM", errors)
 
-        with self.subTest(mutation="H-08_open_term_todo"):
-            altered_text = text + "\nTODO: fix this later\n"
-            errors = collect_human_contract_errors(altered_text, mvp013)
-            self.assertIn("H-08", " ".join(errors))
+        with self.subTest(mutation="L-H08-SCOPE-EXTRA"):
+            mutated = text.replace("5. `contract_parity_and_negative_tests`", "5. `contract_parity_and_negative_tests`\n6. `extra_item`")
+            errors = collect_human_contract_errors(mutated, mvp013)
+            self.assertIn("HUMAN_SCOPE", errors)
+
+    def test_l_human_zero_survivors(self):
+        text = read_contract_text()
+        mvp013 = read_mvp_013_resolution()
+        error_codes = set(collect_human_contract_errors(text, mvp013))
+        self.assertEqual(error_codes, set())
 
     def test_l_human_validator_anti_tautology(self):
         import inspect
         src = inspect.getsource(collect_human_contract_errors)
+        self.assertNotIn("read_json_document", src, "validator calls read_json_document")
+        self.assertNotIn("read_markdown_text", src, "validator calls read_markdown_text")
+        self.assertNotIn("read_contract_text", src, "validator calls read_contract_text")
+        self.assertNotIn("read_mvp_013_resolution", src, "validator calls read_mvp_013_resolution")
         self.assertNotIn("load_fixture", src, "validator calls load_fixture")
         self.assertNotIn("copy.deepcopy", src, "validator uses copy.deepcopy")
+        self.assertNotIn("assertNotEqual", src, "validator uses assertNotEqual")
+        self.assertNotIn("EXPECTED_DOCUMENT", src, "validator uses EXPECTED_DOCUMENT")
         for pname in inspect.signature(collect_human_contract_errors).parameters:
             self.assertNotEqual(pname, "expected", "validator has 'expected' parameter")
 

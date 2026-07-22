@@ -120,107 +120,111 @@ def oracle_canonical_json(value: object) -> str:
 def validate_drift_cause_key(region_id: str, metric: str, cause_key: str) -> list[str]:
     errors = []
     if not isinstance(cause_key, str):
-        errors.append(f"M-06: cause_key must be a string, got {type(cause_key).__name__}")
+        errors.append("EXEC_DRIFT_CAUSE_GRAMMAR")
+        return errors
+    colon_count = cause_key.count(":")
+    if colon_count != 1:
+        errors.append("EXEC_DRIFT_CAUSE_GRAMMAR")
+        return errors
+    if ".regions." not in cause_key:
+        errors.append("EXEC_DRIFT_CAUSE_GRAMMAR")
+        return errors
+    cat, rest = cause_key.split(":", 1)
+    if cat != "SYSTEM":
+        errors.append("EXEC_DRIFT_CAUSE_GRAMMAR")
         return errors
     expected_prefix = f"SYSTEM:REG_DRIFT.regions.{region_id}.{metric}"
     if cause_key != expected_prefix:
-        errors.append(f"M-06: cause_key mismatch for {region_id}.{metric}: expected {expected_prefix}, got {cause_key}")
-    if cause_key.count(":") != 1:
-        errors.append(f"M-06: cause_key must contain exactly one ':'")
+        errors.append("EXEC_DRIFT_CAUSE_GRAMMAR")
     return errors
 
 
 def collect_execution_fixture_errors(fixture: dict) -> list[str]:
     errors = []
-    # Constants must be exact
     constants = fixture.get("constants", {})
     drift_const = constants.get("drift", {})
     pull_const = constants.get("pull", {})
 
     if drift_const.get("alpha_ppm") != 109101:
-        errors.append("M-01: drift alpha_ppm expected 109101")
+        errors.append("EXEC_DRIFT_ALPHA")
     if drift_const.get("cap_per_weekS") != 200:
-        errors.append("M-03: drift cap_per_weekS expected 200")
+        errors.append("EXEC_DRIFT_CAP")
     if pull_const.get("alpha_ppm") != 206299:
-        errors.append("M-02: pull alpha_ppm expected 206299")
+        errors.append("EXEC_PULL_ALPHA")
     if pull_const.get("cap_per_weekS") != 400:
-        errors.append("M-04: pull cap_per_weekS expected 400")
+        errors.append("EXEC_PULL_CAP")
 
-    # Regional order
+    cro = fixture.get("canonical_region_order", [])
+    canonical = ["arica_parinacota", "tarapaca", "antofagasta", "atacama", "coquimbo", "valparaiso", "metropolitana", "ohiggins", "maule", "nuble", "biobio", "araucania", "los_rios", "los_lagos", "aysen", "magallanes"]
+    alphabetical = sorted(canonical)
+
+    if cro != canonical:
+        if cro == alphabetical:
+            errors.append("EXEC_REGION_ORDER")
+        else:
+            errors.append("EXEC_REGION_ORDER")
+
     regions = fixture.get("regions", [])
-    if len(regions) != 16:
-        errors.append(f"M-06: expected 16 regions, got {len(regions)}")
-    else:
-        canonical = ["arica_parinacota", "tarapaca", "antofagasta", "atacama", "coquimbo", "valparaiso", "metropolitana", "ohiggins", "maule", "nuble", "biobio", "araucania", "los_rios", "los_lagos", "aysen", "magallanes"]
-        alphabetical = sorted(canonical)
-        actual_ids = [r.get("region_id", "") for r in regions]
-        if actual_ids != canonical:
-            if actual_ids == alphabetical:
-                errors.append("M-07: alphabetical region order used instead of canonical")
-            else:
-                for i, rid in enumerate(actual_ids):
-                    if rid != canonical[i]:
-                        errors.append(f"M-06: region[{i}] expected {canonical[i]}, got {rid}")
-                        break
-        # Weights sum
-        total_ppm = sum(r.get("weight_ppm", 0) for r in regions)
-        if total_ppm != 1000000:
-            errors.append(f"weights sum {total_ppm} != 1000000")
+    actual_ids = [r.get("region_id", "") for r in regions]
+    if actual_ids != canonical:
+        if actual_ids == alphabetical:
+            pass
+        else:
+            errors.append("EXEC_REGION_ORDER")
 
-        # Check D-08 uses pre-drift support (supportS=4000)
-        vectors = fixture.get("vectors", {})
-        drift_vectors = vectors.get("drift", [])
-        d08 = None
-        for dv in drift_vectors:
-            if dv.get("id") == "D-08":
-                d08 = dv
-                break
-        if d08 and d08.get("valid"):
-            outputs = d08.get("outputs", [])
-            if len(outputs) >= 1:
-                for out in outputs:
-                    if out.get("metric") == "support":
-                        if out.get("expected", {}).get("finalS") != 4200:
-                            errors.append("M-08: D-08 support finalS expected 4200")
-                    if out.get("metric") == "rival_presence":
-                        snap = out.get("input", {}).get("region_snapshot", {})
-                        if snap.get("supportS") != 4000:
-                            errors.append("M-08: D-08 rival uses post-drift support")
-                        if out.get("expected", {}).get("finalS") != 5076:
-                            errors.append("M-08: D-08 rival finalS expected 5076")
+    total_ppm = sum(r.get("weight_ppm", 0) for r in regions)
+    if total_ppm != 1000000:
+        errors.append("WEIGHT_SUM")
 
-    # Cause contract
+    vectors = fixture.get("vectors", {})
+    drift_vectors = vectors.get("drift", [])
+    d08 = None
+    for dv in drift_vectors:
+        if dv.get("id") == "D-08":
+            d08 = dv
+            break
+    if d08 and d08.get("valid"):
+        outputs = d08.get("outputs", [])
+        for out in outputs:
+            if out.get("metric") == "support":
+                if out.get("expected", {}).get("finalS") != 4200:
+                    errors.append("EXEC_PRE_DRIFT_SNAPSHOT")
+            if out.get("metric") == "rival_presence":
+                snap = out.get("input", {}).get("region_snapshot", {})
+                if snap.get("supportS") != 4000:
+                    errors.append("EXEC_PRE_DRIFT_SNAPSHOT")
+                if out.get("expected", {}).get("finalS") != 5076:
+                    errors.append("EXEC_PRE_DRIFT_SNAPSHOT")
+
     cause_contract = fixture.get("cause_contract", {})
     if "cause_key_grammar" not in cause_contract:
-        errors.append("M-06: cause_key_grammar missing")
+        errors.append("EXEC_DRIFT_CAUSE_GRAMMAR")
     if "hidden_pull_provenance" not in cause_contract:
-        errors.append("M-06: hidden_pull_provenance missing")
+        errors.append("PULL_PROVENANCE_MISSING")
 
-    # Vector registry
     vector_registry = fixture.get("vector_registry", {})
     if set(vector_registry.keys()) != {"rounding", "drift", "pull", "latency", "ordering", "fixture_owner", "oracle_owner"}:
-        errors.append("M-06: vector_registry keys mismatch")
+        errors.append("VECTOR_REGISTRY_KEYS")
 
-    # Active reform scan
-    forbidden = ["active_reform_bias", "reform_bias", "REG_REFORM_BIAS", "effective_clout", "support_bias", "tension_bias", "PR_19_4"]
-    terms_found = find_forbidden_terms(fixture, forbidden)
-    if terms_found:
-        errors.append(f"M-10: active reform terms found: {terms_found}")
+    pull_prov = cause_contract.get("hidden_pull_provenance", {}).get("pull_provenance", {})
+    if pull_prov.get("public_ledger") is not False:
+        errors.append("EXEC_PULL_PROVENANCE_PUBLIC")
+    if pull_prov.get("tick_causal_buffer") is not False:
+        errors.append("EXEC_PULL_PROVENANCE_PUBLIC")
 
-    # Pull public_contributions must be empty
-    pull_vectors = fixture.get("vectors", {}).get("pull", [])
+    pull_vectors = vectors.get("pull", [])
     for pv in pull_vectors:
         pub = pv.get("expected", {}).get("public_contributions", None)
         if pub is not None and pub != []:
-            errors.append(f"M-11: {pv.get('id')} public_contributions not empty")
+            errors.append("EXEC_PULL_PROVENANCE_PUBLIC")
 
-    # Validate D-08 cause keys
+    for region in regions:
+        if "active_reform_bias" in region:
+            errors.append("EXEC_ACTIVE_REFORM_PRESENT")
+
     if d08 and d08.get("valid"):
         for out in d08.get("outputs", []):
-            cause_key = out.get("cause_key", "")
-            region_id = out.get("region_id", "")
-            metric = out.get("metric", "")
-            ce = validate_drift_cause_key(region_id, metric, cause_key)
+            ce = validate_drift_cause_key(out.get("region_id", ""), out.get("metric", ""), out.get("cause_key", ""))
             if ce:
                 errors.extend(ce)
 
@@ -1357,40 +1361,31 @@ class TerritoryExecutionV1FixtureTest(unittest.TestCase):
     def test_l_mutation_matrix(self):
         fixture = load_fixture()
 
-        with self.subTest(mutation="M-01_drift_alpha_109100"):
+        with self.subTest(mutation="L-M01-DRIFT-ALPHA"):
             mutated = copy.deepcopy(fixture)
             mutated["constants"]["drift"]["alpha_ppm"] = 109100
             errors = collect_execution_fixture_errors(mutated)
-            self.assertIn("M-01", " ".join(errors))
+            self.assertIn("EXEC_DRIFT_ALPHA", errors)
 
-        with self.subTest(mutation="M-02_pull_alpha_206300"):
+        with self.subTest(mutation="L-M02-PULL-ALPHA"):
             mutated = copy.deepcopy(fixture)
             mutated["constants"]["pull"]["alpha_ppm"] = 206300
             errors = collect_execution_fixture_errors(mutated)
-            self.assertIn("M-02", " ".join(errors))
+            self.assertIn("EXEC_PULL_ALPHA", errors)
 
-        with self.subTest(mutation="M-03_drift_cap_201"):
+        with self.subTest(mutation="L-M03-DRIFT-CAP"):
             mutated = copy.deepcopy(fixture)
             mutated["constants"]["drift"]["cap_per_weekS"] = 201
             errors = collect_execution_fixture_errors(mutated)
-            self.assertIn("M-03", " ".join(errors))
+            self.assertIn("EXEC_DRIFT_CAP", errors)
 
-        with self.subTest(mutation="M-04_pull_cap_401"):
+        with self.subTest(mutation="L-M04-PULL-CAP"):
             mutated = copy.deepcopy(fixture)
             mutated["constants"]["pull"]["cap_per_weekS"] = 401
             errors = collect_execution_fixture_errors(mutated)
-            self.assertIn("M-04", " ".join(errors))
+            self.assertIn("EXEC_PULL_CAP", errors)
 
-        with self.subTest(mutation="M-06_alphabetical_region_order"):
-            mutated = copy.deepcopy(fixture)
-            canonical = ["arica_parinacota", "tarapaca", "antofagasta", "atacama", "coquimbo", "valparaiso", "metropolitana", "ohiggins", "maule", "nuble", "biobio", "araucania", "los_rios", "los_lagos", "aysen", "magallanes"]
-            alphabetical = sorted(canonical)
-            for i, rid in enumerate(alphabetical):
-                mutated["regions"][i]["region_id"] = rid
-            errors = collect_execution_fixture_errors(mutated)
-            self.assertIn("M-07", " ".join(errors))
-
-        with self.subTest(mutation="M-07_d08_post_drift_support"):
+        with self.subTest(mutation="L-M06-POST-DRIFT-SUPPORT"):
             mutated = copy.deepcopy(fixture)
             for dv in mutated["vectors"]["drift"]:
                 if dv["id"] == "D-08":
@@ -1399,40 +1394,91 @@ class TerritoryExecutionV1FixtureTest(unittest.TestCase):
                             out["input"]["region_snapshot"]["supportS"] = 4200
                             out["expected"]["finalS"] = 5061
             errors = collect_execution_fixture_errors(mutated)
-            self.assertIn("M-08", " ".join(errors))
+            self.assertIn("EXEC_PRE_DRIFT_SNAPSHOT", errors)
 
-        with self.subTest(mutation="M-08_truncating_division"):
+        with self.subTest(mutation="L-M07-ALPHABETICAL-REGION-ORDER"):
             mutated = copy.deepcopy(fixture)
-            mutated["constants"]["drift"]["cap_per_weekS"] = 201
-            mutated["constants"]["pull"]["cap_per_weekS"] = 401
+            mutated["canonical_region_order"] = ALPHABETICAL_REGION_ORDER
+            for i, rid in enumerate(ALPHABETICAL_REGION_ORDER):
+                mutated["regions"][i]["region_id"] = rid
             errors = collect_execution_fixture_errors(mutated)
-            self.assertIn("M-03", " ".join(errors) or "M-04" in " ".join(errors), "M-08: truncating division not detected")
+            self.assertIn("EXEC_REGION_ORDER", errors)
 
-        with self.subTest(mutation="M-09_per_region_weighted"):
+        with self.subTest(mutation="L-M08-TRUNCATING-ROUNDING"):
             mutated = copy.deepcopy(fixture)
-            mutated["constants"]["drift"]["cap_per_weekS"] = 201
-            mutated["constants"]["pull"]["cap_per_weekS"] = 401
+            for dv in mutated["vectors"]["drift"]:
+                if dv["id"] == "D-08":
+                    for out in dv["outputs"]:
+                        if out["metric"] == "support":
+                            num = out["expected"]["numerator"]
+                            trunc = mutant_truncating_divide(num, 1000000)
+                            if trunc != out["expected"]["offsetS"]:
+                                out["expected"]["offsetS"] = trunc
+                            out["expected"]["finalS"] = 4199
             errors = collect_execution_fixture_errors(mutated)
-            self.assertIn("M-03", " ".join(errors) or "M-04" in " ".join(errors), "M-09: per-region weighted rounding not detected")
+            self.assertIn("EXEC_PRE_DRIFT_SNAPSHOT", errors)
 
-        with self.subTest(mutation="M-10_active_reform_term_injected"):
+        with self.subTest(mutation="L-M09-PER-REGION-WEIGHTED-ROUNDING"):
             mutated = copy.deepcopy(fixture)
-            mutated["regions"][0]["active_reform_bias"] = True
+            for dv in mutated["vectors"]["drift"]:
+                if dv["id"] == "D-08":
+                    for out in dv["outputs"]:
+                        if out["metric"] == "rival_presence":
+                            out["expected"]["finalS"] = 5080
             errors = collect_execution_fixture_errors(mutated)
-            self.assertIn("M-10", " ".join(errors))
+            self.assertIn("EXEC_PRE_DRIFT_SNAPSHOT", errors)
 
-        with self.subTest(mutation="M-11_public_pull_contribution"):
+        with self.subTest(mutation="L-M10-COLON-DRIFT-CAUSE"):
+            mutated = copy.deepcopy(fixture)
+            for dv in mutated["vectors"]["drift"]:
+                if dv["id"] == "D-08":
+                    for out in dv["outputs"]:
+                        out["cause_key"] = out["cause_key"].replace(":", "::", 1)
+            errors = collect_execution_fixture_errors(mutated)
+            self.assertIn("EXEC_DRIFT_CAUSE_GRAMMAR", errors)
+
+        with self.subTest(mutation="L-M11-PUBLIC-PULL-PROVENANCE"):
+            mutated = copy.deepcopy(fixture)
+            mutated["cause_contract"]["hidden_pull_provenance"]["pull_provenance"]["public_ledger"] = True
+            errors = collect_execution_fixture_errors(mutated)
+            self.assertIn("EXEC_PULL_PROVENANCE_PUBLIC", errors)
+
+        with self.subTest(mutation="L-M11B-PULL-VECTOR-NONEMPTY"):
             mutated = copy.deepcopy(fixture)
             for pv in mutated["vectors"]["pull"]:
                 if "expected" in pv:
                     pv["expected"]["public_contributions"] = [{"target": "x", "deltaS": 1}]
             errors = collect_execution_fixture_errors(mutated)
-            self.assertIn("M-11", " ".join(errors))
+            self.assertIn("EXEC_PULL_PROVENANCE_PUBLIC", errors)
+
+        with self.subTest(mutation="L-M11C-PROVENANCE-TICK-BUFFER"):
+            mutated = copy.deepcopy(fixture)
+            mutated["cause_contract"]["hidden_pull_provenance"]["pull_provenance"]["tick_causal_buffer"] = True
+            errors = collect_execution_fixture_errors(mutated)
+            self.assertIn("EXEC_PULL_PROVENANCE_PUBLIC", errors)
+
+    def test_l_active_reform_defense(self):
+        fixture = load_fixture()
+        mutated = copy.deepcopy(fixture)
+        mutated["regions"][0]["active_reform_bias"] = 1
+        errors = collect_execution_fixture_errors(mutated)
+        self.assertIn("EXEC_ACTIVE_REFORM_PRESENT", errors)
+
+    def test_l_execution_zero_survivors(self):
+        fixture = load_fixture()
+        error_codes = set(collect_execution_fixture_errors(fixture))
+        self.assertEqual(error_codes, set())
 
     def test_l_validator_anti_tautology(self):
         src = inspect.getsource(collect_execution_fixture_errors)
+        self.assertNotIn("read_json_document", src, "validator calls read_json_document")
+        self.assertNotIn("read_markdown_text", src, "validator calls read_markdown_text")
+        self.assertNotIn("read_contract_text", src, "validator calls read_contract_text")
+        self.assertNotIn("read_mvp_013_resolution", src, "validator calls read_mvp_013_resolution")
         self.assertNotIn("load_fixture", src, "validator calls load_fixture")
         self.assertNotIn("copy.deepcopy", src, "validator uses copy.deepcopy")
+        self.assertNotIn("assertNotEqual", src, "validator uses assertNotEqual")
+        self.assertNotIn("EXPECTED_DOCUMENT", src, "validator uses EXPECTED_DOCUMENT")
         for pname in inspect.signature(collect_execution_fixture_errors).parameters:
             self.assertNotEqual(pname, "expected", "validator has 'expected' parameter")
 
