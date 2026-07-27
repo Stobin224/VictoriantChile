@@ -2784,15 +2784,11 @@ class MvpContractDecisionsTest(unittest.TestCase):
         self.assertEqual(decision, EXPECTED_MVP_013)
 
     def test_previous_decisions_remain_exact(self) -> None:
-        import subprocess
-        result = subprocess.run(
-            ["git", "show", "ecf080c2fd787b285698fcf49bdee9936f0b4658:docs/mvp_contract_decisions.json"],
-            capture_output=True,
-        )
-        parent_doc = json.loads(result.stdout.decode("utf-8"))
         current_doc = read_json_document()
-        self.assertEqual(len(parent_doc["decisions"]), 12)
-        self.assertEqual(current_doc["decisions"][:12], parent_doc["decisions"])
+        expected_previous = EXPECTED_DOCUMENT["decisions"][:12]
+        self.assertEqual(len(expected_previous), 12)
+        self.assertEqual(current_doc["decisions"][:12], expected_previous)
+        self.assertTrue(all(item["id"] != "MVP-013-territory-feedback" for item in expected_previous))
 
     def test_json_document_matches_expected_document(self) -> None:
         data = read_json_document()

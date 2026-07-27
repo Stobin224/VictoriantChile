@@ -1572,6 +1572,18 @@ namespace VictoriantChile.Content.Models
 
         public TerritoryRuntimePlan TerritoryRuntimePlan { get; }
 
+        public bool HasTerritoryRuntimePlan => TerritoryRuntimePlan != null;
+
+        public TerritoryRuntimePlan RequireTerritoryRuntimePlan()
+        {
+            if (TerritoryRuntimePlan != null)
+            {
+                return TerritoryRuntimePlan;
+            }
+
+            throw new InvalidOperationException("ContentPack does not contain a compiled territory runtime plan.");
+        }
+
         public IReadOnlyList<EventTemplate> Events { get; }
 
         public IReadOnlyDictionary<string, EventTemplate> EventsById { get; }
@@ -1782,7 +1794,7 @@ namespace VictoriantChile.Content.Models
         {
             if (regions == null)
             {
-                throw TerritoryCompileError(ContentDiagnosticCode.TerritoryPlanInvalid, RegionsPathForDiagnostics, "$.regions", "Territory regions collection is required.");
+                throw TerritoryCompileError(ContentDiagnosticCode.TerritoryRegionContractInvalid, RegionsPathForDiagnostics, "$.regions", "Territory regions collection is required.");
             }
 
             if (targetCatalog == null)
@@ -1814,7 +1826,7 @@ namespace VictoriantChile.Content.Models
             string[] expected = TerritoryExpectedRegionIds();
             if (regions.Count != TerritoryRuntimePlan.RequiredRegionCount)
             {
-                throw TerritoryCompileError(ContentDiagnosticCode.TerritoryPlanInvalid, RegionsPathForDiagnostics, "$.regions", "Territory plan requires exactly 16 regions.");
+                throw TerritoryCompileError(ContentDiagnosticCode.TerritoryRegionContractInvalid, RegionsPathForDiagnostics, "$.regions", "Territory plan requires exactly 16 regions.");
             }
 
             TerritoryRegionRuntime[] result = new TerritoryRegionRuntime[regions.Count];
@@ -1826,27 +1838,27 @@ namespace VictoriantChile.Content.Models
                 string rowPath = "$.regions[" + i + "]";
                 if (region == null)
                 {
-                    throw TerritoryCompileError(ContentDiagnosticCode.TerritoryPlanInvalid, RegionsPathForDiagnostics, rowPath, "Territory regions cannot contain null entries.");
+                    throw TerritoryCompileError(ContentDiagnosticCode.TerritoryRegionContractInvalid, RegionsPathForDiagnostics, rowPath, "Territory regions cannot contain null entries.");
                 }
 
                 if (!ids.Add(region.Id))
                 {
-                    throw TerritoryCompileError(ContentDiagnosticCode.TerritoryPlanInvalid, RegionsPathForDiagnostics, rowPath + ".id", "Duplicate territory region id.");
+                    throw TerritoryCompileError(ContentDiagnosticCode.TerritoryRegionContractInvalid, RegionsPathForDiagnostics, rowPath + ".id", "Duplicate territory region id.");
                 }
 
                 if (!string.Equals(region.Id, expected[i], StringComparison.Ordinal))
                 {
-                    throw TerritoryCompileError(ContentDiagnosticCode.TerritoryPlanInvalid, RegionsPathForDiagnostics, rowPath + ".id", "Territory region order is not canonical.");
+                    throw TerritoryCompileError(ContentDiagnosticCode.TerritoryRegionContractInvalid, RegionsPathForDiagnostics, rowPath + ".id", "Territory region order is not canonical.");
                 }
 
                 if (region.WeightPpm <= 0)
                 {
-                    throw TerritoryCompileError(ContentDiagnosticCode.TerritoryPlanInvalid, RegionsPathForDiagnostics, rowPath + ".weight_ppm", "Territory region weight_ppm must be positive.");
+                    throw TerritoryCompileError(ContentDiagnosticCode.TerritoryRegionContractInvalid, RegionsPathForDiagnostics, rowPath + ".weight_ppm", "Territory region weight_ppm must be positive.");
                 }
 
                 if (region.WeightPpm != TerritoryRuntimePlan.RequiredRegionWeightPpm)
                 {
-                    throw TerritoryCompileError(ContentDiagnosticCode.TerritoryPlanInvalid, RegionsPathForDiagnostics, rowPath + ".weight_ppm", "Territory region weight_ppm must be exactly 62500.");
+                    throw TerritoryCompileError(ContentDiagnosticCode.TerritoryRegionContractInvalid, RegionsPathForDiagnostics, rowPath + ".weight_ppm", "Territory region weight_ppm must be exactly 62500.");
                 }
 
                 ValidateTerritoryResource(region.AdminCapS, rowPath + ".admin_capS");
@@ -1868,7 +1880,7 @@ namespace VictoriantChile.Content.Models
 
             if (weightSum != TerritoryRuntimePlan.RequiredRegionWeightSumPpm)
             {
-                throw TerritoryCompileError(ContentDiagnosticCode.TerritoryPlanInvalid, RegionsPathForDiagnostics, "$.regions", "Territory region weight_ppm sum must be exactly 1_000_000.");
+                throw TerritoryCompileError(ContentDiagnosticCode.TerritoryRegionContractInvalid, RegionsPathForDiagnostics, "$.regions", "Territory region weight_ppm sum must be exactly 1_000_000.");
             }
 
             return result;
@@ -1995,12 +2007,12 @@ namespace VictoriantChile.Content.Models
         {
             if (!targetCatalog.TryResolve(target, out TargetConfig config))
             {
-                throw TerritoryCompileError(ContentDiagnosticCode.TerritoryPlanInvalid, TargetConfigPathForDiagnostics, "$", "Missing TargetConfig for territory target " + target.ToString() + ".");
+                throw TerritoryCompileError(ContentDiagnosticCode.TerritoryTargetConfigContractInvalid, TargetConfigPathForDiagnostics, "$", "Missing TargetConfig for territory target " + target.ToString() + ".");
             }
 
             if (!config.Pattern.Matches(target))
             {
-                throw TerritoryCompileError(ContentDiagnosticCode.TerritoryPlanInvalid, relativeFile, jsonPath, "Resolved TargetConfig path mismatch for " + target.ToString() + ".");
+                throw TerritoryCompileError(ContentDiagnosticCode.TerritoryTargetConfigContractInvalid, relativeFile, jsonPath, "Resolved TargetConfig path mismatch for " + target.ToString() + ".");
             }
 
             if (config.Scale != TerritoryRuntimePlan.RequiredScale
@@ -2008,12 +2020,12 @@ namespace VictoriantChile.Content.Models
                 || config.MaxS != 10000
                 || config.DefaultS != TerritoryRuntimePlan.RequiredMidS)
             {
-                throw TerritoryCompileError(ContentDiagnosticCode.TerritoryPlanInvalid, TargetConfigPathForDiagnostics, "$", "TargetConfig domain is incompatible with territory target " + target.ToString() + ".");
+                throw TerritoryCompileError(ContentDiagnosticCode.TerritoryTargetConfigContractInvalid, TargetConfigPathForDiagnostics, "$", "TargetConfig domain is incompatible with territory target " + target.ToString() + ".");
             }
 
             if (!config.Allows(TargetOperation.Set))
             {
-                throw TerritoryCompileError(ContentDiagnosticCode.TerritoryPlanInvalid, TargetConfigPathForDiagnostics, "$", "TargetConfig for territory target " + target.ToString() + " must allow SET.");
+                throw TerritoryCompileError(ContentDiagnosticCode.TerritoryTargetConfigContractInvalid, TargetConfigPathForDiagnostics, "$", "TargetConfig for territory target " + target.ToString() + " must allow SET.");
             }
 
             return config;
@@ -2028,7 +2040,7 @@ namespace VictoriantChile.Content.Models
         {
             if (value < 0 || value > 10000)
             {
-                throw TerritoryCompileError(ContentDiagnosticCode.TerritoryPlanInvalid, RegionsPathForDiagnostics, jsonPath, "Territory static regional resource must be in 0..10000.");
+                throw TerritoryCompileError(ContentDiagnosticCode.TerritoryRegionContractInvalid, RegionsPathForDiagnostics, jsonPath, "Territory static regional resource must be in 0..10000.");
             }
         }
 

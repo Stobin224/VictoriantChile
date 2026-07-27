@@ -87,6 +87,8 @@ namespace VictoriantChile.Simulation.Tests.EditMode
             Assert.That(result.IsSuccess, Is.True, Diagnostics(result));
             TerritoryRuntimePlan plan = result.Pack.TerritoryRuntimePlan;
             Assert.That(plan, Is.Not.Null);
+            Assert.That(result.Pack.HasTerritoryRuntimePlan, Is.True);
+            Assert.That(result.Pack.RequireTerritoryRuntimePlan(), Is.SameAs(plan));
             AssertConstants(plan);
             AssertRegions(plan);
             AssertDriftBindings(plan);
@@ -180,6 +182,17 @@ namespace VictoriantChile.Simulation.Tests.EditMode
         }
 
         [Test]
+        public void ManualContentPackCanBeEditorialOrPartialWithoutCompiledTerritoryPlan()
+        {
+            ContentPack real = LoadRealPack().Pack;
+            ContentPack manual = new ContentPack(real.Manifest, real.TargetConfigs, real.Regions, real.InterestGroups, real.Movements);
+
+            Assert.That(manual.HasTerritoryRuntimePlan, Is.False);
+            Assert.That(manual.TerritoryRuntimePlan, Is.Null);
+            Assert.That(() => manual.RequireTerritoryRuntimePlan(), Throws.InstanceOf<InvalidOperationException>().With.Message.EqualTo("ContentPack does not contain a compiled territory runtime plan."));
+        }
+
+        [Test]
         public void CoreAssemblyDoesNotDependOnContentNewtonsoftOrUnityEngine()
         {
             string assets = AssetsRoot();
@@ -207,7 +220,7 @@ namespace VictoriantChile.Simulation.Tests.EditMode
         {
             ContentLoadResult result = Load(RebuildManifest(WithFile(ValidFixture(), "core/regions.json", RegionJsonWithoutLastAdjustedToOneMillion())));
 
-            AssertFailure(result, ContentDiagnosticCode.TerritoryPlanInvalid, "core/regions.json", "$.regions");
+            AssertFailure(result, ContentDiagnosticCode.TerritoryRegionContractInvalid, "core/regions.json", "$.regions");
         }
 
         [Test]
@@ -218,7 +231,7 @@ namespace VictoriantChile.Simulation.Tests.EditMode
 
             ContentLoadResult result = Load(RebuildManifest(files));
 
-            AssertFailure(result, ContentDiagnosticCode.TerritoryPlanInvalid, "core/regions.json", "$.regions[0].id");
+            AssertFailure(result, ContentDiagnosticCode.TerritoryRegionContractInvalid, "core/regions.json", "$.regions[0].id");
         }
 
         [Test]
@@ -233,7 +246,7 @@ namespace VictoriantChile.Simulation.Tests.EditMode
 
             ContentLoadResult result = Load(RebuildManifest(files));
 
-            AssertFailure(result, ContentDiagnosticCode.TerritoryPlanInvalid, "core/regions.json", "$.regions[0].id");
+            AssertFailure(result, ContentDiagnosticCode.TerritoryRegionContractInvalid, "core/regions.json", "$.regions[0].id");
         }
 
         [Test]
@@ -258,8 +271,8 @@ namespace VictoriantChile.Simulation.Tests.EditMode
             Assert.That(ContainsCode(result, ContentDiagnosticCode.DuplicateId), Is.True, Diagnostics(result));
         }
 
-        [TestCase("\"weight_ppm\": 62500", "\"weight_ppm\": 0", ContentDiagnosticCode.TerritoryPlanInvalid, "$.regions[0].weight_ppm", TestName = "WeightNonPositiveFailsClosed")]
-        [TestCase("\"weight_ppm\": 62500", "\"weight_ppm\": 62501", ContentDiagnosticCode.TerritoryPlanInvalid, "$.regions[0].weight_ppm", TestName = "WeightNotContractualFailsClosed")]
+        [TestCase("\"weight_ppm\": 62500", "\"weight_ppm\": 0", ContentDiagnosticCode.TerritoryRegionContractInvalid, "$.regions[0].weight_ppm", TestName = "WeightNonPositiveFailsClosed")]
+        [TestCase("\"weight_ppm\": 62500", "\"weight_ppm\": 62501", ContentDiagnosticCode.TerritoryRegionContractInvalid, "$.regions[0].weight_ppm", TestName = "WeightNotContractualFailsClosed")]
         [TestCase("\"populationS\": 5000", "\"populationS\": 10001", ContentDiagnosticCode.InvalidRange, "$.regions[0].populationS", TestName = "StaticResourceOutOfRangeFailsClosed")]
         public void LoaderRegionValueFailuresFailClosed(string oldText, string newText, ContentDiagnosticCode code, string expectedPath)
         {
@@ -311,7 +324,7 @@ namespace VictoriantChile.Simulation.Tests.EditMode
 
             ContentLoadResult result = Load(RebuildManifest(files));
 
-            AssertFailure(result, ContentDiagnosticCode.TerritoryPlanInvalid, "rules/target_config.json", expectedPath);
+            AssertFailure(result, ContentDiagnosticCode.TerritoryTargetConfigContractInvalid, "rules/target_config.json", expectedPath);
         }
 
         [Test]
@@ -324,7 +337,7 @@ namespace VictoriantChile.Simulation.Tests.EditMode
 
             ContentLoadResult result = Load(RebuildManifest(files));
 
-            AssertFailure(result, ContentDiagnosticCode.TerritoryPlanInvalid, "rules/target_config.json", "$");
+            AssertFailure(result, ContentDiagnosticCode.TerritoryTargetConfigContractInvalid, "rules/target_config.json", "$");
         }
 
         [Test]
@@ -372,6 +385,19 @@ namespace VictoriantChile.Simulation.Tests.EditMode
             Assert.That(() => ContentPack.CompileTerritoryRuntimePlan(pack.Regions, new TargetConfigCatalog(noInternalDestination)), Throws.InstanceOf<InvalidOperationException>());
         }
 
+        [TestCaseSource(nameof(CoreContractMutants))]
+        public void ProgrammaticCoreRejectsNonContractualMutants(string caseId, Action<TerritoryRuntimePlan, List<TerritoryDriftBindingRuntime>, List<TerritoryPullBindingRuntime>> mutate)
+        {
+            TerritoryRuntimePlan canonical = LoadRealPack().Pack.TerritoryRuntimePlan;
+            List<TerritoryRegionRuntime> regions = new List<TerritoryRegionRuntime>(canonical.Regions);
+            List<TerritoryDriftBindingRuntime> drift = new List<TerritoryDriftBindingRuntime>(canonical.DriftBindings);
+            List<TerritoryPullBindingRuntime> pull = new List<TerritoryPullBindingRuntime>(canonical.PullBindings);
+
+            mutate(canonical, drift, pull);
+
+            Assert.That(() => ClonePlan(regions, drift, pull), Throws.InstanceOf<ArgumentException>(), caseId);
+        }
+
         [Test]
         public void CauseRefsArePrecompiledAndDistinct()
         {
@@ -405,12 +431,189 @@ namespace VictoriantChile.Simulation.Tests.EditMode
             Assert.That(pullCauses.Count, Is.EqualTo(5));
         }
 
+        private static IEnumerable<TestCaseData> CoreContractMutants()
+        {
+            yield return new TestCaseData(
+                "T-C01",
+                new Action<TerritoryRuntimePlan, List<TerritoryDriftBindingRuntime>, List<TerritoryPullBindingRuntime>>((plan, drift, pull) =>
+                {
+                    TerritoryDriftBindingRuntime original = drift[0];
+                    TerritoryDriftTermRuntime[] terms =
+                    {
+                        Term("metrics.legitimacy", TerritoryDriftTransformRuntime.ValueMinusMid, 599999),
+                        Term("metrics.party_organization", TerritoryDriftTransformRuntime.ValueMinusMid, 300000),
+                        Term("metrics.social_tension", TerritoryDriftTransformRuntime.ValueMinusMid, -400000)
+                    };
+                    drift[0] = DriftLike(original, terms, original.Cause);
+                })).SetName("T-C01_Coefficient599999Fails");
+
+            yield return new TestCaseData(
+                "T-C02",
+                new Action<TerritoryRuntimePlan, List<TerritoryDriftBindingRuntime>, List<TerritoryPullBindingRuntime>>((plan, drift, pull) =>
+                {
+                    TerritoryDriftBindingRuntime original = drift[0];
+                    TerritoryDriftTermRuntime[] terms =
+                    {
+                        Term("metrics.party_organization", TerritoryDriftTransformRuntime.ValueMinusMid, 300000),
+                        Term("metrics.legitimacy", TerritoryDriftTransformRuntime.ValueMinusMid, 600000),
+                        Term("metrics.social_tension", TerritoryDriftTransformRuntime.ValueMinusMid, -400000)
+                    };
+                    drift[0] = DriftLike(original, terms, original.Cause);
+                })).SetName("T-C02_ReorderedSupportTermsFails");
+
+            yield return new TestCaseData(
+                "T-C03",
+                new Action<TerritoryRuntimePlan, List<TerritoryDriftBindingRuntime>, List<TerritoryPullBindingRuntime>>((plan, drift, pull) =>
+                {
+                    TerritoryDriftBindingRuntime original = drift[0];
+                    TerritoryDriftTermRuntime[] terms =
+                    {
+                        Term("metrics.economy", TerritoryDriftTransformRuntime.ValueMinusMid, 600000),
+                        Term("metrics.party_organization", TerritoryDriftTransformRuntime.ValueMinusMid, 300000),
+                        Term("metrics.social_tension", TerritoryDriftTransformRuntime.ValueMinusMid, -400000)
+                    };
+                    drift[0] = DriftLike(original, terms, original.Cause);
+                })).SetName("T-C03_WrongSupportSourceFails");
+
+            yield return new TestCaseData(
+                "T-C04",
+                new Action<TerritoryRuntimePlan, List<TerritoryDriftBindingRuntime>, List<TerritoryPullBindingRuntime>>((plan, drift, pull) =>
+                {
+                    TerritoryDriftBindingRuntime original = drift[0];
+                    TerritoryDriftTermRuntime[] terms =
+                    {
+                        Term("metrics.legitimacy", TerritoryDriftTransformRuntime.MidMinusValue, 600000),
+                        Term("metrics.party_organization", TerritoryDriftTransformRuntime.ValueMinusMid, 300000),
+                        Term("metrics.social_tension", TerritoryDriftTransformRuntime.ValueMinusMid, -400000)
+                    };
+                    drift[0] = DriftLike(original, terms, original.Cause);
+                })).SetName("T-C04_WrongSupportTransformFails");
+
+            yield return new TestCaseData(
+                "T-C05",
+                new Action<TerritoryRuntimePlan, List<TerritoryDriftBindingRuntime>, List<TerritoryPullBindingRuntime>>((plan, drift, pull) =>
+                {
+                    TerritoryDriftBindingRuntime original = drift[0];
+                    TerritoryDriftTermRuntime[] terms =
+                    {
+                        Term("metrics.legitimacy", TerritoryDriftTransformRuntime.ValueMinusMid, 600000),
+                        Term("metrics.party_organization", TerritoryDriftTransformRuntime.ValueMinusMid, 300000)
+                    };
+                    drift[0] = DriftLike(original, terms, original.Cause);
+                })).SetName("T-C05_RemovedSupportTermFails");
+
+            yield return new TestCaseData(
+                "T-C06",
+                new Action<TerritoryRuntimePlan, List<TerritoryDriftBindingRuntime>, List<TerritoryPullBindingRuntime>>((plan, drift, pull) =>
+                {
+                    TerritoryDriftBindingRuntime original = drift[0];
+                    TerritoryDriftTermRuntime[] terms =
+                    {
+                        Term("metrics.legitimacy", TerritoryDriftTransformRuntime.ValueMinusMid, 600000),
+                        Term("metrics.party_organization", TerritoryDriftTransformRuntime.ValueMinusMid, 300000),
+                        Term("metrics.social_tension", TerritoryDriftTransformRuntime.ValueMinusMid, -400000),
+                        Term("metrics.economy", TerritoryDriftTransformRuntime.ValueMinusMid, 1)
+                    };
+                    drift[0] = DriftLike(original, terms, original.Cause);
+                })).SetName("T-C06_AddedSupportTermFails");
+
+            yield return new TestCaseData(
+                "T-C07",
+                new Action<TerritoryRuntimePlan, List<TerritoryDriftBindingRuntime>, List<TerritoryPullBindingRuntime>>((plan, drift, pull) =>
+                {
+                    TerritoryDriftBindingRuntime original = drift[0];
+                    drift[0] = DriftLike(original, original.Terms, new CauseRef(CauseCategory.System, "WRONG_DRIFT"));
+                })).SetName("T-C07_WrongDriftCauseFails");
+
+            yield return new TestCaseData(
+                "T-C08",
+                new Action<TerritoryRuntimePlan, List<TerritoryDriftBindingRuntime>, List<TerritoryPullBindingRuntime>>((plan, drift, pull) =>
+                {
+                    TerritoryDriftBindingRuntime original = drift[0];
+                    drift[0] = DriftLike(original, original.Terms, new CauseRef(CauseCategory.System, "REG_DRIFT.regions.tarapaca.support"));
+                })).SetName("T-C08_DriftCauseForOtherRegionFails");
+
+            yield return new TestCaseData(
+                "T-C09",
+                new Action<TerritoryRuntimePlan, List<TerritoryDriftBindingRuntime>, List<TerritoryPullBindingRuntime>>((plan, drift, pull) =>
+                {
+                    TerritoryPullBindingRuntime original = pull[0];
+                    pull[0] = PullLike(original, new CauseRef(CauseCategory.System, "WRONG_PULL"));
+                })).SetName("T-C09_WrongPullCauseFails");
+
+            yield return new TestCaseData(
+                "T-C10",
+                new Action<TerritoryRuntimePlan, List<TerritoryDriftBindingRuntime>, List<TerritoryPullBindingRuntime>>((plan, drift, pull) =>
+                {
+                    TerritoryPullBindingRuntime original = pull[0];
+                    pull[0] = PullLike(original, new CauseRef(CauseCategory.System, "REG_TO_INT.internals.party.field_ops"));
+                })).SetName("T-C10_PullCauseForOtherDestinationFails");
+
+            yield return new TestCaseData(
+                "T-C11",
+                new Action<TerritoryRuntimePlan, List<TerritoryDriftBindingRuntime>, List<TerritoryPullBindingRuntime>>((plan, drift, pull) =>
+                {
+                    int index = 6 * ExpectedFields.Length + 3;
+                    TerritoryDriftBindingRuntime original = drift[index];
+                    TerritoryDriftTermRuntime[] terms =
+                    {
+                        Term("regions.metropolitana.support", TerritoryDriftTransformRuntime.MidMinusValue, 700001),
+                        Term("metrics.internal_cohesion", TerritoryDriftTransformRuntime.MidMinusValue, 200000)
+                    };
+                    drift[index] = DriftLike(original, terms, original.Cause);
+                })).SetName("T-C11_RivalPresenceCoefficientInLaterRegionFails");
+
+            yield return new TestCaseData(
+                "T-C12",
+                new Action<TerritoryRuntimePlan, List<TerritoryDriftBindingRuntime>, List<TerritoryPullBindingRuntime>>((plan, drift, pull) =>
+                {
+                    int index = 9 * ExpectedFields.Length + 1;
+                    TerritoryDriftBindingRuntime original = drift[index];
+                    TerritoryDriftTermRuntime[] terms =
+                    {
+                        Term("metrics.economy", TerritoryDriftTransformRuntime.MidMinusValue, 500000),
+                        Term("metrics.security", TerritoryDriftTransformRuntime.ValueMinusMid, 400000),
+                        Term("metrics.public_agenda", TerritoryDriftTransformRuntime.ValueMinusMid, 300000)
+                    };
+                    drift[index] = DriftLike(original, terms, original.Cause);
+                })).SetName("T-C12_TensionTermInIntermediateRegionFails");
+        }
+
         private static TerritoryRuntimePlan ClonePlan(
             IReadOnlyList<TerritoryRegionRuntime> regions,
             IReadOnlyList<TerritoryDriftBindingRuntime> drift,
             IReadOnlyList<TerritoryPullBindingRuntime> pull)
         {
             return new TerritoryRuntimePlan(100, 5000, 1000000, 109101, 200, 6, 206299, 400, 1000000, regions, drift, pull);
+        }
+
+        private static TerritoryDriftBindingRuntime DriftLike(
+            TerritoryDriftBindingRuntime original,
+            IReadOnlyList<TerritoryDriftTermRuntime> terms,
+            CauseRef cause)
+        {
+            return new TerritoryDriftBindingRuntime(
+                original.RegionId,
+                original.Field,
+                original.OutputTarget,
+                original.OutputConfig,
+                cause,
+                terms);
+        }
+
+        private static TerritoryPullBindingRuntime PullLike(TerritoryPullBindingRuntime original, CauseRef cause)
+        {
+            return new TerritoryPullBindingRuntime(
+                original.BindingId,
+                original.RegionalSource,
+                original.Destination,
+                original.DestinationConfig,
+                cause);
+        }
+
+        private static TerritoryDriftTermRuntime Term(string source, TerritoryDriftTransformRuntime transform, int coefficientPpm)
+        {
+            return new TerritoryDriftTermRuntime(TargetPath.Parse(source), transform, coefficientPpm);
         }
 
         private static void AssertConstants(TerritoryRuntimePlan plan)

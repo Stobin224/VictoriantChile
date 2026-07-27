@@ -456,6 +456,9 @@ namespace VictoriantChile.Simulation.Core.Territory
                         throw new ArgumentException("Territory drift binding order or output is not canonical.", nameof(driftBindings));
                     }
 
+                    ValidateDriftCause(binding, regionId, field, nameof(driftBindings));
+                    ValidateDriftTerms(binding, regionId, field, nameof(driftBindings));
+
                     if (!driftLookup.AddIfAbsent(binding.OutputTarget, binding))
                     {
                         throw new ArgumentException("Territory drift bindings cannot contain duplicate outputs.", nameof(driftBindings));
@@ -472,6 +475,100 @@ namespace VictoriantChile.Simulation.Core.Territory
             }
 
             return Array.AsReadOnly(snapshot.ToArray());
+        }
+
+        private static void ValidateDriftCause(
+            TerritoryDriftBindingRuntime binding,
+            string regionId,
+            TerritoryDynamicFieldRuntime field,
+            string parameterName)
+        {
+            string expected = "SYSTEM:REG_DRIFT.regions." + regionId + "." + TerritoryCauseMaterializer.FieldToTargetSegment(field);
+            if (binding.Cause == null
+                || binding.Cause.Category != CauseCategory.System
+                || binding.Cause.Parent != null
+                || !string.Equals(binding.Cause.CanonicalKey, expected, StringComparison.Ordinal))
+            {
+                throw new ArgumentException("Territory drift CauseRef is not contractual for its binding.", parameterName);
+            }
+        }
+
+        private static void ValidateDriftTerms(
+            TerritoryDriftBindingRuntime binding,
+            string regionId,
+            TerritoryDynamicFieldRuntime field,
+            string parameterName)
+        {
+            if (field == TerritoryDynamicFieldRuntime.Support)
+            {
+                ValidateTerms(binding, parameterName, new[]
+                {
+                    ExpectedTerm("metrics.legitimacy", TerritoryDriftTransformRuntime.ValueMinusMid, 600000),
+                    ExpectedTerm("metrics.party_organization", TerritoryDriftTransformRuntime.ValueMinusMid, 300000),
+                    ExpectedTerm("metrics.social_tension", TerritoryDriftTransformRuntime.ValueMinusMid, -400000)
+                });
+                return;
+            }
+
+            if (field == TerritoryDynamicFieldRuntime.Tension)
+            {
+                ValidateTerms(binding, parameterName, new[]
+                {
+                    ExpectedTerm("metrics.economy", TerritoryDriftTransformRuntime.MidMinusValue, 500000),
+                    ExpectedTerm("metrics.security", TerritoryDriftTransformRuntime.MidMinusValue, 400000),
+                    ExpectedTerm("metrics.public_agenda", TerritoryDriftTransformRuntime.ValueMinusMid, 300000)
+                });
+                return;
+            }
+
+            if (field == TerritoryDynamicFieldRuntime.Organization)
+            {
+                ValidateTerms(binding, parameterName, new[]
+                {
+                    ExpectedTerm("metrics.party_organization", TerritoryDriftTransformRuntime.ValueMinusMid, 800000)
+                });
+                return;
+            }
+
+            if (field == TerritoryDynamicFieldRuntime.RivalPresence)
+            {
+                ValidateTerms(binding, parameterName, new[]
+                {
+                    ExpectedTerm("regions." + regionId + ".support", TerritoryDriftTransformRuntime.MidMinusValue, 700000),
+                    ExpectedTerm("metrics.internal_cohesion", TerritoryDriftTransformRuntime.MidMinusValue, 200000)
+                });
+                return;
+            }
+
+            throw new ArgumentException("Unknown territory drift field.", parameterName);
+        }
+
+        private static ExpectedDriftTerm ExpectedTerm(string source, TerritoryDriftTransformRuntime transform, int coefficientPpm)
+        {
+            return new ExpectedDriftTerm(TargetPath.Parse(source), transform, coefficientPpm);
+        }
+
+        private static void ValidateTerms(
+            TerritoryDriftBindingRuntime binding,
+            string parameterName,
+            IReadOnlyList<ExpectedDriftTerm> expected)
+        {
+            if (binding.Terms.Count != expected.Count)
+            {
+                throw new ArgumentException("Territory drift term count is not contractual.", parameterName);
+            }
+
+            for (int i = 0; i < expected.Count; i++)
+            {
+                TerritoryDriftTermRuntime term = binding.Terms[i];
+                if (term == null
+                    || term.Source != expected[i].Source
+                    || term.Transform != expected[i].Transform
+                    || term.CoefficientPpm != expected[i].CoefficientPpm)
+                {
+                    throw new ArgumentException("Territory drift term is not contractual for its binding.", parameterName);
+                }
+            }
         }
 
         private static IReadOnlyList<TerritoryPullBindingRuntime> SnapshotPullBindings(
@@ -536,6 +633,8 @@ namespace VictoriantChile.Simulation.Core.Territory
                     throw new ArgumentException("Territory pull binding order or destination is not canonical.", nameof(pullBindings));
                 }
 
+                ValidatePullCause(binding, destinations[i], nameof(pullBindings));
+
                 if (!pullIdLookup.AddIfAbsent(binding.BindingId, binding))
                 {
                     throw new ArgumentException("Territory pull bindings cannot contain duplicate ids.", nameof(pullBindings));
@@ -555,6 +654,37 @@ namespace VictoriantChile.Simulation.Core.Territory
             }
 
             return Array.AsReadOnly(snapshot.ToArray());
+        }
+
+        private static void ValidatePullCause(
+            TerritoryPullBindingRuntime binding,
+            TargetPath destination,
+            string parameterName)
+        {
+            string expected = "SYSTEM:REG_TO_INT." + destination.ToString();
+            if (binding.Cause == null
+                || binding.Cause.Category != CauseCategory.System
+                || binding.Cause.Parent != null
+                || !string.Equals(binding.Cause.CanonicalKey, expected, StringComparison.Ordinal))
+            {
+                throw new ArgumentException("Territory pull CauseRef is not contractual for its binding.", parameterName);
+            }
+        }
+
+        private readonly struct ExpectedDriftTerm
+        {
+            public ExpectedDriftTerm(TargetPath source, TerritoryDriftTransformRuntime transform, int coefficientPpm)
+            {
+                Source = source;
+                Transform = transform;
+                CoefficientPpm = coefficientPpm;
+            }
+
+            public TargetPath Source { get; }
+
+            public TerritoryDriftTransformRuntime Transform { get; }
+
+            public int CoefficientPpm { get; }
         }
     }
 
