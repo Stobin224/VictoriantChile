@@ -10,6 +10,7 @@ using VictoriantChile.Content.Diagnostics;
 using VictoriantChile.Content.Models;
 using VictoriantChile.Simulation.Core.Aggregation;
 using VictoriantChile.Simulation.Core.Targets;
+using VictoriantChile.Simulation.Core.Territory;
 
 namespace VictoriantChile.Content.Loading
 {
@@ -263,6 +264,7 @@ namespace VictoriantChile.Content.Loading
             ContentLocalizationTable localization = null;
             AggregationConfig aggregationConfig = null;
             AggregationRuntimePlan aggregationRuntimePlan = null;
+            TerritoryRuntimePlan territoryRuntimePlan = null;
             LegislativeConfig legislativeConfig = null;
             List<EffectTemplate> effects = null;
             List<EventTemplate> events = null;
@@ -307,6 +309,11 @@ namespace VictoriantChile.Content.Loading
                 }
             }
 
+            if (targetCatalog != null && regions != null && !HasErrors())
+            {
+                territoryRuntimePlan = CompileTerritoryRuntimePlanForLoad(regions, targetCatalog);
+            }
+
             if (targetCatalog != null && verifiedFiles.TryGetValue(LegislativeConfigPath, out byte[] legislativeBytes))
             {
                 legislativeConfig = LoadLegislativeConfig(ParseObject(LegislativeConfigPath, legislativeBytes), targetCatalog);
@@ -342,7 +349,7 @@ namespace VictoriantChile.Content.Loading
                 return new ContentLoadResult(null, _diagnostics);
             }
 
-            ContentPack pack = new ContentPack(manifest, targetConfigs, regions, interestGroups, movements, localization, aggregationConfig, aggregationRuntimePlan, legislativeConfig, effects, events, reforms);
+            ContentPack pack = new ContentPack(manifest, targetConfigs, regions, interestGroups, movements, localization, aggregationConfig, aggregationRuntimePlan, territoryRuntimePlan, legislativeConfig, effects, events, reforms);
             return new ContentLoadResult(pack, _diagnostics);
         }
 
@@ -367,6 +374,34 @@ namespace VictoriantChile.Content.Loading
             catch (InvalidOperationException)
             {
                 Add(ContentDiagnosticCode.AggregationPassFieldConflict, AggregationConfigPath, "$", "Aggregation runtime plan validation failed.");
+            }
+
+            return null;
+        }
+
+        private TerritoryRuntimePlan CompileTerritoryRuntimePlanForLoad(
+            IReadOnlyList<RegionDefinition> regions,
+            TargetConfigCatalog targetCatalog)
+        {
+            try
+            {
+                return ContentPack.CompileTerritoryRuntimePlan(regions, targetCatalog);
+            }
+            catch (ContentTerritoryCompileException exception)
+            {
+                Add(exception.Code, exception.RelativeFile, exception.JsonPath, exception.Message);
+            }
+            catch (ArgumentException)
+            {
+                Add(ContentDiagnosticCode.TerritoryPlanInvalid, RegionsPath, "$.regions", "Territory runtime plan validation failed.");
+            }
+            catch (KeyNotFoundException)
+            {
+                Add(ContentDiagnosticCode.TerritoryPlanInvalid, TargetConfigPath, "$", "Territory runtime plan validation failed.");
+            }
+            catch (InvalidOperationException)
+            {
+                Add(ContentDiagnosticCode.TerritoryPlanInvalid, RegionsPath, "$.regions", "Territory runtime plan validation failed.");
             }
 
             return null;
