@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using VictoriantChile.Content.Diagnostics;
 using VictoriantChile.Simulation.Core.Aggregation;
+using VictoriantChile.Simulation.Core.Causality;
 using VictoriantChile.Simulation.Core.Effects;
 using VictoriantChile.Simulation.Core.Targets;
+using VictoriantChile.Simulation.Core.Territory;
 
 namespace VictoriantChile.Content.Models
 {
@@ -1481,6 +1483,7 @@ namespace VictoriantChile.Content.Models
                 localization,
                 aggregationConfig,
                 aggregationConfig == null ? null : CompileAggregationRuntimePlan(aggregationConfig),
+                null,
                 legislativeConfig,
                 effects,
                 events,
@@ -1497,6 +1500,7 @@ namespace VictoriantChile.Content.Models
             ContentLocalizationTable localization,
             AggregationConfig aggregationConfig,
             AggregationRuntimePlan aggregationRuntimePlan,
+            TerritoryRuntimePlan territoryRuntimePlan,
             LegislativeConfig legislativeConfig,
             IEnumerable<EffectTemplate> effects,
             IEnumerable<EventTemplate> events,
@@ -1523,6 +1527,7 @@ namespace VictoriantChile.Content.Models
             Localization = localization;
             AggregationConfig = aggregationConfig;
             AggregationRuntimePlan = aggregationRuntimePlan;
+            TerritoryRuntimePlan = territoryRuntimePlan;
             LegislativeConfig = legislativeConfig;
             Effects = Array.AsReadOnly(effectSnapshot);
             EffectsById = ModelSnapshot.Dictionary(MapEffectsById(effectSnapshot), nameof(effects));
@@ -1564,6 +1569,8 @@ namespace VictoriantChile.Content.Models
         public EffectRuntimeCatalog EffectRuntimeCatalog { get; }
 
         public AggregationRuntimePlan AggregationRuntimePlan { get; }
+
+        public TerritoryRuntimePlan TerritoryRuntimePlan { get; }
 
         public IReadOnlyList<EventTemplate> Events { get; }
 
@@ -1768,6 +1775,304 @@ namespace VictoriantChile.Content.Models
                 primaryPass,
                 legitimacyPass);
         }
+
+        public static TerritoryRuntimePlan CompileTerritoryRuntimePlan(
+            IReadOnlyList<RegionDefinition> regions,
+            TargetConfigCatalog targetCatalog)
+        {
+            if (regions == null)
+            {
+                throw TerritoryCompileError(ContentDiagnosticCode.TerritoryPlanInvalid, RegionsPathForDiagnostics, "$.regions", "Territory regions collection is required.");
+            }
+
+            if (targetCatalog == null)
+            {
+                throw TerritoryCompileError(ContentDiagnosticCode.TerritoryPlanInvalid, TargetConfigPathForDiagnostics, "$", "Territory target config catalog is required.");
+            }
+
+            TerritoryRegionRuntime[] regionRuntime = CompileTerritoryRegions(regions);
+            TerritoryDriftBindingRuntime[] driftBindings = CompileTerritoryDriftBindings(regionRuntime, targetCatalog);
+            TerritoryPullBindingRuntime[] pullBindings = CompileTerritoryPullBindings(targetCatalog);
+
+            return new TerritoryRuntimePlan(
+                TerritoryRuntimePlan.RequiredScale,
+                TerritoryRuntimePlan.RequiredMidS,
+                TerritoryRuntimePlan.PpmDenominator,
+                TerritoryRuntimePlan.DriftAlphaPpm,
+                TerritoryRuntimePlan.DriftCapPerWeekS,
+                TerritoryRuntimePlan.DriftHalfLifeWeeksMetadata,
+                TerritoryRuntimePlan.PullAlphaPpm,
+                TerritoryRuntimePlan.PullCapPerWeekS,
+                TerritoryRuntimePlan.PullWeightedAverageDenominator,
+                Array.AsReadOnly(regionRuntime),
+                Array.AsReadOnly(driftBindings),
+                Array.AsReadOnly(pullBindings));
+        }
+
+        private static TerritoryRegionRuntime[] CompileTerritoryRegions(IReadOnlyList<RegionDefinition> regions)
+        {
+            string[] expected = TerritoryExpectedRegionIds();
+            if (regions.Count != TerritoryRuntimePlan.RequiredRegionCount)
+            {
+                throw TerritoryCompileError(ContentDiagnosticCode.TerritoryPlanInvalid, RegionsPathForDiagnostics, "$.regions", "Territory plan requires exactly 16 regions.");
+            }
+
+            TerritoryRegionRuntime[] result = new TerritoryRegionRuntime[regions.Count];
+            HashSet<string> ids = new HashSet<string>(StringComparer.Ordinal);
+            long weightSum = 0;
+            for (int i = 0; i < regions.Count; i++)
+            {
+                RegionDefinition region = regions[i];
+                string rowPath = "$.regions[" + i + "]";
+                if (region == null)
+                {
+                    throw TerritoryCompileError(ContentDiagnosticCode.TerritoryPlanInvalid, RegionsPathForDiagnostics, rowPath, "Territory regions cannot contain null entries.");
+                }
+
+                if (!ids.Add(region.Id))
+                {
+                    throw TerritoryCompileError(ContentDiagnosticCode.TerritoryPlanInvalid, RegionsPathForDiagnostics, rowPath + ".id", "Duplicate territory region id.");
+                }
+
+                if (!string.Equals(region.Id, expected[i], StringComparison.Ordinal))
+                {
+                    throw TerritoryCompileError(ContentDiagnosticCode.TerritoryPlanInvalid, RegionsPathForDiagnostics, rowPath + ".id", "Territory region order is not canonical.");
+                }
+
+                if (region.WeightPpm <= 0)
+                {
+                    throw TerritoryCompileError(ContentDiagnosticCode.TerritoryPlanInvalid, RegionsPathForDiagnostics, rowPath + ".weight_ppm", "Territory region weight_ppm must be positive.");
+                }
+
+                if (region.WeightPpm != TerritoryRuntimePlan.RequiredRegionWeightPpm)
+                {
+                    throw TerritoryCompileError(ContentDiagnosticCode.TerritoryPlanInvalid, RegionsPathForDiagnostics, rowPath + ".weight_ppm", "Territory region weight_ppm must be exactly 62500.");
+                }
+
+                ValidateTerritoryResource(region.AdminCapS, rowPath + ".admin_capS");
+                ValidateTerritoryResource(region.IndustryCapS, rowPath + ".industry_capS");
+                ValidateTerritoryResource(region.ExtractiveCapS, rowPath + ".extractive_capS");
+                ValidateTerritoryResource(region.SocialCapS, rowPath + ".social_capS");
+                ValidateTerritoryResource(region.PopulationS, rowPath + ".populationS");
+
+                weightSum = checked(weightSum + region.WeightPpm);
+                result[i] = new TerritoryRegionRuntime(
+                    region.Id,
+                    region.WeightPpm,
+                    region.AdminCapS,
+                    region.IndustryCapS,
+                    region.ExtractiveCapS,
+                    region.SocialCapS,
+                    region.PopulationS);
+            }
+
+            if (weightSum != TerritoryRuntimePlan.RequiredRegionWeightSumPpm)
+            {
+                throw TerritoryCompileError(ContentDiagnosticCode.TerritoryPlanInvalid, RegionsPathForDiagnostics, "$.regions", "Territory region weight_ppm sum must be exactly 1_000_000.");
+            }
+
+            return result;
+        }
+
+        private static TerritoryDriftBindingRuntime[] CompileTerritoryDriftBindings(
+            IReadOnlyList<TerritoryRegionRuntime> regions,
+            TargetConfigCatalog targetCatalog)
+        {
+            TerritoryDriftBindingRuntime[] result = new TerritoryDriftBindingRuntime[TerritoryRuntimePlan.RequiredDriftBindingCount];
+            int index = 0;
+            for (int regionIndex = 0; regionIndex < regions.Count; regionIndex++)
+            {
+                TerritoryRegionRuntime region = regions[regionIndex];
+                TerritoryDynamicFieldRuntime[] fields = TerritoryExpectedFields();
+                for (int fieldIndex = 0; fieldIndex < fields.Length; fieldIndex++)
+                {
+                    TerritoryDynamicFieldRuntime field = fields[fieldIndex];
+                    TargetPath output = TargetPath.Parse("regions." + region.RegionId + "." + TerritoryCauseMaterializer.FieldToTargetSegment(field));
+                    TargetConfig outputConfig = ResolveTerritoryConfig(targetCatalog, output, RegionsPathForDiagnostics, "$.regions[" + regionIndex + "].id");
+                    CauseRef cause = TerritoryCauseMaterializer.MaterializeDrift(region.RegionId, field);
+                    result[index] = new TerritoryDriftBindingRuntime(
+                        region.RegionId,
+                        field,
+                        output,
+                        outputConfig,
+                        cause,
+                        CompileTerritoryTerms(region.RegionId, field));
+                    index++;
+                }
+            }
+
+            return result;
+        }
+
+        private static IReadOnlyList<TerritoryDriftTermRuntime> CompileTerritoryTerms(string regionId, TerritoryDynamicFieldRuntime field)
+        {
+            if (field == TerritoryDynamicFieldRuntime.Support)
+            {
+                return Array.AsReadOnly(new[]
+                {
+                    Term("metrics.legitimacy", TerritoryDriftTransformRuntime.ValueMinusMid, 600000),
+                    Term("metrics.party_organization", TerritoryDriftTransformRuntime.ValueMinusMid, 300000),
+                    Term("metrics.social_tension", TerritoryDriftTransformRuntime.ValueMinusMid, -400000)
+                });
+            }
+
+            if (field == TerritoryDynamicFieldRuntime.Tension)
+            {
+                return Array.AsReadOnly(new[]
+                {
+                    Term("metrics.economy", TerritoryDriftTransformRuntime.MidMinusValue, 500000),
+                    Term("metrics.security", TerritoryDriftTransformRuntime.MidMinusValue, 400000),
+                    Term("metrics.public_agenda", TerritoryDriftTransformRuntime.ValueMinusMid, 300000)
+                });
+            }
+
+            if (field == TerritoryDynamicFieldRuntime.Organization)
+            {
+                return Array.AsReadOnly(new[]
+                {
+                    Term("metrics.party_organization", TerritoryDriftTransformRuntime.ValueMinusMid, 800000)
+                });
+            }
+
+            if (field == TerritoryDynamicFieldRuntime.RivalPresence)
+            {
+                return Array.AsReadOnly(new[]
+                {
+                    Term("regions." + regionId + ".support", TerritoryDriftTransformRuntime.MidMinusValue, 700000),
+                    Term("metrics.internal_cohesion", TerritoryDriftTransformRuntime.MidMinusValue, 200000)
+                });
+            }
+
+            throw TerritoryCompileError(ContentDiagnosticCode.TerritoryPlanInvalid, RegionsPathForDiagnostics, "$.regions", "Unknown territory drift field.");
+        }
+
+        private static TerritoryPullBindingRuntime[] CompileTerritoryPullBindings(TargetConfigCatalog targetCatalog)
+        {
+            string[] ids =
+            {
+                "support_to_coalition_strength",
+                "organization_to_field_ops",
+                "tension_to_protest_activity",
+                "rival_presence_to_opposition_obstruction",
+                "tension_to_movement_salience"
+            };
+
+            TerritoryDynamicFieldRuntime[] fields =
+            {
+                TerritoryDynamicFieldRuntime.Support,
+                TerritoryDynamicFieldRuntime.Organization,
+                TerritoryDynamicFieldRuntime.Tension,
+                TerritoryDynamicFieldRuntime.RivalPresence,
+                TerritoryDynamicFieldRuntime.Tension
+            };
+
+            string[] destinations =
+            {
+                "internals.leg.coalition_strength",
+                "internals.party.field_ops",
+                "internals.tension.protest_activity",
+                "internals.leg.opposition_obstruction",
+                "internals.agenda.movement_salience"
+            };
+
+            TerritoryPullBindingRuntime[] result = new TerritoryPullBindingRuntime[ids.Length];
+            for (int i = 0; i < ids.Length; i++)
+            {
+                TargetPath destination = TargetPath.Parse(destinations[i]);
+                TargetConfig destinationConfig = ResolveTerritoryConfig(targetCatalog, destination, TargetConfigPathForDiagnostics, "$");
+                result[i] = new TerritoryPullBindingRuntime(
+                    ids[i],
+                    fields[i],
+                    destination,
+                    destinationConfig,
+                    TerritoryCauseMaterializer.MaterializePull(destination));
+            }
+
+            return result;
+        }
+
+        private static TargetConfig ResolveTerritoryConfig(TargetConfigCatalog targetCatalog, TargetPath target, string relativeFile, string jsonPath)
+        {
+            if (!targetCatalog.TryResolve(target, out TargetConfig config))
+            {
+                throw TerritoryCompileError(ContentDiagnosticCode.TerritoryPlanInvalid, TargetConfigPathForDiagnostics, "$", "Missing TargetConfig for territory target " + target.ToString() + ".");
+            }
+
+            if (!config.Pattern.Matches(target))
+            {
+                throw TerritoryCompileError(ContentDiagnosticCode.TerritoryPlanInvalid, relativeFile, jsonPath, "Resolved TargetConfig path mismatch for " + target.ToString() + ".");
+            }
+
+            if (config.Scale != TerritoryRuntimePlan.RequiredScale
+                || config.MinS != 0
+                || config.MaxS != 10000
+                || config.DefaultS != TerritoryRuntimePlan.RequiredMidS)
+            {
+                throw TerritoryCompileError(ContentDiagnosticCode.TerritoryPlanInvalid, TargetConfigPathForDiagnostics, "$", "TargetConfig domain is incompatible with territory target " + target.ToString() + ".");
+            }
+
+            if (!config.Allows(TargetOperation.Set))
+            {
+                throw TerritoryCompileError(ContentDiagnosticCode.TerritoryPlanInvalid, TargetConfigPathForDiagnostics, "$", "TargetConfig for territory target " + target.ToString() + " must allow SET.");
+            }
+
+            return config;
+        }
+
+        private static TerritoryDriftTermRuntime Term(string target, TerritoryDriftTransformRuntime transform, int coefficientPpm)
+        {
+            return new TerritoryDriftTermRuntime(TargetPath.Parse(target), transform, coefficientPpm);
+        }
+
+        private static void ValidateTerritoryResource(int value, string jsonPath)
+        {
+            if (value < 0 || value > 10000)
+            {
+                throw TerritoryCompileError(ContentDiagnosticCode.TerritoryPlanInvalid, RegionsPathForDiagnostics, jsonPath, "Territory static regional resource must be in 0..10000.");
+            }
+        }
+
+        private static string[] TerritoryExpectedRegionIds()
+        {
+            return new[]
+            {
+                "arica_parinacota",
+                "tarapaca",
+                "antofagasta",
+                "atacama",
+                "coquimbo",
+                "valparaiso",
+                "metropolitana",
+                "ohiggins",
+                "maule",
+                "nuble",
+                "biobio",
+                "araucania",
+                "los_rios",
+                "los_lagos",
+                "aysen",
+                "magallanes"
+            };
+        }
+
+        private static TerritoryDynamicFieldRuntime[] TerritoryExpectedFields()
+        {
+            return new[]
+            {
+                TerritoryDynamicFieldRuntime.Support,
+                TerritoryDynamicFieldRuntime.Tension,
+                TerritoryDynamicFieldRuntime.Organization,
+                TerritoryDynamicFieldRuntime.RivalPresence
+            };
+        }
+
+        private static ContentTerritoryCompileException TerritoryCompileError(ContentDiagnosticCode code, string relativeFile, string jsonPath, string message)
+        {
+            return new ContentTerritoryCompileException(code, relativeFile, jsonPath, message);
+        }
+
+        private const string RegionsPathForDiagnostics = "core/regions.json";
+        private const string TargetConfigPathForDiagnostics = "rules/target_config.json";
 
         private static void ValidateAggregationConstants(AggregationConfig config)
         {
@@ -2159,6 +2464,23 @@ namespace VictoriantChile.Content.Models
     internal sealed class ContentAggregationCompileException : InvalidOperationException
     {
         public ContentAggregationCompileException(ContentDiagnosticCode code, string relativeFile, string jsonPath, string message)
+            : base(message)
+        {
+            Code = code;
+            RelativeFile = relativeFile ?? string.Empty;
+            JsonPath = jsonPath ?? string.Empty;
+        }
+
+        public ContentDiagnosticCode Code { get; }
+
+        public string RelativeFile { get; }
+
+        public string JsonPath { get; }
+    }
+
+    internal sealed class ContentTerritoryCompileException : InvalidOperationException
+    {
+        public ContentTerritoryCompileException(ContentDiagnosticCode code, string relativeFile, string jsonPath, string message)
             : base(message)
         {
             Code = code;
